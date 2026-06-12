@@ -53,41 +53,53 @@ export default function SessionForm({ dateActive }: Props) {
 
   // LECTURE DE LA BASE DE DONNÉES
 // LECTURE DE LA BASE DE DONNÉES
+  // LECTURE DE LA BASE DE DONNÉES
   useEffect(() => {
     const chargerSeance = async () => {
       const { data } = await supabase
         .from('workout_sets')
         .select('*')
         .eq('date', dateFormatee)
-        .order('created_at', { ascending: false }) // Trié par plus récent
+        .order('created_at', { ascending: true }) // <-- REMIS À TRUE POUR GARDER L'ORDRE (Squat en premier)
 
       if (data && data.length > 0) {
-        const listeExercices = data.map(item => {
-          const fallbackCoachTracking = item.coach_reps ? [{ reps: item.coach_reps.toString(), weight: item.coach_weight?.toString() || '', rpe: item.coach_rpe?.toString() || '' }] : [{ reps: '', weight: '', rpe: '' }];
-          
-          const savedCoachTracking = item.coach_tracking_data ? item.coach_tracking_data : fallbackCoachTracking;
-          let savedTracking = item.tracking_data ? [...item.tracking_data] : [{ reps: '', weight: '', rpe: '' }];
+        // L'iPhone met à jour la ligne la plus récente, on prend donc les métriques sur la DERNIÈRE ligne trouvée
+        const derniereLigne = data[data.length - 1];
 
-          if (savedTracking.length < savedCoachTracking.length) {
-            const lignesManquantes = savedCoachTracking.length - savedTracking.length;
-            for (let i = 0; i < lignesManquantes; i++) {
-              savedTracking.push({ reps: '', weight: '', rpe: '' });
+        // On nettoie : si la journée a de vrais exercices, on ignore la ligne "Repos" générée par l'iPhone
+        const vraisExercices = data.filter(item => item.exercise_name !== 'Repos' && item.exercise_name !== 'Jour de Repos');
+
+        if (vraisExercices.length > 0) {
+          const listeExercices = vraisExercices.map(item => {
+            const fallbackCoachTracking = item.coach_reps ? [{ reps: item.coach_reps.toString(), weight: item.coach_weight?.toString() || '', rpe: item.coach_rpe?.toString() || '' }] : [{ reps: '', weight: '', rpe: '' }];
+            const savedCoachTracking = item.coach_tracking_data ? item.coach_tracking_data : fallbackCoachTracking;
+            let savedTracking = item.tracking_data ? [...item.tracking_data] : [{ reps: '', weight: '', rpe: '' }];
+
+            if (savedTracking.length < savedCoachTracking.length) {
+              const lignesManquantes = savedCoachTracking.length - savedTracking.length;
+              for (let i = 0; i < lignesManquantes; i++) {
+                savedTracking.push({ reps: '', weight: '', rpe: '' });
+              }
             }
-          }
 
-          return {
-            id: item.id,
-            name: item.exercise_name || '',
-            coachTracking: savedCoachTracking,
-            tracking: savedTracking,
-            comments: item.comments || '',
-          }
-        });
+            return {
+              id: item.id,
+              name: item.exercise_name || '',
+              coachTracking: savedCoachTracking,
+              tracking: savedTracking,
+              comments: item.comments || '',
+            }
+          });
+          setExercices(listeExercices);
+        } else {
+          setExercices([creerExerciceVierge()]);
+        }
 
-        setExercices(listeExercices);
-        setFatigue(data[0].fatigue_score || 5);
-        setSommeil(data[0].sleep_hours || 8);
-        setPas(data[0].steps_count || 0); // Récupération des pas
+        // On applique les métriques globales
+        setFatigue(derniereLigne.fatigue_score || 5);
+        setSommeil(derniereLigne.sleep_hours || 8);
+        setPas(derniereLigne.steps_count || 0);
+
       } else {
         setExercices([creerExerciceVierge()]);
         setFatigue(5);
@@ -96,7 +108,7 @@ export default function SessionForm({ dateActive }: Props) {
       }
     };
     chargerSeance();
-  }, [dateActive, dateFormatee]); // Dépendances à jour
+  }, [dateActive, dateFormatee]);
 
   const creerExerciceVierge = (): ExerciceRow => ({
     id: null, name: '', 
@@ -162,7 +174,9 @@ export default function SessionForm({ dateActive }: Props) {
   // SAUVEGARDE POUR UNE SÉANCE NORMALE
   const handleSave = async () => {
     setLoading(true)
-    const promesses = exercices.map(ex => {
+    
+    // On ajoute 'index' ici pour connaître la position de l'exercice (0, 1, 2...)
+    const promesses = exercices.map((ex, index) => {
       const payload = {
         date: dateFormatee,
         exercise_name: ex.name || 'Exercice Non Défini',
@@ -171,8 +185,10 @@ export default function SessionForm({ dateActive }: Props) {
         comments: ex.comments || null,
         fatigue_score: fatigue,
         sleep_hours: sommeil,
-        steps_count: pas
+        steps_count: pas,
+        order_index: index // <-- C'est ici qu'on fige l'ordre exact !
       }
+      
       if (ex.id) return supabase.from('workout_sets').update(payload).eq('id', ex.id)
       else return supabase.from('workout_sets').insert([payload])
     })
@@ -182,14 +198,19 @@ export default function SessionForm({ dateActive }: Props) {
     setSaved(true)
     setTimeout(() => setSaved(false), 3000)
     
-    const { data } = await supabase.from('workout_sets').select('id').eq('date', dateFormatee).order('created_at', { ascending: true })
+    // On récupère les ID fraîchement créés, mais triés par notre nouvel ordre
+    const { data } = await supabase
+      .from('workout_sets')
+      .select('id')
+      .eq('date', dateFormatee)
+      .order('order_index', { ascending: true }) // <-- Trié par ordre d'affichage
+      
     if (data) {
       const listeMaj = [...exercices]
       data.forEach((d, i) => { if(listeMaj[i]) listeMaj[i].id = d.id })
       setExercices(listeMaj)
     }
   }
-
   // SAUVEGARDE SPÉCIFIQUE POUR LES JOURS DE REPOS (Uniquement les métriques)
   const handleSaveMetricsOnly = async () => {
     setLoading(true)
