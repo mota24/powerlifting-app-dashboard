@@ -60,7 +60,7 @@ export function StatsCards() {
             // APPLICATION D'UNE MÉTHODE PAR EXERCICE
             if (isSquat) {
               // 1. FORMULE SQUAT (Ex: Epley classique, très fiable sur le bas du corps)
-              e1rm = weight * (1 + (effectiveReps / 30))
+              e1rm = weight * (1 + (effectiveReps * 0.03372))
               
             } else if (isBench) {
               // 2. FORMULE BENCH (O'Conner - Celle qui te donne pile 182.7 kg)
