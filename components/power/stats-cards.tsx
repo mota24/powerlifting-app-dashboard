@@ -48,17 +48,30 @@ export function StatsCards() {
         row.tracking_data.forEach((set: any) => {
           const weight = parseFloat(set.weight)
           const reps = parseInt(set.reps)
-          const rpe = parseFloat(set.rpe) || 10 // Si pas de RPE, on considère un effort max (RPE 10)
+          const rpe = parseFloat(set.rpe) || 10
 
           if (weight > 0 && reps > 0) {
-            // Ton système intelligent : on calcule les reps "vraiment" possibles grâce au RPE
             const rir = 10 - rpe
             const effectiveReps = reps + rir
             
-            // LA NOUVELLE FORMULE (Identique à ton site de référence Workout Temple)
-            const e1rm = weight * (1 + (effectiveReps * 0.025))
+            // On initialise la variable du calcul
+            let e1rm = 0
 
-            // On met à jour le record s'il est plus grand
+            // APPLICATION D'UNE MÉTHODE PAR EXERCICE
+            if (isSquat) {
+              // 1. FORMULE SQUAT (Ex: Epley classique, très fiable sur le bas du corps)
+              e1rm = weight * (1 + (effectiveReps / 30))
+              
+            } else if (isBench) {
+              // 2. FORMULE BENCH (O'Conner - Celle qui te donne pile 182.7 kg)
+              e1rm = weight * (1 + (effectiveReps * 0.025))
+              
+            } else if (isDeadlift) {
+              // 3. FORMULE DEADLIFT (Ex: Brzycki, souvent préférée pour le terre)
+              e1rm = weight * (36 / (37 - effectiveReps))
+            }
+
+            // Mise à jour des maximums mémorisés
             if (isSquat && e1rm > maxS) maxS = e1rm
             if (isBench && e1rm > maxB) maxB = e1rm
             if (isDeadlift && e1rm > maxD) maxD = e1rm
