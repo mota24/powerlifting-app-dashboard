@@ -9,19 +9,17 @@ interface Props {
   dateActive: Date;
 }
 
-// Le modèle d'une SÉRIE individuelle (valable pour Coach et Athlète)
 interface SetData {
   reps: string;
   weight: string;
   rpe: string;
 }
 
-// Le modèle d'un EXERCICE
 interface ExerciceRow {
   id: string | null;
   name: string;
-  coachTracking: SetData[]; // Tableau des séries prescrites
-  tracking: SetData[];      // Tableau des séries réalisées
+  coachTracking: SetData[]; 
+  tracking: SetData[];      
   comments: string;
 }
 
@@ -53,7 +51,7 @@ export default function SessionForm({ dateActive }: Props) {
     }
   }
 
-  // LECTURE DE LA BASE DE DONNÉES
+  // LECTURE INTELLIGENTE
   useEffect(() => {
     const chargerSeance = async () => {
       const { data, error } = await supabase
@@ -64,12 +62,20 @@ export default function SessionForm({ dateActive }: Props) {
 
       if (data && data.length > 0) {
         const listeExercices = data.map(item => {
-          // Conversion de l'ancienne méthode Coach vers la nouvelle (au cas où tu as d'anciennes sauvegardes)
           const fallbackCoachTracking = item.coach_reps ? [{ reps: item.coach_reps.toString(), weight: item.coach_weight?.toString() || '', rpe: item.coach_rpe?.toString() || '' }] : [{ reps: '', weight: '', rpe: '' }];
           
           const savedCoachTracking = item.coach_tracking_data ? item.coach_tracking_data : fallbackCoachTracking;
-          const savedTracking = item.tracking_data ? item.tracking_data : [{ reps: '', weight: '', rpe: '' }];
-          
+          let savedTracking = item.tracking_data ? [...item.tracking_data] : [{ reps: '', weight: '', rpe: '' }];
+
+          // MAGIE : Alignement automatique au chargement !
+          // Si le coach a 5 séries, on s'assure que l'athlète a 5 cases prêtes
+          if (savedTracking.length < savedCoachTracking.length) {
+            const lignesManquantes = savedCoachTracking.length - savedTracking.length;
+            for (let i = 0; i < lignesManquantes; i++) {
+              savedTracking.push({ reps: '', weight: '', rpe: '' });
+            }
+          }
+
           return {
             id: item.id,
             name: item.exercise_name || '',
@@ -99,7 +105,6 @@ export default function SessionForm({ dateActive }: Props) {
     comments: '' 
   })
 
-  // GESTION GLOBALE DES EXERCICES
   const ajouterExercice = () => setExercices([...exercices, creerExerciceVierge()])
   const supprimerExercice = async (index: number, dbId: string | null) => {
     if (dbId) await supabase.from('workout_sets').delete().eq('id', dbId)
@@ -122,11 +127,17 @@ export default function SessionForm({ dateActive }: Props) {
   const ajouterSerieCoach = (exIndex: number) => {
     const nouvelleListe = [...exercices]
     nouvelleListe[exIndex].coachTracking.push({ reps: '', weight: '', rpe: '' })
+    // MAGIE : On ajoute simultanément la ligne côté Athlète
+    nouvelleListe[exIndex].tracking.push({ reps: '', weight: '', rpe: '' })
     setExercices(nouvelleListe)
   }
   const supprimerSerieCoach = (exIndex: number, setIndex: number) => {
     const nouvelleListe = [...exercices]
     nouvelleListe[exIndex].coachTracking.splice(setIndex, 1)
+    // MAGIE : On supprime simultanément la ligne côté Athlète
+    if (nouvelleListe[exIndex].tracking.length > nouvelleListe[exIndex].coachTracking.length) {
+      nouvelleListe[exIndex].tracking.splice(setIndex, 1)
+    }
     setExercices(nouvelleListe)
   }
   const updateSerieCoach = (exIndex: number, setIndex: number, champ: keyof SetData, valeur: string) => {
@@ -152,15 +163,14 @@ export default function SessionForm({ dateActive }: Props) {
     setExercices(nouvelleListe)
   }
 
-  // SAUVEGARDE
   const handleSave = async () => {
     setLoading(true)
     const promesses = exercices.map(ex => {
       const payload = {
         date: dateFormatee,
         exercise_name: ex.name || 'Exercice Non Défini',
-        coach_tracking_data: ex.coachTracking, // Nouveau payload Coach
-        tracking_data: ex.tracking, // Payload Athlète
+        coach_tracking_data: ex.coachTracking,
+        tracking_data: ex.tracking,
         comments: ex.comments || null,
         fatigue_score: fatigue,
         sleep_hours: sommeil,
@@ -210,7 +220,6 @@ export default function SessionForm({ dateActive }: Props) {
         {exercices.map((ex, exIndex) => (
           <div key={exIndex} className="p-4 rounded-xl border border-slate-800 bg-slate-900/50 space-y-4 relative group shadow-sm">
             
-            {/* EN-TÊTE EXERCICE */}
             <div className="flex items-center gap-3">
               <div className="bg-slate-800 text-slate-400 px-3 py-1 rounded-md text-sm font-bold">{exIndex + 1}</div>
               <input 
@@ -288,19 +297,18 @@ export default function SessionForm({ dateActive }: Props) {
                 </div>
 
                 <button onClick={() => ajouterSerieAthlete(exIndex)} className="mt-3 w-full py-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 text-xs font-bold rounded-lg flex items-center justify-center gap-2 transition-colors">
-                  <Plus className="size-3" /> Ajouter une série validée
+                  <Plus className="size-3" /> Série extra (Athlète)
                 </button>
               </div>
             </div>
 
-            {/* SECTION COMMENTAIRES */}
             <div className="mt-2 pt-3 border-t border-slate-800/50">
               <div className="flex items-center gap-2 mb-2 text-slate-400">
                 <MessageSquare className="size-4" /> 
                 <span className="text-[10px] font-bold uppercase tracking-wider">Notes & Tempo</span>
               </div>
               <input 
-                placeholder="Ex: Tempo 3-1-0, back-off plus lourd, douleur..." 
+                placeholder="Ex: Tempo 3-1-0, douleur épaule..." 
                 value={ex.comments} 
                 onChange={(e) => updateExerciceCommentaire(exIndex, e.target.value)} 
                 className="w-full p-2 bg-transparent border border-slate-800 rounded-md text-sm text-slate-300 outline-none focus:border-blue-500"
