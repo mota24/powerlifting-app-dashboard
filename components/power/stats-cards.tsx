@@ -68,7 +68,7 @@ export function StatsCards() {
               
             } else if (isDeadlift) {
               // 3. FORMULE DEADLIFT (Ex: Brzycki, souvent préférée pour le terre)
-              e1rm = weight * (36 / (37 - effectiveReps))
+              e1rm = weight * (1 + (effectiveReps * 0.0428))
             }
 
             // Mise à jour des maximums mémorisés
