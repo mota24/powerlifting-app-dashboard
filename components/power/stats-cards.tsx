@@ -48,14 +48,17 @@ export function StatsCards() {
         row.tracking_data.forEach((set: any) => {
           const weight = parseFloat(set.weight)
           const reps = parseInt(set.reps)
-          const rpe = parseFloat(set.rpe) || 10 // Si pas de RPE, on considère RPE 10 (0 RIR)
+          const rpe = parseFloat(set.rpe) || 10 // Si pas de RPE, on considère un effort max (RPE 10)
 
           if (weight > 0 && reps > 0) {
-            // L'algorithme mathématique (Epley + RPE)
+            // Ton système intelligent : on calcule les reps "vraiment" possibles grâce au RPE
             const rir = 10 - rpe
             const effectiveReps = reps + rir
-            const e1rm = weight * (1 + (effectiveReps / 30))
+            
+            // LA NOUVELLE FORMULE (Identique à ton site de référence Workout Temple)
+            const e1rm = weight * (1 + (effectiveReps * 0.025))
 
+            // On met à jour le record s'il est plus grand
             if (isSquat && e1rm > maxS) maxS = e1rm
             if (isBench && e1rm > maxB) maxB = e1rm
             if (isDeadlift && e1rm > maxD) maxD = e1rm
