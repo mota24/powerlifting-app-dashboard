@@ -96,16 +96,21 @@ export default function Page() {
 
         <div className="flex items-center gap-2">
           
-          {/* NOUVEAU : BOUTON ACCUEIL RAPIDE (À la place de l'engrenage) */}
+          {/* BOUTON ACCUEIL RAPIDE */}
           <button 
             onClick={() => changerVue('accueil')} 
-            className="flex items-center justify-center p-2 rounded-md bg-secondary/50 hover:bg-secondary border border-border transition-colors text-slate-400 hover:text-white"
+            className={cn(
+              "flex items-center justify-center p-2 rounded-md border transition-colors",
+              vueActive === 'accueil' 
+                ? "bg-primary/10 border-primary/20 text-primary" 
+                : "bg-secondary/50 border-border hover:bg-secondary text-slate-400 hover:text-white"
+            )}
             title="Retour à l'accueil"
           >
             <Home className="size-5" />
           </button>
 
-          {/* MENU PRINCIPAL */}
+          {/* MENU DE NAVIGATION CONTENANT UNIQUEMENT LES 3 OPTIONS */}
           <div className="relative">
             <button onClick={() => setMenuOuvert(!menuOuvert)} className="flex items-center justify-center p-2 rounded-md bg-secondary/50 hover:bg-secondary border border-border transition-colors">
               {menuOuvert ? <X className="size-5" /> : <Menu className="size-5" />}
@@ -113,13 +118,9 @@ export default function Page() {
 
             {menuOuvert && (
               <div className="absolute top-12 right-0 w-56 bg-card border border-border p-2 rounded-lg shadow-xl flex flex-col gap-1 z-50">
-                <button onClick={() => changerVue('accueil')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'accueil' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Home className="size-4" /> Accueil</button>
                 <button onClick={() => changerVue('analytique')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'analytique' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><BarChart2 className="size-4" /> Analytique</button>
                 <button onClick={() => changerVue('outils')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'outils' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Wrench className="size-4" /> Outils</button>
-                
-                <div className="h-px bg-border my-1"></div>
-                
-                <button onClick={() => changerVue('configuration')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'configuration' ? "bg-blue-500/10 text-blue-400 font-medium" : "hover:bg-secondary text-foreground")}><Settings className="size-4" /> Configuration</button>
+                <button onClick={() => changerVue('configuration')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'configuration' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Settings className="size-4" /> Configuration</button>
               </div>
             )}
           </div>
