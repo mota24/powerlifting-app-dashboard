@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Target, Activity, Check, Moon, Footprints, Battery } from 'lucide-react'
+import { Target, Activity, Check, Moon, Footprints, Battery, Coffee } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -37,10 +37,9 @@ export default function SessionForm({ dateActive }: Props) {
         .from('workout_sets')
         .select('*')
         .eq('date', dateFormatee)
-        .order('created_at', { ascending: false }) // Prend TOUJOURS la plus récente
+        .order('created_at', { ascending: false })
         .limit(1)
 
-      // Si on trouve une donnée, on remplit TOUTES les cases
       if (data && data.length > 0) {
         const seance = data[0]
         setSessionId(seance.id)
@@ -52,10 +51,9 @@ export default function SessionForm({ dateActive }: Props) {
         setAthleteReps(seance.athlete_reps?.toString() || '')
         setAthleteRpe(seance.athlete_rpe?.toString() || '')
         setFatigue(seance.fatigue_score || 5)
-        setSommeil(seance.sleep_hours || 8) // Nouveau !
-        setPas(seance.steps_count || 8000) // Nouveau !
+        setSommeil(seance.sleep_hours || 8)
+        setPas(seance.steps_count || 8000)
       } else {
-        // Aucune séance ce jour-là : formulaire vierge
         setSessionId(null)
         setExercice('')
         setCoachWeight('')
@@ -76,7 +74,6 @@ export default function SessionForm({ dateActive }: Props) {
   const handleSave = async () => {
     setLoading(true)
     
-    // Le paquet de données envoyé à Supabase
     const payload = {
       date: dateFormatee,
       exercise_name: exercice || 'Exercice Non Défini',
@@ -87,8 +84,8 @@ export default function SessionForm({ dateActive }: Props) {
       athlete_reps: athleteReps ? parseInt(athleteReps) : null,
       athlete_rpe: athleteRpe ? parseFloat(athleteRpe) : null,
       fatigue_score: fatigue,
-      sleep_hours: sommeil, // Ajouté à l'enregistrement
-      steps_count: pas      // Ajouté à l'enregistrement
+      sleep_hours: sommeil,
+      steps_count: pas
     }
 
     let result;
@@ -105,13 +102,31 @@ export default function SessionForm({ dateActive }: Props) {
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
       
-      // Sécurise l'ID pour ne pas créer de doublons si on re-sauvegarde direct
       if (!sessionId) {
         const { data } = await supabase.from('workout_sets').select('id').eq('date', dateFormatee).order('created_at', { ascending: false }).limit(1)
         if (data && data.length > 0) setSessionId(data[0].id)
       }
     }
   }
+
+  // --- LE BLOCAGE DES JOURS DE REPOS ---
+  // JS : Dimanche = 0, Vendredi = 5
+  const estJourDeRepos = dateActive.getDay() === 0 || dateActive.getDay() === 5
+
+  if (estJourDeRepos) {
+    return (
+      <div className="p-8 rounded-xl border border-slate-800 bg-slate-900/30 flex flex-col items-center justify-center text-center space-y-4 animate-in fade-in">
+        <div className="p-4 bg-slate-800/50 rounded-full">
+          <Coffee className="size-8 text-slate-400" />
+        </div>
+        <div>
+          <h2 className="text-lg font-bold text-slate-200">Jour de Repos</h2>
+          <p className="text-sm text-slate-500 mt-1">La récupération fait partie de l'entraînement. <br/>Aucune séance à saisir aujourd'hui.</p>
+        </div>
+      </div>
+    )
+  }
+  // ------------------------------------
 
   return (
     <div className="space-y-6 animate-in fade-in">
