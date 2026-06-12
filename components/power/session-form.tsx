@@ -159,26 +159,55 @@ export default function SessionForm({ dateActive }: Props) {
   }
 
   const propagerSemaine1VersBloc = async () => {
-    if (!confirm("Voulez-vous copier les exercices de cette séance sur les 4 prochaines semaines du bloc ?")) return;
+    if (!confirm("Voulez-vous sauvegarder cette semaine ET la propager sur les 4 prochaines semaines ?")) return;
+    
     setLoading(true);
-    const { data: semaine1Data } = await supabase.from('workout_sets').select('*').eq('date', dateFormatee);
-    if (!semaine1Data || semaine1Data.length === 0) {
-      alert("Aucune donnée trouvée."); setLoading(false); return;
-    }
-    const deltas = [7, 14, 21, 28];
-    const insertions = [];
-    for (const delta of deltas) {
-      const dateCible = new Date(dateActive);
-      dateCible.setDate(dateCible.getDate() + delta);
-      const dateCibleStr = dateCible.toISOString().split('T')[0];
-      for (const item of semaine1Data) {
-        const { id, created_at, ...dataToCopy } = item;
-        insertions.push({ ...dataToCopy, date: dateCibleStr });
+
+    try {
+      // 1. ON SAUVEGARDE D'ABORD : On s'assure que ce que tu vois est bien en base de données
+      await handleSave(); 
+      console.log("Sauvegarde terminée, début de la propagation...");
+
+      // 2. ON RÉCUPÈRE LES DONNÉES FRAÎCHEMENT SAUVEGARDÉES
+      const { data: semaine1Data, error: fetchError } = await supabase
+        .from('workout_sets')
+        .select('*')
+        .eq('date', dateFormatee);
+
+      if (fetchError) throw fetchError;
+      if (!semaine1Data || semaine1Data.length === 0) {
+        throw new Error("Aucune donnée trouvée en base pour la date : " + dateFormatee);
       }
+
+      // 3. PROPAGATION
+      const deltas = [7, 14, 21, 28];
+      const insertions = [];
+
+      for (const delta of deltas) {
+        const dateCible = new Date(dateActive);
+        dateCible.setDate(dateCible.getDate() + delta);
+        const dateCibleStr = dateCible.toISOString().split('T')[0];
+
+        // Optionnel : Nettoyage préalable (si tu avais déjà propagé, ça évite les doublons)
+        await supabase.from('workout_sets').delete().eq('date', dateCibleStr);
+
+        for (const item of semaine1Data) {
+          const { id, created_at, ...dataToCopy } = item;
+          insertions.push({ ...dataToCopy, date: dateCibleStr });
+        }
+      }
+
+      // 4. INSERTION
+      const { error: insertError } = await supabase.from('workout_sets').insert(insertions);
+      if (insertError) throw insertError;
+
+      alert("Succès ! La semaine 1 a été propagée sur tout le bloc.");
+    } catch (err: any) {
+      console.error("Erreur de propagation:", err);
+      alert("Erreur : " + err.message);
+    } finally {
+      setLoading(false);
     }
-    await supabase.from('workout_sets').insert(insertions);
-    setLoading(false);
-    alert("Semaine propagée avec succès sur tout le bloc !");
   };
 
   const handleSave = async () => {
