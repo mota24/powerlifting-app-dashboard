@@ -15,7 +15,6 @@ import { cn } from '@/lib/utils'
 import ConfigPanel from '@/components/power/config-panel'
 
 export default function Page() {
-  // Plus besoin de l'état "showConfig", Configuration devient juste une "vue" classique
   const [vueActive, setVueActive] = useState('accueil')
   const [menuOuvert, setMenuOuvert] = useState(false)
   const [dateActive, setDateActive] = useState<Date>(new Date())
@@ -77,7 +76,7 @@ export default function Page() {
     }
 
     calculateCurrentWeek()
-  }, [dateActive, vueActive]) // Le texte se met à jour aussi quand on quitte la configuration
+  }, [dateActive, vueActive])
 
   return (
     <div className="min-h-dvh bg-background pb-16 relative">
@@ -96,7 +95,17 @@ export default function Page() {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* MENU PRINCIPAL (Le bouton engrenage a été supprimé) */}
+          
+          {/* NOUVEAU : BOUTON ACCUEIL RAPIDE (À la place de l'engrenage) */}
+          <button 
+            onClick={() => changerVue('accueil')} 
+            className="flex items-center justify-center p-2 rounded-md bg-secondary/50 hover:bg-secondary border border-border transition-colors text-slate-400 hover:text-white"
+            title="Retour à l'accueil"
+          >
+            <Home className="size-5" />
+          </button>
+
+          {/* MENU PRINCIPAL */}
           <div className="relative">
             <button onClick={() => setMenuOuvert(!menuOuvert)} className="flex items-center justify-center p-2 rounded-md bg-secondary/50 hover:bg-secondary border border-border transition-colors">
               {menuOuvert ? <X className="size-5" /> : <Menu className="size-5" />}
@@ -108,10 +117,8 @@ export default function Page() {
                 <button onClick={() => changerVue('analytique')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'analytique' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><BarChart2 className="size-4" /> Analytique</button>
                 <button onClick={() => changerVue('outils')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'outils' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Wrench className="size-4" /> Outils</button>
                 
-                {/* Ligne de séparation pour faire propre */}
                 <div className="h-px bg-border my-1"></div>
                 
-                {/* L'onglet Configuration est maintenant rangé ici ! */}
                 <button onClick={() => changerVue('configuration')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'configuration' ? "bg-blue-500/10 text-blue-400 font-medium" : "hover:bg-secondary text-foreground")}><Settings className="size-4" /> Configuration</button>
               </div>
             )}
@@ -120,7 +127,6 @@ export default function Page() {
       </div>
 
       <main className="mx-auto max-w-5xl space-y-6 px-4 py-4">
-        {/* L'affichage se fait selon la vue sélectionnée dans le menu */}
         {vueActive === 'configuration' && (
           <div className="animate-in fade-in slide-in-from-top-4 duration-500">
             <ConfigPanel />
