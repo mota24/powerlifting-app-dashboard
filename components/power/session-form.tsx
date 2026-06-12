@@ -68,6 +68,8 @@ export default function SessionForm({ dateActive }: Props) {
 
         // On nettoie : si la journée a de vrais exercices, on ignore la ligne "Repos" générée par l'iPhone
         const vraisExercices = data.filter(item => item.exercise_name !== 'Repos' && item.exercise_name !== 'Jour de Repos');
+        // On trie les vrais exercices selon la position exacte que tu as sauvegardée
+        vraisExercices.sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
 
         if (vraisExercices.length > 0) {
           const listeExercices = vraisExercices.map(item => {
