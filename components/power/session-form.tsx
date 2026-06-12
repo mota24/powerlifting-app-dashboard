@@ -174,6 +174,48 @@ export default function SessionForm({ dateActive }: Props) {
   }
 
   // SAUVEGARDE POUR UNE SÉANCE NORMALE
+  // Fonction pour copier la semaine 1 sur tout le reste du bloc
+  const propagerSemaine1VersBloc = async () => {
+    if (!confirm("Voulez-vous copier les exercices de la Semaine 1 sur toutes les semaines du bloc ?")) return;
+    
+    setLoading(true);
+
+    // 1. Récupérer les données de la semaine 1 (on part de la date de début du bloc)
+    // Ici on suppose que ta dateActive est dans la semaine 1
+    const { data: semaine1Data } = await supabase
+      .from('workout_sets')
+      .select('*')
+      .eq('date', dateFormatee); // Ta variable existante pour la date de la semaine 1
+
+    if (!semaine1Data || semaine1Data.length === 0) {
+      alert("Aucune donnée trouvée en Semaine 1.");
+      setLoading(false);
+      return;
+    }
+
+    // 2. Propagation
+    // On boucle sur les semaines 2, 3, 4, 5 (soit un décalage de +7, +14, +21, +28 jours)
+    const deltas = [7, 14, 21, 28];
+    const insertions = [];
+
+    for (const delta of deltas) {
+      const dateCible = new Date(dateActive);
+      dateCible.setDate(dateCible.getDate() + delta);
+      const dateCibleStr = dateCible.toISOString().split('T')[0];
+
+      for (const item of semaine1Data) {
+        // On prépare la copie sans l'ID (pour créer une nouvelle ligne)
+        const { id, created_at, ...dataToCopy } = item;
+        insertions.push({ ...dataToCopy, date: dateCibleStr });
+      }
+    }
+
+    // 3. Insertion par lots dans Supabase
+    await supabase.from('workout_sets').insert(insertions);
+    
+    setLoading(false);
+    alert("Semaine 1 propagée avec succès sur le bloc !");
+  };
   const handleSave = async () => {
     setLoading(true)
     
