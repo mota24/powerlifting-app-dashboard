@@ -51,7 +51,6 @@ export default function SessionForm({ dateActive }: Props) {
     }
   }
 
-  // LECTURE INTELLIGENTE
   useEffect(() => {
     const chargerSeance = async () => {
       const { data, error } = await supabase
@@ -67,8 +66,6 @@ export default function SessionForm({ dateActive }: Props) {
           const savedCoachTracking = item.coach_tracking_data ? item.coach_tracking_data : fallbackCoachTracking;
           let savedTracking = item.tracking_data ? [...item.tracking_data] : [{ reps: '', weight: '', rpe: '' }];
 
-          // MAGIE : Alignement automatique au chargement !
-          // Si le coach a 5 séries, on s'assure que l'athlète a 5 cases prêtes
           if (savedTracking.length < savedCoachTracking.length) {
             const lignesManquantes = savedCoachTracking.length - savedTracking.length;
             for (let i = 0; i < lignesManquantes; i++) {
@@ -123,18 +120,15 @@ export default function SessionForm({ dateActive }: Props) {
     setExercices(nouvelleListe)
   }
 
-  // --- GESTION DES SÉRIES (COACH) ---
   const ajouterSerieCoach = (exIndex: number) => {
     const nouvelleListe = [...exercices]
     nouvelleListe[exIndex].coachTracking.push({ reps: '', weight: '', rpe: '' })
-    // MAGIE : On ajoute simultanément la ligne côté Athlète
     nouvelleListe[exIndex].tracking.push({ reps: '', weight: '', rpe: '' })
     setExercices(nouvelleListe)
   }
   const supprimerSerieCoach = (exIndex: number, setIndex: number) => {
     const nouvelleListe = [...exercices]
     nouvelleListe[exIndex].coachTracking.splice(setIndex, 1)
-    // MAGIE : On supprime simultanément la ligne côté Athlète
     if (nouvelleListe[exIndex].tracking.length > nouvelleListe[exIndex].coachTracking.length) {
       nouvelleListe[exIndex].tracking.splice(setIndex, 1)
     }
@@ -146,7 +140,6 @@ export default function SessionForm({ dateActive }: Props) {
     setExercices(nouvelleListe)
   }
 
-  // --- GESTION DES SÉRIES (ATHLÈTE) ---
   const ajouterSerieAthlete = (exIndex: number) => {
     const nouvelleListe = [...exercices]
     nouvelleListe[exIndex].tracking.push({ reps: '', weight: '', rpe: '' })
@@ -163,6 +156,7 @@ export default function SessionForm({ dateActive }: Props) {
     setExercices(nouvelleListe)
   }
 
+  // SAUVEGARDE POUR UNE SÉANCE NORMALE
   const handleSave = async () => {
     setLoading(true)
     const promesses = exercices.map(ex => {
@@ -193,18 +187,60 @@ export default function SessionForm({ dateActive }: Props) {
     }
   }
 
+  // SAUVEGARDE SPÉCIFIQUE POUR LES JOURS DE REPOS (Uniquement les métriques)
+  const handleSaveMetricsOnly = async () => {
+    setLoading(true)
+    const payload = {
+      date: dateFormatee,
+      exercise_name: 'Repos',
+      fatigue_score: fatigue,
+      sleep_hours: sommeil,
+      steps_count: pas
+    }
+    
+    const { data } = await supabase.from('workout_sets').select('id').eq('date', dateFormatee).limit(1)
+
+    if (data && data.length > 0) {
+      await supabase.from('workout_sets').update(payload).eq('id', data[0].id)
+    } else {
+      await supabase.from('workout_sets').insert([payload])
+    }
+
+    setLoading(false)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 3000)
+  }
+
+  // --- VUE JOUR DE REPOS ---
   if (jourSemaine === 0 || jourSemaine === 5) {
     return (
-      <div className="p-8 rounded-xl border border-slate-800 bg-slate-900/30 flex flex-col items-center text-center space-y-4 animate-in fade-in">
-        <div className="p-4 bg-slate-800/50 rounded-full"><Coffee className="size-8 text-slate-400" /></div>
-        <div>
-          <h2 className="text-lg font-bold text-slate-200">Jour de Repos</h2>
-          <p className="text-sm text-slate-500 mt-1">La récupération fait partie de l'entraînement.</p>
+      <div className="space-y-6 animate-in fade-in pb-10">
+        <div className="p-8 rounded-xl border border-slate-800 bg-slate-900/30 flex flex-col items-center text-center space-y-4">
+          <div className="p-4 bg-slate-800/50 rounded-full"><Coffee className="size-8 text-slate-400" /></div>
+          <div>
+            <h2 className="text-lg font-bold text-slate-200">Jour de Repos</h2>
+            <p className="text-sm text-slate-500 mt-1">La récupération fait partie de l'entraînement.</p>
+          </div>
         </div>
+
+        {/* MÉTRIQUES AFFICHÉES MÊME LE JOUR DE REPOS */}
+        <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/50">
+          <h3 className="text-sm font-bold text-slate-400 mb-4">Suivi quotidien</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="flex items-center justify-between p-3 bg-slate-950 rounded-lg border border-slate-800"><div className="flex flex-col w-full"><span className="flex items-center gap-1 text-xs text-slate-400 mb-1"><Battery className="size-3 text-red-500"/> Fatigue</span><input type="range" min="1" max="10" value={fatigue} onChange={(e) => setFatigue(parseInt(e.target.value))} className="w-full accent-red-500" /></div><span className="text-lg font-bold ml-4 text-white w-6 text-right">{fatigue}</span></div>
+            <div className="flex items-center justify-between p-3 bg-slate-950 rounded-lg border border-slate-800"><div className="flex flex-col"><span className="flex items-center gap-1 text-xs text-slate-400 mb-1"><Moon className="size-3 text-indigo-400"/> Sommeil</span><input type="number" step="0.5" value={sommeil} onChange={(e) => setSommeil(parseFloat(e.target.value))} className="w-16 bg-transparent text-lg font-bold text-white outline-none" /></div><span className="text-xs text-slate-500">h</span></div>
+            <div className="flex items-center justify-between p-3 bg-slate-950 rounded-lg border border-slate-800"><div className="flex flex-col"><span className="flex items-center gap-1 text-xs text-slate-400 mb-1"><Footprints className="size-3 text-orange-400"/> Pas</span><input type="number" value={pas} onChange={(e) => setPas(parseInt(e.target.value))} className="w-full bg-transparent text-lg font-bold text-white outline-none" /></div></div>
+          </div>
+        </div>
+
+        <button onClick={handleSaveMetricsOnly} disabled={loading} className={cn("w-full p-4 rounded-xl font-bold transition-all flex justify-center items-center gap-2 shadow-lg", saved ? "bg-emerald-600 shadow-emerald-500/25 text-white" : "bg-blue-600 hover:bg-blue-700 shadow-blue-500/25 text-white")}>
+          {loading ? 'Enregistrement en cours...' : saved ? <><Check className="size-5" /> Suivi Mémorisé !</> : 'Enregistrer le suivi'}
+        </button>
       </div>
     )
   }
 
+  // --- VUE JOUR D'ENTRAÎNEMENT NORMALE ---
   const suggestionsDuJour = getExercicesDuJour()
 
   return (
@@ -239,7 +275,6 @@ export default function SessionForm({ dateActive }: Props) {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               
-              {/* --- BLOC COACH --- */}
               <div className="p-3 rounded-xl border border-slate-800 bg-slate-900/30 flex flex-col h-full">
                 <h3 className="text-xs font-bold text-slate-400 mb-3 flex items-center gap-2 uppercase tracking-wider"><Target className="size-3" /> Prescription Coach</h3>
                 
@@ -270,7 +305,6 @@ export default function SessionForm({ dateActive }: Props) {
                 </button>
               </div>
 
-              {/* --- BLOC ATHLÈTE --- */}
               <div className="p-3 rounded-xl border border-blue-500/30 bg-blue-500/5 flex flex-col h-full">
                 <h3 className="text-xs font-bold text-blue-400 mb-3 flex items-center gap-2 uppercase tracking-wider"><Check className="size-3" /> Validé</h3>
                 
