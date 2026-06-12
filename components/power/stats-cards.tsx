@@ -48,30 +48,24 @@ export function StatsCards() {
         row.tracking_data.forEach((set: any) => {
           const weight = parseFloat(set.weight)
           const reps = parseInt(set.reps)
-          const rpe = parseFloat(set.rpe) || 10
+          const rpe = parseFloat(set.rpe) || 10 
 
           if (weight > 0 && reps > 0) {
+            // L'application calcule ton potentiel réel (Reps faites + Reps en réserve)
             const rir = 10 - rpe
             const effectiveReps = reps + rir
             
-            // On initialise la variable du calcul
             let e1rm = 0
 
-            // APPLICATION D'UNE MÉTHODE PAR EXERCICE
+            // LES FORMULES EXACTES DE TON SITE WORKOUT TEMPLE :
             if (isSquat) {
-              // 1. FORMULE SQUAT (Ex: Epley classique, très fiable sur le bas du corps)
-              e1rm = weight * (1 + (effectiveReps * 0.03372))
-              
+              e1rm = weight * (1 + (effectiveReps * 0.03372)) // Le coef extrait de ton tableau
             } else if (isBench) {
-              // 2. FORMULE BENCH (O'Conner - Celle qui te donne pile 182.7 kg)
-              e1rm = weight * (1 + (effectiveReps * 0.025))
-              
+              e1rm = weight * (1 + (effectiveReps * 0.0250))
             } else if (isDeadlift) {
-              // 3. FORMULE DEADLIFT (Ex: Brzycki, souvent préférée pour le terre)
-              e1rm = weight * (1 + (effectiveReps * 0.0428))
+              e1rm = weight * (1 + (effectiveReps * 0.042))
             }
 
-            // Mise à jour des maximums mémorisés
             if (isSquat && e1rm > maxS) maxS = e1rm
             if (isBench && e1rm > maxB) maxB = e1rm
             if (isDeadlift && e1rm > maxD) maxD = e1rm
