@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react' // Ajout de useEffect
-import { supabase } from '@/lib/supabase' // IMPORT CRUCIAL MANQUANT
+import { useState, useEffect } from 'react'
+import { supabase } from '@/lib/supabase' 
 import { Header } from '@/components/power/header'
 import { StatsCards } from '@/components/power/stats-cards'
 import { AnalyticsChart } from '@/components/power/analytics-chart'
@@ -15,19 +15,17 @@ import { cn } from '@/lib/utils'
 import ConfigPanel from '@/components/power/config-panel'
 
 export default function Page() {
-  // TOUS LES ÉTATS SONT MAINTENANT À L'INTÉRIEUR DU COMPOSANT
   const [vueActive, setVueActive] = useState('accueil')
   const [menuOuvert, setMenuOuvert] = useState(false)
   const [dateActive, setDateActive] = useState<Date>(new Date())
   
-  // Nouveaux états pour la configuration
   const [showConfig, setShowConfig] = useState(false)
   const [blockInfo, setBlockInfo] = useState('Chargement...')
 
   const changerVue = (vue: string) => {
     setVueActive(vue)
     setMenuOuvert(false)
-    setShowConfig(false) // Si on change de vue, on ferme le panneau config
+    setShowConfig(false) 
   }
 
   // ALGORITHME DE CALCUL DES SEMAINES
@@ -43,9 +41,9 @@ export default function Page() {
         return
       }
 
-      // On met la date d'aujourd'hui à minuit pour calculer les jours pleins
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
+      // Calcul par rapport au jour sélectionné dans le calendrier
+      const targetDate = new Date(dateActive)
+      targetDate.setHours(0, 0, 0, 0)
 
       // On trie les blocs par date pour trouver le plus récent qui a déjà commencé
       const sortedBlocks = data.sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime())
@@ -54,7 +52,7 @@ export default function Page() {
       for (let i = sortedBlocks.length - 1; i >= 0; i--) {
         const blockDate = new Date(sortedBlocks[i].start_date)
         blockDate.setHours(0, 0, 0, 0)
-        if (today >= blockDate) {
+        if (targetDate >= blockDate) {
           activeBlock = sortedBlocks[i];
           break; // On a trouvé le bloc en cours !
         }
@@ -64,17 +62,20 @@ export default function Page() {
         const startDate = new Date(activeBlock.start_date)
         startDate.setHours(0, 0, 0, 0)
         
+        // On récupère la durée enregistrée (par défaut 5 si non trouvée)
+        const duration = activeBlock.duration_weeks || 5
+        
         // Calcul mathématique des semaines
-        const diffTime = Math.abs(today.getTime() - startDate.getTime())
+        const diffTime = Math.abs(targetDate.getTime() - startDate.getTime())
         const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
         const currentWeek = Math.floor(diffDays / 7) + 1
 
-        if (currentWeek > 5) {
+        if (currentWeek > duration) {
           setBlockInfo(`Bloc ${activeBlock.block_number} terminé (S${currentWeek})`)
-        } else if (currentWeek === 5) {
-          setBlockInfo(`🔥 Bloc ${activeBlock.block_number} - Semaine 5 (MAX)`)
+        } else if (currentWeek === duration) {
+          setBlockInfo(`🔥 Bloc ${activeBlock.block_number} | Semaine ${currentWeek} / ${duration} (MAX)`)
         } else {
-          setBlockInfo(`Bloc ${activeBlock.block_number} - Semaine ${currentWeek}`)
+          setBlockInfo(`Bloc ${activeBlock.block_number} | Semaine ${currentWeek} / ${duration}`)
         }
       } else {
         setBlockInfo('En attente du Bloc 1')
@@ -82,7 +83,7 @@ export default function Page() {
     }
 
     calculateCurrentWeek()
-  }, [showConfig]) // Recalcule à chaque fois qu'on ouvre/ferme la config
+  }, [dateActive, showConfig]) // Le texte se met à jour quand on change de date !
 
   return (
     <div className="min-h-dvh bg-background pb-16 relative">
@@ -139,7 +140,8 @@ export default function Page() {
           <>
             {vueActive === 'accueil' && (
               <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <WeekCalendar dateActive={dateActive} setDateActive={setDateActive} />
+                {/* TRANSMISSION DU TEXTE AU CALENDRIER */}
+                <WeekCalendar dateActive={dateActive} setDateActive={setDateActive} blockTitle={blockInfo} />
                 <SessionForm dateActive={dateActive} />
               </div>
             )}

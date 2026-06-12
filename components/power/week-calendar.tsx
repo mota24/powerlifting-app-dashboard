@@ -3,10 +3,10 @@
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-// On passe les props depuis le cerveau (page.tsx)
-interface Props {
+interface WeekCalendarProps {
   dateActive: Date;
   setDateActive: (date: Date) => void;
+  blockTitle?: string; // Reçoit le texte exact calculé par la page principale
 }
 
 const WEEK_PROGRAM = [
@@ -16,13 +16,10 @@ const WEEK_PROGRAM = [
   { id: 4, dayName: 'Jeu', title: 'Entraînement', desc: 'Bench ou Accessoires' },
   { id: 5, dayName: 'Ven', title: 'Repos', desc: 'Récupération active' },
   { id: 6, dayName: 'Sam', title: 'Jour SBD', desc: 'Squat + Bench + Deadlift (Priorité Intensité)' },
-  { id: 0, dayName: 'Dim', title: 'Repos', desc: 'Récupération totale' }, // JS : Dimanche = 0
+  { id: 0, dayName: 'Dim', title: 'Repos', desc: 'Récupération totale' }, 
 ]
 
-// Date de début de ton Bloc (À modifier selon ton vrai programme)
-const BLOCK_START_DATE = new Date('2026-06-01')
-
-export function WeekCalendar({ dateActive, setDateActive }: Props) {
+export function WeekCalendar({ dateActive, setDateActive, blockTitle }: WeekCalendarProps) {
   
   // Fonction pour changer de semaine
   const changerSemaine = (jours: number) => {
@@ -47,19 +44,15 @@ export function WeekCalendar({ dateActive, setDateActive }: Props) {
   const joursSemaine = getJoursDeLaSemaine(dateActive)
   const jourSelectionneInfo = WEEK_PROGRAM.find(p => p.id === dateActive.getDay()) || WEEK_PROGRAM[0]
 
-  // Calcul du Bloc (Semaine X / 5)
-  const diffTime = Math.abs(dateActive.getTime() - BLOCK_START_DATE.getTime())
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-  const numeroSemaine = Math.max(1, Math.ceil((diffDays + 1) / 7)) // Evite semaine 0
-
   return (
     <div className="space-y-4">
-      {/* En-tête : Calcul de la semaine du bloc */}
+      {/* En-tête avec le titre dynamique */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Calendar className="size-5 text-blue-500" />
+          {/* C'est ICI que le titre dynamique (calculé par page.tsx) s'affiche */}
           <h2 className="text-lg font-bold text-slate-200">
-            Bloc 1 <span className="text-slate-500 font-normal">| Semaine {numeroSemaine} / 5</span>
+            {blockTitle || "Calendrier"} 
           </h2>
         </div>
         <div className="flex items-center gap-2">
@@ -68,7 +61,7 @@ export function WeekCalendar({ dateActive, setDateActive }: Props) {
         </div>
       </div>
 
-      {/* Onglets épurés (Design que tu préfères) */}
+      {/* Onglets des jours */}
       <div className="flex border-b border-slate-800 overflow-x-auto scrollbar-none">
         {joursSemaine.map((dateObj, index) => {
           const estSelectionne = dateActive.toDateString() === dateObj.toDateString()
@@ -92,6 +85,7 @@ export function WeekCalendar({ dateActive, setDateActive }: Props) {
         })}
       </div>
 
+      {/* Description du jour */}
       <div className="p-4 rounded-lg bg-slate-900/50 border border-slate-800">
         <h3 className="font-bold text-slate-200">{jourSelectionneInfo.title}</h3>
         <p className="text-sm text-slate-400 mt-1">{jourSelectionneInfo.desc}</p>
