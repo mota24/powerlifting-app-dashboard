@@ -1,111 +1,114 @@
 'use client'
 
 import {
-  Area,
-  AreaChart,
-  CartesianGrid,
+  LineChart,
   Line,
-  Legend,
-  ResponsiveContainer,
-  Tooltip,
   XAxis,
   YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Legend
 } from 'recharts'
 
 const data = [
-  { day: 'S1', rpe: 7.2, fatigue: 4, sensations: 7 },
-  { day: 'S2', rpe: 7.8, fatigue: 5, sensations: 6.5 },
-  { day: 'S3', rpe: 8.1, fatigue: 6, sensations: 6 },
-  { day: 'S4', rpe: 8.6, fatigue: 7.5, sensations: 5 },
-  { day: 'S5', rpe: 9, fatigue: 8, sensations: 4.5 },
-  { day: 'S6', rpe: 8.2, fatigue: 5.5, sensations: 7.5 },
-  { day: 'S7', rpe: 7.5, fatigue: 4, sensations: 8.5 },
+  { name: 'S1', Squat: 290, Bench: 165, Deadlift: 330 },
+  { name: 'S2', Squat: 295, Bench: 167.5, Deadlift: 335 },
+  { name: 'S3', Squat: 292.5, Bench: 170, Deadlift: 332.5 },
+  { name: 'S4', Squat: 297.5, Bench: 170, Deadlift: 340 },
+  { name: 'S5', Squat: 300, Bench: 172.5, Deadlift: 342.5 },
+  { name: 'S6', Squat: 302.5, Bench: 175, Deadlift: 345 },
+  { name: 'S7', Squat: 305, Bench: 178, Deadlift: 345 },
 ]
 
-function CustomTooltip({
-  active,
-  payload,
-  label,
-}: {
-  active?: boolean
-  payload?: { name: string; value: number; color: string }[]
-  label?: string
-}) {
-  if (!active || !payload?.length) return null
+// 1. NOTRE LÉGENDE FIXE (Bas de l'écran)
+const renderCustomLegend = () => {
   return (
-    <div className="rounded-lg border border-border bg-popover px-3 py-2 text-xs shadow-lg">
-      <p className="mb-1 font-semibold text-popover-foreground">{label}</p>
-      {payload.map((p) => (
-        <p key={p.name} className="flex items-center gap-2 text-popover-foreground">
-          <span
-            className="inline-block size-2 rounded-full"
-            style={{ background: p.color }}
-          />
-          <span className="capitalize">{p.name}</span>
-          <span className="ml-auto font-mono tabular-nums">{p.value}</span>
-        </p>
-      ))}
+    <div className="flex justify-center gap-6 pt-5 text-xs font-medium text-slate-300">
+      <div className="flex items-center gap-2">
+        <span className="h-2.5 w-2.5 rounded-full bg-[#ef4444]"></span>
+        Squat
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="h-2.5 w-2.5 rounded-full bg-[#3b82f6]"></span>
+        Bench
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="h-2.5 w-2.5 rounded-full bg-[#10b981]"></span>
+        Deadlift
+      </div>
     </div>
   )
 }
 
+// 2. LE DICTATEUR DU TOOLTIP (La boîte noire au survol)
+// Il attribue une valeur numérique pour forcer l'ordre d'affichage.
+const orderMapping = { Squat: 1, Bench: 2, Deadlift: 3 }
+const customTooltipSorter = (item: any) => {
+  return orderMapping[item.name as keyof typeof orderMapping]
+}
+
 export function AnalyticsChart() {
   return (
-    <div className="h-64 w-full">
-      <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-        <AreaChart
-          data={data}
-          margin={{ top: 8, right: 8, left: -16, bottom: 0 }}
-        >
-          <defs>
-            <linearGradient id="gRpe" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={0.4} />
-              <stop offset="100%" stopColor="var(--chart-1)" stopOpacity={0} />
-            </linearGradient>
-          </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+    <div className="h-[350px] w-full mt-4">
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+          
           <XAxis
-            dataKey="day"
-            tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }}
+            dataKey="name"
+            stroke="#94a3b8"
+            fontSize={12}
             tickLine={false}
             axisLine={false}
           />
+          
           <YAxis
-            domain={[0, 10]}
-            tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }}
+            stroke="#94a3b8"
+            fontSize={12}
             tickLine={false}
             axisLine={false}
+            domain={['dataMin - 10', 'auto']}
           />
-          <Tooltip content={<CustomTooltip />} />
-          <Legend
-            wrapperStyle={{ fontSize: 12, paddingTop: 8 }}
-            iconType="circle"
+          
+          {/* On injecte notre trieur ici (itemSorter) */}
+          <Tooltip
+            contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', borderRadius: '8px', color: '#f8fafc' }}
+            itemStyle={{ color: '#f8fafc', fontWeight: 'bold' }}
+            cursor={{ stroke: '#334155', strokeWidth: 2 }}
+            itemSorter={customTooltipSorter}
           />
-          <Area
+          
+          <Legend content={renderCustomLegend} />
+          
+          <Line
             type="monotone"
-            dataKey="rpe"
-            name="RPE moyen"
-            stroke="var(--chart-1)"
-            strokeWidth={2.5}
-            fill="url(#gRpe)"
+            name="Squat"
+            dataKey="Squat"
+            stroke="#ef4444"
+            strokeWidth={3}
+            dot={{ r: 4, fill: "#ef4444", strokeWidth: 0 }}
+            activeDot={{ r: 6 }}
           />
           <Line
             type="monotone"
-            dataKey="fatigue"
-            name="Fatigue"
-            stroke="var(--chart-4)"
-            strokeWidth={2.5}
-            dot={false}
+            name="Bench"
+            dataKey="Bench"
+            stroke="#3b82f6"
+            strokeWidth={3}
+            dot={{ r: 4, fill: "#3b82f6", strokeWidth: 0 }}
+            activeDot={{ r: 6 }}
           />
           <Line
             type="monotone"
-            dataKey="sensations"
-            name="Sensations"
-            stroke="var(--chart-3)"
-            strokeWidth={2.5}
-            dot={false}
+            name="Deadlift"
+            dataKey="Deadlift"
+            stroke="#10b981"
+            strokeWidth={3}
+            dot={{ r: 4, fill: "#10b981", strokeWidth: 0 }}
+            activeDot={{ r: 6 }}
           />
-        </AreaChart>
+        </LineChart>
       </ResponsiveContainer>
     </div>
   )

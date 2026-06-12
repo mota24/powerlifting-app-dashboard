@@ -1,74 +1,101 @@
-import { Card, CardTitle } from './card'
-import { CalendarDays, Moon, Dumbbell, Activity } from 'lucide-react'
+'use client'
+
+import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-type Day = {
-  name: string
-  short: string
-  type: 'sbd' | 'training' | 'rest'
-  label: string
+// On passe les props depuis le cerveau (page.tsx)
+interface Props {
+  dateActive: Date;
+  setDateActive: (date: Date) => void;
 }
 
-const WEEK: Day[] = [
-  { name: 'Lundi', short: 'Lun', type: 'training', label: 'Entraînement / Accessoires' },
-  { name: 'Mardi', short: 'Mar', type: 'training', label: 'Entraînement / Accessoires' },
-  { name: 'Mercredi', short: 'Mer', type: 'training', label: 'Entraînement / Accessoires' },
-  { name: 'Jeudi', short: 'Jeu', type: 'training', label: 'Entraînement / Accessoires' },
-  { name: 'Vendredi', short: 'Ven', type: 'rest', label: 'Repos' },
-  { name: 'Samedi', short: 'Sam', type: 'sbd', label: 'Jour SBD (Squat, Bench, Deadlift)' },
-  { name: 'Dimanche', short: 'Dim', type: 'rest', label: 'Repos' },
+const WEEK_PROGRAM = [
+  { id: 1, dayName: 'Lun', title: 'Entraînement', desc: 'Squat / Bench ou Accessoires' },
+  { id: 2, dayName: 'Mar', title: 'Entraînement', desc: 'Bench / Deadlift ou Accessoires' },
+  { id: 3, dayName: 'Mer', title: 'Entraînement', desc: 'Squat / Bench ou Accessoires' },
+  { id: 4, dayName: 'Jeu', title: 'Entraînement', desc: 'Bench ou Accessoires' },
+  { id: 5, dayName: 'Ven', title: 'Repos', desc: 'Récupération active' },
+  { id: 6, dayName: 'Sam', title: 'Jour SBD', desc: 'Squat + Bench + Deadlift (Priorité Intensité)' },
+  { id: 0, dayName: 'Dim', title: 'Repos', desc: 'Récupération totale' }, // JS : Dimanche = 0
 ]
 
-export function WeekCalendar() {
+// Date de début de ton Bloc (À modifier selon ton vrai programme)
+const BLOCK_START_DATE = new Date('2026-06-01')
+
+export function WeekCalendar({ dateActive, setDateActive }: Props) {
+  
+  // Fonction pour changer de semaine
+  const changerSemaine = (jours: number) => {
+    const nouvelleDate = new Date(dateActive)
+    nouvelleDate.setDate(nouvelleDate.getDate() + jours)
+    setDateActive(nouvelleDate)
+  }
+
+  // Calcul mathématique des jours de la semaine affichée
+  const getJoursDeLaSemaine = (date: Date) => {
+    const jours = []
+    const jourActuel = new Date(date)
+    const premierJour = jourActuel.getDate() - jourActuel.getDay() + (jourActuel.getDay() === 0 ? -6 : 1) // Lundi
+    
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(jourActuel.setDate(premierJour + i))
+      jours.push(d)
+    }
+    return jours
+  }
+
+  const joursSemaine = getJoursDeLaSemaine(dateActive)
+  const jourSelectionneInfo = WEEK_PROGRAM.find(p => p.id === dateActive.getDay()) || WEEK_PROGRAM[0]
+
+  // Calcul du Bloc (Semaine X / 5)
+  const diffTime = Math.abs(dateActive.getTime() - BLOCK_START_DATE.getTime())
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+  const numeroSemaine = Math.max(1, Math.ceil((diffDays + 1) / 7)) // Evite semaine 0
+
   return (
-    <Card>
-      <CardTitle
-        icon={CalendarDays}
-        title="Calendrier de la semaine"
-        hint="Vue SBD"
-      />
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
-        {WEEK.map((day) => (
-          <div
-            key={day.name}
-            className={cn(
-              'flex flex-col gap-2 rounded-xl border p-3 transition-colors',
-              day.type === 'sbd' &&
-                'border-primary bg-primary/15 ring-1 ring-primary/40',
-              day.type === 'training' && 'border-border bg-secondary/50',
-              day.type === 'rest' && 'border-border/50 bg-muted/30 opacity-60',
-            )}
-          >
-            <div className="flex items-center justify-between">
-              <span
-                className={cn(
-                  'text-sm font-bold',
-                  day.type === 'sbd' ? 'text-primary' : 'text-foreground',
-                )}
-              >
-                {day.short}
-              </span>
-              {day.type === 'sbd' && <Dumbbell className="size-4 text-primary" />}
-              {day.type === 'training' && (
-                <Activity className="size-4 text-muted-foreground" />
-              )}
-              {day.type === 'rest' && (
-                <Moon className="size-4 text-muted-foreground" />
-              )}
-            </div>
-            <p
+    <div className="space-y-4">
+      {/* En-tête : Calcul de la semaine du bloc */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Calendar className="size-5 text-blue-500" />
+          <h2 className="text-lg font-bold text-slate-200">
+            Bloc 1 <span className="text-slate-500 font-normal">| Semaine {numeroSemaine} / 5</span>
+          </h2>
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={() => changerSemaine(-7)} className="p-1 hover:bg-slate-800 rounded text-slate-400"><ChevronLeft className="size-5"/></button>
+          <button onClick={() => changerSemaine(7)} className="p-1 hover:bg-slate-800 rounded text-slate-400"><ChevronRight className="size-5"/></button>
+        </div>
+      </div>
+
+      {/* Onglets épurés (Design que tu préfères) */}
+      <div className="flex border-b border-slate-800 overflow-x-auto scrollbar-none">
+        {joursSemaine.map((dateObj, index) => {
+          const estSelectionne = dateActive.toDateString() === dateObj.toDateString()
+          const infoJour = WEEK_PROGRAM.find(p => p.id === dateObj.getDay())
+          
+          return (
+            <button
+              key={index}
+              onClick={() => setDateActive(dateObj)}
               className={cn(
-                'text-xs leading-snug text-pretty',
-                day.type === 'sbd'
-                  ? 'font-medium text-foreground'
-                  : 'text-muted-foreground',
+                "px-4 py-3 flex flex-col items-center min-w-[4rem] text-sm font-medium transition-colors whitespace-nowrap border-b-2",
+                estSelectionne
+                  ? "border-blue-500 text-blue-400"
+                  : "border-transparent text-slate-500 hover:text-slate-300 hover:border-slate-700"
               )}
             >
-              {day.label}
-            </p>
-          </div>
-        ))}
+              <span className="text-xs uppercase">{infoJour?.dayName}</span>
+              <span className={cn("text-lg", estSelectionne ? "text-white" : "")}>{dateObj.getDate()}</span>
+            </button>
+          )
+        })}
       </div>
-    </Card>
+
+      <div className="p-4 rounded-lg bg-slate-900/50 border border-slate-800">
+        <h3 className="font-bold text-slate-200">{jourSelectionneInfo.title}</h3>
+        <p className="text-sm text-slate-400 mt-1">{jourSelectionneInfo.desc}</p>
+      </div>
+    </div>
   )
 }

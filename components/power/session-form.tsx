@@ -1,205 +1,164 @@
 'use client'
 
-import { useState } from 'react'
-import { EXERCISES, epley1RM, roundToHalf } from '@/lib/powerlifting'
-import { Card, CardTitle } from './card'
-import { MetricSlider } from './metric-slider'
-import { ClipboardList, Sparkles, TriangleAlert, ShieldCheck } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { supabase } from '@/lib/supabase'
+import { Target, Activity, Check, Moon, Footprints, Battery } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-const SAFE_VARIANTS = [
-  'Box Squat (réduit charge axiale)',
-  'Belt Squat / Hack Squat',
-  'Tirage poitrine au lieu du Deadlift lourd',
-  'Travail unilatéral léger',
-]
-
-export function SessionForm() {
-  const [exerciseKey, setExerciseKey] = useState('bench')
-  const [isVariant, setIsVariant] = useState(false)
-  const [load, setLoad] = useState(120)
-  const [reps, setReps] = useState(3)
-  const [rpe, setRpe] = useState(8)
-
-  const [sensations, setSensations] = useState(7)
-  const [fatigue, setFatigue] = useState(4)
-  const [sleep, setSleep] = useState(7.5)
-  const [steps, setSteps] = useState(8000)
-  const [pain, setPain] = useState(2)
-
-  const ex = EXERCISES[exerciseKey]
-  const displayName = isVariant ? ex.variant : ex.base
-  const est1rm = roundToHalf(epley1RM(load, reps))
-  const painAlert = pain > 5
-
-  function handleExerciseChange(key: string) {
-    setExerciseKey(key)
-    setIsVariant(false)
-  }
-
-  function toggleSmartVariant() {
-    const next = !isVariant
-    // Variante intelligente : baisse la charge cible de 10% (ou rétablit)
-    setLoad((l) => roundToHalf(next ? l * 0.9 : l / 0.9))
-    setIsVariant(next)
-  }
-
-  return (
-    <Card className={cn(painAlert && 'border-destructive/60')}>
-      <CardTitle
-        icon={ClipboardList}
-        title="Séance Active"
-        hint="Saisie en temps réel"
-      />
-
-      {/* Alerte sécurité bloquante */}
-      {painAlert ? (
-        <div
-          role="alert"
-          className="mb-4 animate-pulse rounded-xl border border-destructive bg-destructive/15 p-4"
-        >
-          <div className="flex items-center gap-2 text-destructive">
-            <TriangleAlert className="size-5 shrink-0" />
-            <span className="font-bold">⚠️ Alerte Surcharge Axiale</span>
-          </div>
-          <p className="mt-1 text-sm text-destructive/90">
-            Douleur articulaire/lombaire élevée ({pain}/10). Stoppez les charges
-            axiales lourdes et basculez sur une variante :
-          </p>
-          <ul className="mt-2 space-y-1">
-            {SAFE_VARIANTS.map((v) => (
-              <li
-                key={v}
-                className="flex items-center gap-2 rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive"
-              >
-                <ShieldCheck className="size-3.5 shrink-0" />
-                {v}
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-
-      {/* Sélecteur d'exercice */}
-      <div className="mb-3 flex flex-wrap gap-2">
-        {Object.entries(EXERCISES).map(([key, val]) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => handleExerciseChange(key)}
-            className={cn(
-              'rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors',
-              exerciseKey === key
-                ? 'border-primary bg-primary/15 text-primary'
-                : 'border-border bg-secondary text-muted-foreground hover:text-foreground',
-            )}
-          >
-            {val.base}
-          </button>
-        ))}
-      </div>
-
-      <div className="mb-4 flex items-center justify-between gap-2 rounded-xl bg-secondary/50 p-3">
-        <div>
-          <span className="block text-xs text-muted-foreground">
-            Exercice sélectionné
-          </span>
-          <span className="text-lg font-semibold text-foreground">
-            {displayName}
-          </span>
-        </div>
-        <button
-          type="button"
-          onClick={toggleSmartVariant}
-          className={cn(
-            'flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold transition-colors',
-            isVariant
-              ? 'bg-primary text-primary-foreground'
-              : 'bg-primary/15 text-primary hover:bg-primary/25',
-          )}
-        >
-          <Sparkles className="size-4" />
-          {isVariant ? 'Variante active' : 'Variante Intelligente'}
-        </button>
-      </div>
-
-      {/* Champs numériques */}
-      <div className="mb-5 grid grid-cols-3 gap-3">
-        <NumberField label="Charge (kg)" value={load} step={2.5} onChange={setLoad} />
-        <NumberField label="Reps" value={reps} step={1} onChange={setReps} />
-        <NumberField label="RPE" value={rpe} step={0.5} max={10} onChange={setRpe} />
-      </div>
-
-      <div className="mb-5 flex items-center justify-between rounded-xl border border-primary/30 bg-primary/10 px-4 py-3">
-        <span className="text-sm font-medium text-foreground">
-          1RM estimé (Epley)
-        </span>
-        <span className="font-mono text-2xl font-bold text-primary">
-          {est1rm} kg
-        </span>
-      </div>
-
-      {/* Métriques de récupération */}
-      <h3 className="mb-3 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-        Récupération
-      </h3>
-      <div className="space-y-4">
-        <MetricSlider label="Sensations" value={sensations} onChange={setSensations} />
-        <MetricSlider label="Fatigue" value={fatigue} onChange={setFatigue} />
-        <MetricSlider
-          label="Sommeil"
-          value={sleep}
-          min={0}
-          max={12}
-          step={0.5}
-          unit="h"
-          onChange={setSleep}
-        />
-        <MetricSlider
-          label="Pas journaliers"
-          value={steps}
-          min={0}
-          max={20000}
-          step={500}
-          onChange={setSteps}
-        />
-        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-3">
-          <MetricSlider
-            label="Douleur Lombaire / Articulaire"
-            value={pain}
-            danger
-            onChange={setPain}
-          />
-        </div>
-      </div>
-    </Card>
-  )
+interface Props {
+  dateActive: Date;
 }
 
-function NumberField({
-  label,
-  value,
-  step = 1,
-  max,
-  onChange,
-}: {
-  label: string
-  value: number
-  step?: number
-  max?: number
-  onChange: (v: number) => void
-}) {
+export default function SessionForm({ dateActive }: Props) {
+  const [loading, setLoading] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [sessionId, setSessionId] = useState<string | null>(null) 
+
+  const [exercice, setExercice] = useState('')
+  const [coachWeight, setCoachWeight] = useState('')
+  const [coachReps, setCoachReps] = useState('')
+  const [coachRpe, setCoachRpe] = useState('')
+  const [athleteWeight, setAthleteWeight] = useState('')
+  const [athleteReps, setAthleteReps] = useState('')
+  const [athleteRpe, setAthleteRpe] = useState('')
+  
+  // Métriques
+  const [fatigue, setFatigue] = useState(5)
+  const [sommeil, setSommeil] = useState(8)
+  const [pas, setPas] = useState(8000)
+
+  // FORMATAGE DE LA DATE (YYYY-MM-DD)
+  const dateFormatee = new Date(dateActive.getTime() - (dateActive.getTimezoneOffset() * 60000)).toISOString().split('T')[0]
+
+  // LECTURE INTELLIGENTE : Anti-doublons et chargement complet
+  useEffect(() => {
+    const chargerSeance = async () => {
+      const { data, error } = await supabase
+        .from('workout_sets')
+        .select('*')
+        .eq('date', dateFormatee)
+        .order('created_at', { ascending: false }) // Prend TOUJOURS la plus récente
+        .limit(1)
+
+      // Si on trouve une donnée, on remplit TOUTES les cases
+      if (data && data.length > 0) {
+        const seance = data[0]
+        setSessionId(seance.id)
+        setExercice(seance.exercise_name || '')
+        setCoachWeight(seance.coach_weight?.toString() || '')
+        setCoachReps(seance.coach_reps?.toString() || '')
+        setCoachRpe(seance.coach_rpe?.toString() || '')
+        setAthleteWeight(seance.athlete_weight?.toString() || '')
+        setAthleteReps(seance.athlete_reps?.toString() || '')
+        setAthleteRpe(seance.athlete_rpe?.toString() || '')
+        setFatigue(seance.fatigue_score || 5)
+        setSommeil(seance.sleep_hours || 8) // Nouveau !
+        setPas(seance.steps_count || 8000) // Nouveau !
+      } else {
+        // Aucune séance ce jour-là : formulaire vierge
+        setSessionId(null)
+        setExercice('')
+        setCoachWeight('')
+        setCoachReps('')
+        setCoachRpe('')
+        setAthleteWeight('')
+        setAthleteReps('')
+        setAthleteRpe('')
+        setFatigue(5)
+        setSommeil(8)
+        setPas(8000)
+      }
+    }
+    chargerSeance()
+  }, [dateActive])
+
+  // SAUVEGARDE COMPLÈTE
+  const handleSave = async () => {
+    setLoading(true)
+    
+    // Le paquet de données envoyé à Supabase
+    const payload = {
+      date: dateFormatee,
+      exercise_name: exercice || 'Exercice Non Défini',
+      coach_weight: coachWeight ? parseFloat(coachWeight) : null,
+      coach_reps: coachReps ? parseInt(coachReps) : null,
+      coach_rpe: coachRpe ? parseFloat(coachRpe) : null,
+      athlete_weight: athleteWeight ? parseFloat(athleteWeight) : null,
+      athlete_reps: athleteReps ? parseInt(athleteReps) : null,
+      athlete_rpe: athleteRpe ? parseFloat(athleteRpe) : null,
+      fatigue_score: fatigue,
+      sleep_hours: sommeil, // Ajouté à l'enregistrement
+      steps_count: pas      // Ajouté à l'enregistrement
+    }
+
+    let result;
+    if (sessionId) {
+      result = await supabase.from('workout_sets').update(payload).eq('id', sessionId)
+    } else {
+      result = await supabase.from('workout_sets').insert([payload])
+    }
+
+    setLoading(false)
+    if (result.error) {
+      alert("Erreur de sauvegarde: " + result.error.message)
+    } else {
+      setSaved(true)
+      setTimeout(() => setSaved(false), 3000)
+      
+      // Sécurise l'ID pour ne pas créer de doublons si on re-sauvegarde direct
+      if (!sessionId) {
+        const { data } = await supabase.from('workout_sets').select('id').eq('date', dateFormatee).order('created_at', { ascending: false }).limit(1)
+        if (data && data.length > 0) setSessionId(data[0].id)
+      }
+    }
+  }
+
   return (
-    <label className="block">
-      <span className="mb-1 block text-xs text-muted-foreground">{label}</span>
-      <input
-        type="number"
-        step={step}
-        max={max}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value) || 0)}
-        className="w-full rounded-lg border border-input bg-secondary px-3 py-2 text-center font-mono text-lg text-foreground outline-none focus:border-primary"
-      />
-    </label>
+    <div className="space-y-6 animate-in fade-in">
+      <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/50">
+        <h2 className="text-lg font-bold text-slate-200 mb-3 flex items-center justify-between">
+          <span className="flex items-center gap-2"><Activity className="size-5 text-blue-500" /> Saisie de la Série</span>
+          <span className="text-xs text-slate-500 font-normal">{dateFormatee}</span>
+        </h2>
+        <input placeholder="Ex: Back Squat, Bench Press..." className="w-full p-3 bg-slate-950 border border-slate-800 rounded-lg text-white outline-none focus:border-blue-500" value={exercice} onChange={(e) => setExercice(e.target.value)} />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/30">
+          <h3 className="text-sm font-bold text-slate-400 mb-3 flex items-center gap-2"><Target className="size-4" /> Programmation</h3>
+          <div className="space-y-3">
+            <div><label className="text-xs text-slate-500">Charge (kg)</label><input type="number" value={coachWeight} onChange={(e) => setCoachWeight(e.target.value)} className="w-full p-2 bg-slate-950 border border-slate-800 rounded-md text-slate-300 outline-none focus:border-slate-500" /></div>
+            <div className="grid grid-cols-2 gap-2">
+              <div><label className="text-xs text-slate-500">Reps</label><input type="number" value={coachReps} onChange={(e) => setCoachReps(e.target.value)} className="w-full p-2 bg-slate-950 border border-slate-800 rounded-md text-slate-300 outline-none focus:border-slate-500" /></div>
+              <div><label className="text-xs text-slate-500">RPE</label><input type="number" value={coachRpe} onChange={(e) => setCoachRpe(e.target.value)} className="w-full p-2 bg-slate-950 border border-slate-800 rounded-md text-slate-300 outline-none focus:border-slate-500" /></div>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-4 rounded-xl border border-blue-500/30 bg-blue-500/5">
+          <h3 className="text-sm font-bold text-blue-400 mb-3 flex items-center gap-2"><Check className="size-4" /> Réalisé</h3>
+          <div className="space-y-3">
+            <div><label className="text-xs text-blue-500/70">Charge (kg)</label><input type="number" value={athleteWeight} onChange={(e) => setAthleteWeight(e.target.value)} className="w-full p-2 bg-slate-950 border border-blue-500/30 rounded-md text-white outline-none focus:border-blue-500" /></div>
+            <div className="grid grid-cols-2 gap-2">
+              <div><label className="text-xs text-blue-500/70">Reps</label><input type="number" value={athleteReps} onChange={(e) => setAthleteReps(e.target.value)} className="w-full p-2 bg-slate-950 border border-blue-500/30 rounded-md text-white outline-none focus:border-blue-500" /></div>
+              <div><label className="text-xs text-blue-500/70">RPE</label><input type="number" step="0.5" value={athleteRpe} onChange={(e) => setAthleteRpe(e.target.value)} className="w-full p-2 bg-slate-950 border border-blue-500/30 rounded-md text-white outline-none focus:border-blue-500" /></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/50">
+        <h3 className="text-sm font-bold text-slate-400 mb-4">Métriques du jour</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="flex items-center justify-between p-3 bg-slate-950 rounded-lg border border-slate-800"><div className="flex flex-col"><span className="flex items-center gap-1 text-xs text-slate-400 mb-1"><Battery className="size-3 text-red-500"/> Fatigue</span><input type="range" min="1" max="10" value={fatigue} onChange={(e) => setFatigue(parseInt(e.target.value))} className="w-full accent-red-500" /></div><span className="text-lg font-bold ml-2 text-white">{fatigue}</span></div>
+          <div className="flex items-center justify-between p-3 bg-slate-950 rounded-lg border border-slate-800"><div className="flex flex-col"><span className="flex items-center gap-1 text-xs text-slate-400 mb-1"><Moon className="size-3 text-indigo-400"/> Sommeil</span><input type="number" step="0.5" value={sommeil} onChange={(e) => setSommeil(parseFloat(e.target.value))} className="w-16 bg-transparent text-lg font-bold text-white outline-none" /></div><span className="text-xs text-slate-500">heures</span></div>
+          <div className="flex items-center justify-between p-3 bg-slate-950 rounded-lg border border-slate-800"><div className="flex flex-col"><span className="flex items-center gap-1 text-xs text-slate-400 mb-1"><Footprints className="size-3 text-orange-400"/> Pas</span><input type="number" value={pas} onChange={(e) => setPas(parseInt(e.target.value))} className="w-full bg-transparent text-lg font-bold text-white outline-none" /></div></div>
+        </div>
+      </div>
+
+      <button onClick={handleSave} disabled={loading} className={cn("w-full p-4 rounded-xl font-bold transition-all flex justify-center items-center gap-2", saved ? "bg-emerald-600 text-white" : "bg-blue-600 hover:bg-blue-700 text-white")}>
+        {loading ? 'Enregistrement en cours...' : saved ? <><Check className="size-5" /> Séance Mémorisée !</> : 'Enregistrer la séance'}
+      </button>
+    </div>
   )
 }

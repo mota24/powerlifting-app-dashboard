@@ -43,7 +43,7 @@ export default function RootLayout({
       lang="fr"
       className={`dark ${geistSans.variable} ${geistMono.variable}`}
     >
-      <body className="bg-background font-sans antialiased">
+      <body className="bg-background font-sans antialiased" suppressHydrationWarning>
         {children}
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
