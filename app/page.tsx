@@ -15,17 +15,15 @@ import { cn } from '@/lib/utils'
 import ConfigPanel from '@/components/power/config-panel'
 
 export default function Page() {
+  // Plus besoin de l'état "showConfig", Configuration devient juste une "vue" classique
   const [vueActive, setVueActive] = useState('accueil')
   const [menuOuvert, setMenuOuvert] = useState(false)
   const [dateActive, setDateActive] = useState<Date>(new Date())
-  
-  const [showConfig, setShowConfig] = useState(false)
   const [blockInfo, setBlockInfo] = useState('Chargement...')
 
   const changerVue = (vue: string) => {
     setVueActive(vue)
     setMenuOuvert(false)
-    setShowConfig(false) 
   }
 
   // ALGORITHME DE CALCUL DES SEMAINES
@@ -41,11 +39,9 @@ export default function Page() {
         return
       }
 
-      // Calcul par rapport au jour sélectionné dans le calendrier
       const targetDate = new Date(dateActive)
       targetDate.setHours(0, 0, 0, 0)
 
-      // On trie les blocs par date pour trouver le plus récent qui a déjà commencé
       const sortedBlocks = data.sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime())
       
       let activeBlock = null;
@@ -54,7 +50,7 @@ export default function Page() {
         blockDate.setHours(0, 0, 0, 0)
         if (targetDate >= blockDate) {
           activeBlock = sortedBlocks[i];
-          break; // On a trouvé le bloc en cours !
+          break;
         }
       }
 
@@ -62,10 +58,8 @@ export default function Page() {
         const startDate = new Date(activeBlock.start_date)
         startDate.setHours(0, 0, 0, 0)
         
-        // On récupère la durée enregistrée (par défaut 5 si non trouvée)
         const duration = activeBlock.duration_weeks || 5
         
-        // Calcul mathématique des semaines
         const diffTime = Math.abs(targetDate.getTime() - startDate.getTime())
         const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
         const currentWeek = Math.floor(diffDays / 7) + 1
@@ -83,7 +77,7 @@ export default function Page() {
     }
 
     calculateCurrentWeek()
-  }, [dateActive, showConfig]) // Le texte se met à jour quand on change de date !
+  }, [dateActive, vueActive]) // Le texte se met à jour aussi quand on quitte la configuration
 
   return (
     <div className="min-h-dvh bg-background pb-16 relative">
@@ -91,28 +85,18 @@ export default function Page() {
 
       <div className="mx-auto max-w-5xl px-4 pt-4 flex justify-between items-center relative z-50">
         
-        {/* AFFICHAGE DU BLOC EN COURS */}
         <div className="flex flex-col">
           <h2 className="text-sm font-medium text-muted-foreground capitalize">
             {vueActive === 'accueil' && "Séance & Calendrier"}
             {vueActive === 'analytique' && "Tableau de bord"}
             {vueActive === 'outils' && "Outils & Échauffement"}
+            {vueActive === 'configuration' && "Configuration des Blocs"}
           </h2>
-          {/* L'algorithme affiche le résultat ici */}
           <span className="text-xs font-bold text-blue-500 mt-1">{blockInfo}</span>
         </div>
 
         <div className="flex items-center gap-2">
-          {/* BOUTON CONFIGURATION */}
-          <button 
-            onClick={() => setShowConfig(!showConfig)} 
-            className={cn("flex items-center justify-center p-2 rounded-md transition-colors", showConfig ? "bg-blue-500/20 text-blue-400" : "bg-secondary/50 hover:bg-secondary text-foreground")}
-            title="Configuration des Blocs"
-          >
-            <Settings className="size-5" />
-          </button>
-
-          {/* MENU PRINCIPAL */}
+          {/* MENU PRINCIPAL (Le bouton engrenage a été supprimé) */}
           <div className="relative">
             <button onClick={() => setMenuOuvert(!menuOuvert)} className="flex items-center justify-center p-2 rounded-md bg-secondary/50 hover:bg-secondary border border-border transition-colors">
               {menuOuvert ? <X className="size-5" /> : <Menu className="size-5" />}
@@ -123,6 +107,12 @@ export default function Page() {
                 <button onClick={() => changerVue('accueil')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'accueil' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Home className="size-4" /> Accueil</button>
                 <button onClick={() => changerVue('analytique')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'analytique' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><BarChart2 className="size-4" /> Analytique</button>
                 <button onClick={() => changerVue('outils')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'outils' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Wrench className="size-4" /> Outils</button>
+                
+                {/* Ligne de séparation pour faire propre */}
+                <div className="h-px bg-border my-1"></div>
+                
+                {/* L'onglet Configuration est maintenant rangé ici ! */}
+                <button onClick={() => changerVue('configuration')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'configuration' ? "bg-blue-500/10 text-blue-400 font-medium" : "hover:bg-secondary text-foreground")}><Settings className="size-4" /> Configuration</button>
               </div>
             )}
           </div>
@@ -130,39 +120,35 @@ export default function Page() {
       </div>
 
       <main className="mx-auto max-w-5xl space-y-6 px-4 py-4">
-        {/* SI LE PANNEAU CONFIG EST OUVERT, ON L'AFFICHE À LA PLACE DU RESTE */}
-        {showConfig ? (
+        {/* L'affichage se fait selon la vue sélectionnée dans le menu */}
+        {vueActive === 'configuration' && (
           <div className="animate-in fade-in slide-in-from-top-4 duration-500">
             <ConfigPanel />
           </div>
-        ) : (
-          /* SINON, ON AFFICHE LA VUE NORMALE (Accueil, Analytique, etc.) */
-          <>
-            {vueActive === 'accueil' && (
-              <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                {/* TRANSMISSION DU TEXTE AU CALENDRIER */}
-                <WeekCalendar dateActive={dateActive} setDateActive={setDateActive} blockTitle={blockInfo} />
-                <SessionForm dateActive={dateActive} />
-              </div>
-            )}
+        )}
 
-            {vueActive === 'analytique' && (
-              <section className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <StatsCards />
-                <Card>
-                  <CardTitle icon={LineChart} title="Dashboard analytique" hint="RPE · Fatigue · Sommeil" />
-                  <AnalyticsChart />
-                </Card>
-              </section>
-            )}
+        {vueActive === 'accueil' && (
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <WeekCalendar dateActive={dateActive} setDateActive={setDateActive} blockTitle={blockInfo} />
+            <SessionForm dateActive={dateActive} />
+          </div>
+        )}
 
-            {vueActive === 'outils' && (
-              <div className="grid gap-6 lg:grid-cols-2 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <PlateVisualizer />
-                <WarmupGenerator />
-              </div>
-            )}
-          </>
+        {vueActive === 'analytique' && (
+          <section className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <StatsCards />
+            <Card>
+              <CardTitle icon={LineChart} title="Dashboard analytique" hint="RPE · Fatigue · Sommeil" />
+              <AnalyticsChart />
+            </Card>
+          </section>
+        )}
+
+        {vueActive === 'outils' && (
+          <div className="grid gap-6 lg:grid-cols-2 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <PlateVisualizer />
+            <WarmupGenerator />
+          </div>
         )}
       </main>
     </div>
