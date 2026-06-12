@@ -9,7 +9,7 @@ interface Props {
   dateActive: Date;
 }
 
-// Le modèle d'une SÉRIE individuelle
+// Le modèle d'une SÉRIE individuelle (valable pour Coach et Athlète)
 interface SetData {
   reps: string;
   weight: string;
@@ -20,11 +20,8 @@ interface SetData {
 interface ExerciceRow {
   id: string | null;
   name: string;
-  coachSets: string;
-  coachReps: string;
-  coachWeight: string;
-  coachRpe: string;
-  tracking: SetData[]; // Le tableau qui va stocker toutes les séries réalisées !
+  coachTracking: SetData[]; // Tableau des séries prescrites
+  tracking: SetData[];      // Tableau des séries réalisées
   comments: string;
 }
 
@@ -67,17 +64,17 @@ export default function SessionForm({ dateActive }: Props) {
 
       if (data && data.length > 0) {
         const listeExercices = data.map(item => {
-          // On récupère le tableau des séries (ou on crée une série vide par défaut)
+          // Conversion de l'ancienne méthode Coach vers la nouvelle (au cas où tu as d'anciennes sauvegardes)
+          const fallbackCoachTracking = item.coach_reps ? [{ reps: item.coach_reps.toString(), weight: item.coach_weight?.toString() || '', rpe: item.coach_rpe?.toString() || '' }] : [{ reps: '', weight: '', rpe: '' }];
+          
+          const savedCoachTracking = item.coach_tracking_data ? item.coach_tracking_data : fallbackCoachTracking;
           const savedTracking = item.tracking_data ? item.tracking_data : [{ reps: '', weight: '', rpe: '' }];
           
           return {
             id: item.id,
             name: item.exercise_name || '',
-            coachSets: item.coach_sets?.toString() || '',
-            coachReps: item.coach_reps?.toString() || '',
-            coachWeight: item.coach_weight?.toString() || '',
-            coachRpe: item.coach_rpe?.toString() || '',
-            tracking: savedTracking, // Injection du tableau de séries
+            coachTracking: savedCoachTracking,
+            tracking: savedTracking,
             comments: item.comments || '',
           }
         })
@@ -95,15 +92,14 @@ export default function SessionForm({ dateActive }: Props) {
     chargerSeance()
   }, [dateActive])
 
-  // CRÉATION D'UN EXERCICE (Avec 1 série vide par défaut)
   const creerExerciceVierge = (): ExerciceRow => ({
     id: null, name: '', 
-    coachSets: '', coachReps: '', coachWeight: '', coachRpe: '',
-    tracking: [{ reps: '', weight: '', rpe: '' }], // 1ère série prête à remplir
+    coachTracking: [{ reps: '', weight: '', rpe: '' }], 
+    tracking: [{ reps: '', weight: '', rpe: '' }], 
     comments: '' 
   })
 
-  // GESTION DES EXERCICES
+  // GESTION GLOBALE DES EXERCICES
   const ajouterExercice = () => setExercices([...exercices, creerExerciceVierge()])
   const supprimerExercice = async (index: number, dbId: string | null) => {
     if (dbId) await supabase.from('workout_sets').delete().eq('id', dbId)
@@ -111,24 +107,46 @@ export default function SessionForm({ dateActive }: Props) {
     nouvelleListe.splice(index, 1)
     setExercices(nouvelleListe)
   }
-  const updateExercice = (index: number, champ: keyof ExerciceRow, valeur: string) => {
+  const updateExerciceNom = (index: number, valeur: string) => {
     const nouvelleListe = [...exercices]
-    nouvelleListe[index] = { ...nouvelleListe[index], [champ]: valeur }
+    nouvelleListe[index].name = valeur
+    setExercices(nouvelleListe)
+  }
+  const updateExerciceCommentaire = (index: number, valeur: string) => {
+    const nouvelleListe = [...exercices]
+    nouvelleListe[index].comments = valeur
     setExercices(nouvelleListe)
   }
 
-  // --- GESTION DES SÉRIES (NOUVEAU) ---
-  const ajouterSerie = (exIndex: number) => {
+  // --- GESTION DES SÉRIES (COACH) ---
+  const ajouterSerieCoach = (exIndex: number) => {
+    const nouvelleListe = [...exercices]
+    nouvelleListe[exIndex].coachTracking.push({ reps: '', weight: '', rpe: '' })
+    setExercices(nouvelleListe)
+  }
+  const supprimerSerieCoach = (exIndex: number, setIndex: number) => {
+    const nouvelleListe = [...exercices]
+    nouvelleListe[exIndex].coachTracking.splice(setIndex, 1)
+    setExercices(nouvelleListe)
+  }
+  const updateSerieCoach = (exIndex: number, setIndex: number, champ: keyof SetData, valeur: string) => {
+    const nouvelleListe = [...exercices]
+    nouvelleListe[exIndex].coachTracking[setIndex] = { ...nouvelleListe[exIndex].coachTracking[setIndex], [champ]: valeur }
+    setExercices(nouvelleListe)
+  }
+
+  // --- GESTION DES SÉRIES (ATHLÈTE) ---
+  const ajouterSerieAthlete = (exIndex: number) => {
     const nouvelleListe = [...exercices]
     nouvelleListe[exIndex].tracking.push({ reps: '', weight: '', rpe: '' })
     setExercices(nouvelleListe)
   }
-  const supprimerSerie = (exIndex: number, setIndex: number) => {
+  const supprimerSerieAthlete = (exIndex: number, setIndex: number) => {
     const nouvelleListe = [...exercices]
     nouvelleListe[exIndex].tracking.splice(setIndex, 1)
     setExercices(nouvelleListe)
   }
-  const updateSerie = (exIndex: number, setIndex: number, champ: keyof SetData, valeur: string) => {
+  const updateSerieAthlete = (exIndex: number, setIndex: number, champ: keyof SetData, valeur: string) => {
     const nouvelleListe = [...exercices]
     nouvelleListe[exIndex].tracking[setIndex] = { ...nouvelleListe[exIndex].tracking[setIndex], [champ]: valeur }
     setExercices(nouvelleListe)
@@ -141,11 +159,8 @@ export default function SessionForm({ dateActive }: Props) {
       const payload = {
         date: dateFormatee,
         exercise_name: ex.name || 'Exercice Non Défini',
-        coach_sets: ex.coachSets ? parseInt(ex.coachSets) : null,
-        coach_reps: ex.coachReps ? parseInt(ex.coachReps) : null,
-        coach_weight: ex.coachWeight ? parseFloat(ex.coachWeight) : null,
-        coach_rpe: ex.coachRpe ? parseFloat(ex.coachRpe) : null,
-        tracking_data: ex.tracking, // Envoi du tableau JSON complet des séries !
+        coach_tracking_data: ex.coachTracking, // Nouveau payload Coach
+        tracking_data: ex.tracking, // Payload Athlète
         comments: ex.comments || null,
         fatigue_score: fatigue,
         sleep_hours: sommeil,
@@ -193,8 +208,9 @@ export default function SessionForm({ dateActive }: Props) {
 
       <div className="space-y-6">
         {exercices.map((ex, exIndex) => (
-          <div key={exIndex} className="p-4 rounded-xl border border-slate-800 bg-slate-900/50 space-y-4 relative group">
+          <div key={exIndex} className="p-4 rounded-xl border border-slate-800 bg-slate-900/50 space-y-4 relative group shadow-sm">
             
+            {/* EN-TÊTE EXERCICE */}
             <div className="flex items-center gap-3">
               <div className="bg-slate-800 text-slate-400 px-3 py-1 rounded-md text-sm font-bold">{exIndex + 1}</div>
               <input 
@@ -202,7 +218,7 @@ export default function SessionForm({ dateActive }: Props) {
                 placeholder="Nom de l'exercice..." 
                 className="flex-1 p-2 bg-slate-950 border border-slate-800 rounded-lg text-white outline-none focus:border-blue-500 font-medium placeholder:text-slate-600"
                 value={ex.name} 
-                onChange={(e) => updateExercice(exIndex, 'name', e.target.value)} 
+                onChange={(e) => updateExerciceNom(exIndex, e.target.value)} 
               />
               <datalist id={`liste-exos-${jourSemaine}`}>
                 {suggestionsDuJour.map(nomExo => <option key={nomExo} value={nomExo} />)}
@@ -212,51 +228,72 @@ export default function SessionForm({ dateActive }: Props) {
               </button>
             </div>
 
-            {/* --- BLOC COACH (Prescription globale) --- */}
-            <div className="p-3 rounded-xl border border-slate-800 bg-slate-900/30">
-              <h3 className="text-xs font-bold text-slate-400 mb-3 flex items-center gap-2 uppercase tracking-wider"><Target className="size-3" /> Prescription Coach</h3>
-              <div className="grid grid-cols-4 gap-2">
-                <div><label className="text-[10px] text-slate-500 uppercase">Séries</label><input type="number" value={ex.coachSets} onChange={(e) => updateExercice(exIndex, 'coachSets', e.target.value)} className="w-full p-2 bg-slate-950 border border-slate-800 rounded-md text-slate-300 text-center outline-none focus:border-slate-500" /></div>
-                <div><label className="text-[10px] text-slate-500 uppercase">Reps</label><input type="number" value={ex.coachReps} onChange={(e) => updateExercice(exIndex, 'coachReps', e.target.value)} className="w-full p-2 bg-slate-950 border border-slate-800 rounded-md text-slate-300 text-center outline-none focus:border-slate-500" /></div>
-                <div><label className="text-[10px] text-slate-500 uppercase">Poids (kg)</label><input type="number" value={ex.coachWeight} onChange={(e) => updateExercice(exIndex, 'coachWeight', e.target.value)} className="w-full p-2 bg-slate-950 border border-slate-800 rounded-md text-slate-300 text-center outline-none focus:border-slate-500" /></div>
-                <div><label className="text-[10px] text-slate-500 uppercase">RPE</label><input type="number" value={ex.coachRpe} onChange={(e) => updateExercice(exIndex, 'coachRpe', e.target.value)} className="w-full p-2 bg-slate-950 border border-slate-800 rounded-md text-slate-300 text-center outline-none focus:border-slate-500" /></div>
-              </div>
-            </div>
-
-            {/* --- BLOC ATHLÈTE (Série par Série) --- */}
-            <div className="p-3 rounded-xl border border-blue-500/30 bg-blue-500/5">
-              <h3 className="text-xs font-bold text-blue-400 mb-3 flex items-center gap-2 uppercase tracking-wider"><Check className="size-3" /> Validé</h3>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               
-              {/* En-têtes des colonnes */}
-              <div className="grid grid-cols-[auto_1fr_1fr_1fr_auto] gap-2 mb-2 px-1">
-                <div className="w-6"></div>
-                <div className="text-[10px] text-blue-500/70 uppercase text-center">Reps</div>
-                <div className="text-[10px] text-blue-500/70 uppercase text-center">Poids (kg)</div>
-                <div className="text-[10px] text-blue-500/70 uppercase text-center">RPE</div>
-                <div className="w-6"></div>
+              {/* --- BLOC COACH --- */}
+              <div className="p-3 rounded-xl border border-slate-800 bg-slate-900/30 flex flex-col h-full">
+                <h3 className="text-xs font-bold text-slate-400 mb-3 flex items-center gap-2 uppercase tracking-wider"><Target className="size-3" /> Prescription Coach</h3>
+                
+                <div className="grid grid-cols-[auto_1fr_1fr_1fr_auto] gap-2 mb-2 px-1">
+                  <div className="w-6"></div>
+                  <div className="text-[10px] text-slate-500 uppercase text-center">Reps</div>
+                  <div className="text-[10px] text-slate-500 uppercase text-center">Poids</div>
+                  <div className="text-[10px] text-slate-500 uppercase text-center">RPE</div>
+                  <div className="w-6"></div>
+                </div>
+
+                <div className="space-y-2 flex-1">
+                  {ex.coachTracking.map((set, setIndex) => (
+                    <div key={setIndex} className="grid grid-cols-[auto_1fr_1fr_1fr_auto] gap-2 items-center">
+                      <span className="w-6 text-xs font-bold text-slate-600 text-center">S{setIndex + 1}</span>
+                      <input type="number" value={set.reps} onChange={(e) => updateSerieCoach(exIndex, setIndex, 'reps', e.target.value)} className="w-full p-2 bg-slate-950 border border-slate-800 rounded-md text-slate-300 text-center outline-none focus:border-slate-500" />
+                      <input type="number" value={set.weight} onChange={(e) => updateSerieCoach(exIndex, setIndex, 'weight', e.target.value)} className="w-full p-2 bg-slate-950 border border-slate-800 rounded-md text-slate-300 text-center outline-none focus:border-slate-500" />
+                      <input type="number" step="0.5" value={set.rpe} onChange={(e) => updateSerieCoach(exIndex, setIndex, 'rpe', e.target.value)} className="w-full p-2 bg-slate-950 border border-slate-800 rounded-md text-slate-300 text-center outline-none focus:border-slate-500" />
+                      <button onClick={() => supprimerSerieCoach(exIndex, setIndex)} className="w-6 flex justify-center text-slate-700 hover:text-red-400 transition-colors">
+                        <X className="size-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <button onClick={() => ajouterSerieCoach(exIndex)} className="mt-3 w-full py-2 bg-slate-800/50 hover:bg-slate-800 text-slate-400 text-xs font-bold rounded-lg flex items-center justify-center gap-2 transition-colors">
+                  <Plus className="size-3" /> Ajouter une série prévue
+                </button>
               </div>
 
-              {/* Liste des séries dynamiques */}
-              <div className="space-y-2">
-                {ex.tracking.map((set, setIndex) => (
-                  <div key={setIndex} className="grid grid-cols-[auto_1fr_1fr_1fr_auto] gap-2 items-center">
-                    <span className="w-6 text-xs font-bold text-slate-500 text-center">S{setIndex + 1}</span>
-                    <input type="number" value={set.reps} onChange={(e) => updateSerie(exIndex, setIndex, 'reps', e.target.value)} className="w-full p-2 bg-slate-950 border border-blue-500/30 rounded-md text-white text-center outline-none focus:border-blue-500" />
-                    <input type="number" value={set.weight} onChange={(e) => updateSerie(exIndex, setIndex, 'weight', e.target.value)} className="w-full p-2 bg-slate-950 border border-blue-500/30 rounded-md text-white text-center outline-none focus:border-blue-500" />
-                    <input type="number" step="0.5" value={set.rpe} onChange={(e) => updateSerie(exIndex, setIndex, 'rpe', e.target.value)} className="w-full p-2 bg-slate-950 border border-blue-500/30 rounded-md text-white text-center outline-none focus:border-blue-500" />
-                    <button onClick={() => supprimerSerie(exIndex, setIndex)} className="w-6 flex justify-center text-slate-600 hover:text-red-400 transition-colors">
-                      <X className="size-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
+              {/* --- BLOC ATHLÈTE --- */}
+              <div className="p-3 rounded-xl border border-blue-500/30 bg-blue-500/5 flex flex-col h-full">
+                <h3 className="text-xs font-bold text-blue-400 mb-3 flex items-center gap-2 uppercase tracking-wider"><Check className="size-3" /> Validé</h3>
+                
+                <div className="grid grid-cols-[auto_1fr_1fr_1fr_auto] gap-2 mb-2 px-1">
+                  <div className="w-6"></div>
+                  <div className="text-[10px] text-blue-500/70 uppercase text-center">Reps</div>
+                  <div className="text-[10px] text-blue-500/70 uppercase text-center">Poids</div>
+                  <div className="text-[10px] text-blue-500/70 uppercase text-center">RPE</div>
+                  <div className="w-6"></div>
+                </div>
 
-              <button onClick={() => ajouterSerie(exIndex)} className="mt-3 w-full py-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 text-xs font-bold rounded-lg flex items-center justify-center gap-2 transition-colors">
-                <Plus className="size-3" /> Ajouter une série
-              </button>
+                <div className="space-y-2 flex-1">
+                  {ex.tracking.map((set, setIndex) => (
+                    <div key={setIndex} className="grid grid-cols-[auto_1fr_1fr_1fr_auto] gap-2 items-center">
+                      <span className="w-6 text-xs font-bold text-slate-500 text-center">S{setIndex + 1}</span>
+                      <input type="number" value={set.reps} onChange={(e) => updateSerieAthlete(exIndex, setIndex, 'reps', e.target.value)} className="w-full p-2 bg-slate-950 border border-blue-500/30 rounded-md text-white text-center outline-none focus:border-blue-500" />
+                      <input type="number" value={set.weight} onChange={(e) => updateSerieAthlete(exIndex, setIndex, 'weight', e.target.value)} className="w-full p-2 bg-slate-950 border border-blue-500/30 rounded-md text-white text-center outline-none focus:border-blue-500" />
+                      <input type="number" step="0.5" value={set.rpe} onChange={(e) => updateSerieAthlete(exIndex, setIndex, 'rpe', e.target.value)} className="w-full p-2 bg-slate-950 border border-blue-500/30 rounded-md text-white text-center outline-none focus:border-blue-500" />
+                      <button onClick={() => supprimerSerieAthlete(exIndex, setIndex)} className="w-6 flex justify-center text-slate-600 hover:text-red-400 transition-colors">
+                        <X className="size-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <button onClick={() => ajouterSerieAthlete(exIndex)} className="mt-3 w-full py-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 text-xs font-bold rounded-lg flex items-center justify-center gap-2 transition-colors">
+                  <Plus className="size-3" /> Ajouter une série validée
+                </button>
+              </div>
             </div>
 
-            {/* --- SECTION COMMENTAIRES --- */}
+            {/* SECTION COMMENTAIRES */}
             <div className="mt-2 pt-3 border-t border-slate-800/50">
               <div className="flex items-center gap-2 mb-2 text-slate-400">
                 <MessageSquare className="size-4" /> 
@@ -265,7 +302,7 @@ export default function SessionForm({ dateActive }: Props) {
               <input 
                 placeholder="Ex: Tempo 3-1-0, back-off plus lourd, douleur..." 
                 value={ex.comments} 
-                onChange={(e) => updateExercice(exIndex, 'comments', e.target.value)} 
+                onChange={(e) => updateExerciceCommentaire(exIndex, e.target.value)} 
                 className="w-full p-2 bg-transparent border border-slate-800 rounded-md text-sm text-slate-300 outline-none focus:border-blue-500"
               />
             </div>
