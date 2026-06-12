@@ -32,9 +32,10 @@ export default function SessionForm({ dateActive }: Props) {
   const [loading, setLoading] = useState(false)
   const [saved, setSaved] = useState(false)
   const [exercices, setExercices] = useState<ExerciceRow[]>([])
+  
   const [fatigue, setFatigue] = useState(5)
   const [sommeil, setSommeil] = useState(8)
-  const [pas, setPas] = useState(0)
+  const [pas, setPas] = useState(8000)
 
   const dateFormatee = new Date(dateActive.getTime() - (dateActive.getTimezoneOffset() * 60000)).toISOString().split('T')[0]
   const jourSemaine = dateActive.getDay()
@@ -50,17 +51,20 @@ export default function SessionForm({ dateActive }: Props) {
     }
   }
 
+  // LECTURE DE LA BASE DE DONNÉES
+// LECTURE DE LA BASE DE DONNÉES
   useEffect(() => {
     const chargerSeance = async () => {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('workout_sets')
         .select('*')
         .eq('date', dateFormatee)
-        .order('created_at', { ascending: false }) // Trie par date la plus récente
+        .order('created_at', { ascending: false }) // Trié par plus récent
 
       if (data && data.length > 0) {
         const listeExercices = data.map(item => {
           const fallbackCoachTracking = item.coach_reps ? [{ reps: item.coach_reps.toString(), weight: item.coach_weight?.toString() || '', rpe: item.coach_rpe?.toString() || '' }] : [{ reps: '', weight: '', rpe: '' }];
+          
           const savedCoachTracking = item.coach_tracking_data ? item.coach_tracking_data : fallbackCoachTracking;
           let savedTracking = item.tracking_data ? [...item.tracking_data] : [{ reps: '', weight: '', rpe: '' }];
 
@@ -78,20 +82,21 @@ export default function SessionForm({ dateActive }: Props) {
             tracking: savedTracking,
             comments: item.comments || '',
           }
-        })
-        setExercices(listeExercices)
-        setFatigue(data[0].fatigue_score || 5)
-        setSommeil(data[0].sleep_hours || 8)
-        setPas(data[0].steps_count || 0)
+        });
+
+        setExercices(listeExercices);
+        setFatigue(data[0].fatigue_score || 5);
+        setSommeil(data[0].sleep_hours || 8);
+        setPas(data[0].steps_count || 0); // Récupération des pas
       } else {
-        setExercices([creerExerciceVierge()])
-        setFatigue(5)
-        setSommeil(8)
-        setPas(0)
+        setExercices([creerExerciceVierge()]);
+        setFatigue(5);
+        setSommeil(8);
+        setPas(0);
       }
-    }
-    chargerSeance()
-  }, [dateActive, dateFormatee])
+    };
+    chargerSeance();
+  }, [dateActive, dateFormatee]); // Dépendances à jour
 
   const creerExerciceVierge = (): ExerciceRow => ({
     id: null, name: '', 
@@ -154,6 +159,7 @@ export default function SessionForm({ dateActive }: Props) {
     setExercices(nouvelleListe)
   }
 
+  // SAUVEGARDE POUR UNE SÉANCE NORMALE
   const handleSave = async () => {
     setLoading(true)
     const promesses = exercices.map(ex => {
@@ -170,25 +176,45 @@ export default function SessionForm({ dateActive }: Props) {
       if (ex.id) return supabase.from('workout_sets').update(payload).eq('id', ex.id)
       else return supabase.from('workout_sets').insert([payload])
     })
+
     await Promise.all(promesses)
     setLoading(false)
     setSaved(true)
     setTimeout(() => setSaved(false), 3000)
+    
+    const { data } = await supabase.from('workout_sets').select('id').eq('date', dateFormatee).order('created_at', { ascending: true })
+    if (data) {
+      const listeMaj = [...exercices]
+      data.forEach((d, i) => { if(listeMaj[i]) listeMaj[i].id = d.id })
+      setExercices(listeMaj)
+    }
   }
 
+  // SAUVEGARDE SPÉCIFIQUE POUR LES JOURS DE REPOS (Uniquement les métriques)
   const handleSaveMetricsOnly = async () => {
     setLoading(true)
-    const { data } = await supabase.from('workout_sets').select('id').eq('date', dateFormatee).limit(1)
-    if (data && data.length > 0) {
-      await supabase.from('workout_sets').update({ fatigue_score: fatigue, sleep_hours: sommeil, steps_count: pas }).eq('id', data[0].id)
-    } else {
-      await supabase.from('workout_sets').insert([{ date: dateFormatee, fatigue_score: fatigue, sleep_hours: sommeil, steps_count: pas, exercise_name: 'Repos' }])
+    const payload = {
+      date: dateFormatee,
+      exercise_name: 'Repos',
+      fatigue_score: fatigue,
+      sleep_hours: sommeil,
+      steps_count: pas
     }
+    
+    const { data } = await supabase.from('workout_sets').select('id').eq('date', dateFormatee).limit(1)
+
+    if (data && data.length > 0) {
+      await supabase.from('workout_sets').update(payload).eq('id', data[0].id)
+    } else {
+      await supabase.from('workout_sets').insert([payload])
+    }
+
     setLoading(false)
     setSaved(true)
     setTimeout(() => setSaved(false), 3000)
   }
 
+  // --- VUE JOUR DE REPOS ---
   if (jourSemaine === 0 || jourSemaine === 5) {
     return (
       <div className="space-y-6 animate-in fade-in pb-10">
@@ -199,6 +225,8 @@ export default function SessionForm({ dateActive }: Props) {
             <p className="text-sm text-slate-500 mt-1">La récupération fait partie de l'entraînement.</p>
           </div>
         </div>
+
+        {/* MÉTRIQUES AFFICHÉES MÊME LE JOUR DE REPOS */}
         <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/50">
           <h3 className="text-sm font-bold text-slate-400 mb-4">Suivi quotidien</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -207,58 +235,143 @@ export default function SessionForm({ dateActive }: Props) {
             <div className="flex items-center justify-between p-3 bg-slate-950 rounded-lg border border-slate-800"><div className="flex flex-col"><span className="flex items-center gap-1 text-xs text-slate-400 mb-1"><Footprints className="size-3 text-orange-400"/> Pas</span><input type="number" value={pas} onChange={(e) => setPas(parseInt(e.target.value))} className="w-full bg-transparent text-lg font-bold text-white outline-none" /></div></div>
           </div>
         </div>
+
         <button onClick={handleSaveMetricsOnly} disabled={loading} className={cn("w-full p-4 rounded-xl font-bold transition-all flex justify-center items-center gap-2 shadow-lg", saved ? "bg-emerald-600 shadow-emerald-500/25 text-white" : "bg-blue-600 hover:bg-blue-700 shadow-blue-500/25 text-white")}>
-          {loading ? '...' : saved ? 'Suivi Mémorisé !' : 'Enregistrer le suivi'}
+          {loading ? 'Enregistrement en cours...' : saved ? <><Check className="size-5" /> Suivi Mémorisé !</> : 'Enregistrer le suivi'}
         </button>
       </div>
     )
   }
 
+  // --- VUE JOUR D'ENTRAÎNEMENT NORMALE ---
   const suggestionsDuJour = getExercicesDuJour()
 
   return (
     <div className="space-y-6 animate-in fade-in pb-10">
-      <h2 className="text-lg font-bold text-slate-200 flex items-center gap-2"><Activity className="size-5 text-blue-500" /> Séance du {dateActive.toLocaleDateString('fr-FR')}</h2>
+      
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-bold text-slate-200 flex items-center gap-2">
+          <Activity className="size-5 text-blue-500" /> Séance du {dateActive.toLocaleDateString('fr-FR')}
+        </h2>
+      </div>
+
       <div className="space-y-6">
         {exercices.map((ex, exIndex) => (
-          <div key={exIndex} className="p-4 rounded-xl border border-slate-800 bg-slate-900/50 space-y-4 shadow-sm">
+          <div key={exIndex} className="p-4 rounded-xl border border-slate-800 bg-slate-900/50 space-y-4 relative group shadow-sm">
+            
             <div className="flex items-center gap-3">
-              <input list={`liste-exos-${jourSemaine}`} placeholder="Nom de l'exercice..." className="flex-1 p-2 bg-slate-950 border border-slate-800 rounded-lg text-white" value={ex.name} onChange={(e) => updateExerciceNom(exIndex, e.target.value)} />
-              <datalist id={`liste-exos-${jourSemaine}`}>{suggestionsDuJour.map(n => <option key={n} value={n} />)}</datalist>
-              <button onClick={() => supprimerExercice(exIndex, ex.id)} className="text-slate-500 hover:text-red-500"><Trash2 className="size-5" /></button>
+              <div className="bg-slate-800 text-slate-400 px-3 py-1 rounded-md text-sm font-bold">{exIndex + 1}</div>
+              <input 
+                list={`liste-exos-${jourSemaine}`}
+                placeholder="Nom de l'exercice..." 
+                className="flex-1 p-2 bg-slate-950 border border-slate-800 rounded-lg text-white outline-none focus:border-blue-500 font-medium placeholder:text-slate-600"
+                value={ex.name} 
+                onChange={(e) => updateExerciceNom(exIndex, e.target.value)} 
+              />
+              <datalist id={`liste-exos-${jourSemaine}`}>
+                {suggestionsDuJour.map(nomExo => <option key={nomExo} value={nomExo} />)}
+              </datalist>
+              <button onClick={() => supprimerExercice(exIndex, ex.id)} className="p-2 text-slate-500 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors">
+                <Trash2 className="size-5" />
+              </button>
             </div>
+
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <div className="p-3 rounded-xl border border-slate-800 bg-slate-900/30">
-                <h3 className="text-xs font-bold text-slate-400 mb-2 uppercase">Prescription Coach</h3>
-                {ex.coachTracking.map((set, i) => (
-                  <div key={i} className="grid grid-cols-4 gap-2 mb-1">
-                    <span className="text-xs text-slate-500 pt-2">S{i+1}</span>
-                    <input type="number" value={set.reps} onChange={(e) => updateSerieCoach(exIndex, i, 'reps', e.target.value)} className="bg-slate-950 border border-slate-800 rounded text-center" />
-                    <input type="number" value={set.weight} onChange={(e) => updateSerieCoach(exIndex, i, 'weight', e.target.value)} className="bg-slate-950 border border-slate-800 rounded text-center" />
-                    <input type="number" value={set.rpe} onChange={(e) => updateSerieCoach(exIndex, i, 'rpe', e.target.value)} className="bg-slate-950 border border-slate-800 rounded text-center" />
-                  </div>
-                ))}
-                <button onClick={() => ajouterSerieCoach(exIndex)} className="text-xs text-blue-400 mt-2">+ Ajouter série</button>
+              
+              <div className="p-3 rounded-xl border border-slate-800 bg-slate-900/30 flex flex-col h-full">
+                <h3 className="text-xs font-bold text-slate-400 mb-3 flex items-center gap-2 uppercase tracking-wider"><Target className="size-3" /> Prescription Coach</h3>
+                
+                <div className="grid grid-cols-[auto_1fr_1fr_1fr_auto] gap-2 mb-2 px-1">
+                  <div className="w-6"></div>
+                  <div className="text-[10px] text-slate-500 uppercase text-center">Reps</div>
+                  <div className="text-[10px] text-slate-500 uppercase text-center">Poids</div>
+                  <div className="text-[10px] text-slate-500 uppercase text-center">RPE</div>
+                  <div className="w-6"></div>
+                </div>
+
+                <div className="space-y-2 flex-1">
+                  {ex.coachTracking.map((set, setIndex) => (
+                    <div key={setIndex} className="grid grid-cols-[auto_1fr_1fr_1fr_auto] gap-2 items-center">
+                      <span className="w-6 text-xs font-bold text-slate-600 text-center">S{setIndex + 1}</span>
+                      <input type="number" value={set.reps} onChange={(e) => updateSerieCoach(exIndex, setIndex, 'reps', e.target.value)} className="w-full p-2 bg-slate-950 border border-slate-800 rounded-md text-slate-300 text-center outline-none focus:border-slate-500" />
+                      <input type="number" value={set.weight} onChange={(e) => updateSerieCoach(exIndex, setIndex, 'weight', e.target.value)} className="w-full p-2 bg-slate-950 border border-slate-800 rounded-md text-slate-300 text-center outline-none focus:border-slate-500" />
+                      <input type="number" step="0.5" value={set.rpe} onChange={(e) => updateSerieCoach(exIndex, setIndex, 'rpe', e.target.value)} className="w-full p-2 bg-slate-950 border border-slate-800 rounded-md text-slate-300 text-center outline-none focus:border-slate-500" />
+                      <button onClick={() => supprimerSerieCoach(exIndex, setIndex)} className="w-6 flex justify-center text-slate-700 hover:text-red-400 transition-colors">
+                        <X className="size-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <button onClick={() => ajouterSerieCoach(exIndex)} className="mt-3 w-full py-2 bg-slate-800/50 hover:bg-slate-800 text-slate-400 text-xs font-bold rounded-lg flex items-center justify-center gap-2 transition-colors">
+                  <Plus className="size-3" /> Ajouter une série prévue
+                </button>
               </div>
-              <div className="p-3 rounded-xl border border-blue-500/30 bg-blue-500/5">
-                <h3 className="text-xs font-bold text-blue-400 mb-2 uppercase">Validé</h3>
-                {ex.tracking.map((set, i) => (
-                  <div key={i} className="grid grid-cols-4 gap-2 mb-1">
-                    <span className="text-xs text-blue-500 pt-2">S{i+1}</span>
-                    <input type="number" value={set.reps} onChange={(e) => updateSerieAthlete(exIndex, i, 'reps', e.target.value)} className="bg-slate-950 border border-blue-800 rounded text-center" />
-                    <input type="number" value={set.weight} onChange={(e) => updateSerieAthlete(exIndex, i, 'weight', e.target.value)} className="bg-slate-950 border border-blue-800 rounded text-center" />
-                    <input type="number" value={set.rpe} onChange={(e) => updateSerieAthlete(exIndex, i, 'rpe', e.target.value)} className="bg-slate-950 border border-blue-800 rounded text-center" />
-                  </div>
-                ))}
-                <button onClick={() => ajouterSerieAthlete(exIndex)} className="text-xs text-blue-400 mt-2">+ Série extra</button>
+
+              <div className="p-3 rounded-xl border border-blue-500/30 bg-blue-500/5 flex flex-col h-full">
+                <h3 className="text-xs font-bold text-blue-400 mb-3 flex items-center gap-2 uppercase tracking-wider"><Check className="size-3" /> Validé</h3>
+                
+                <div className="grid grid-cols-[auto_1fr_1fr_1fr_auto] gap-2 mb-2 px-1">
+                  <div className="w-6"></div>
+                  <div className="text-[10px] text-blue-500/70 uppercase text-center">Reps</div>
+                  <div className="text-[10px] text-blue-500/70 uppercase text-center">Poids</div>
+                  <div className="text-[10px] text-blue-500/70 uppercase text-center">RPE</div>
+                  <div className="w-6"></div>
+                </div>
+
+                <div className="space-y-2 flex-1">
+                  {ex.tracking.map((set, setIndex) => (
+                    <div key={setIndex} className="grid grid-cols-[auto_1fr_1fr_1fr_auto] gap-2 items-center">
+                      <span className="w-6 text-xs font-bold text-slate-500 text-center">S{setIndex + 1}</span>
+                      <input type="number" value={set.reps} onChange={(e) => updateSerieAthlete(exIndex, setIndex, 'reps', e.target.value)} className="w-full p-2 bg-slate-950 border border-blue-500/30 rounded-md text-white text-center outline-none focus:border-blue-500" />
+                      <input type="number" value={set.weight} onChange={(e) => updateSerieAthlete(exIndex, setIndex, 'weight', e.target.value)} className="w-full p-2 bg-slate-950 border border-blue-500/30 rounded-md text-white text-center outline-none focus:border-blue-500" />
+                      <input type="number" step="0.5" value={set.rpe} onChange={(e) => updateSerieAthlete(exIndex, setIndex, 'rpe', e.target.value)} className="w-full p-2 bg-slate-950 border border-blue-500/30 rounded-md text-white text-center outline-none focus:border-blue-500" />
+                      <button onClick={() => supprimerSerieAthlete(exIndex, setIndex)} className="w-6 flex justify-center text-slate-600 hover:text-red-400 transition-colors">
+                        <X className="size-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <button onClick={() => ajouterSerieAthlete(exIndex)} className="mt-3 w-full py-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 text-xs font-bold rounded-lg flex items-center justify-center gap-2 transition-colors">
+                  <Plus className="size-3" /> Série extra (Athlète)
+                </button>
               </div>
             </div>
-            <input placeholder="Notes..." value={ex.comments} onChange={(e) => updateExerciceCommentaire(exIndex, e.target.value)} className="w-full p-2 bg-transparent border border-slate-800 rounded text-sm" />
+
+            <div className="mt-2 pt-3 border-t border-slate-800/50">
+              <div className="flex items-center gap-2 mb-2 text-slate-400">
+                <MessageSquare className="size-4" /> 
+                <span className="text-[10px] font-bold uppercase tracking-wider">Notes & Tempo</span>
+              </div>
+              <input 
+                placeholder="Ex: Tempo 3-1-0, douleur épaule..." 
+                value={ex.comments} 
+                onChange={(e) => updateExerciceCommentaire(exIndex, e.target.value)} 
+                className="w-full p-2 bg-transparent border border-slate-800 rounded-md text-sm text-slate-300 outline-none focus:border-blue-500"
+              />
+            </div>
+
           </div>
         ))}
       </div>
-      <button onClick={ajouterExercice} className="w-full py-3 border-2 border-dashed border-slate-700 text-slate-500 rounded-xl">+ Ajouter un exercice</button>
-      <button onClick={handleSave} className="w-full p-4 bg-blue-600 rounded-xl font-bold">Enregistrer séance</button>
+
+      <button onClick={ajouterExercice} className="w-full py-3 border-2 border-dashed border-slate-700 hover:border-blue-500 hover:text-blue-400 text-slate-500 rounded-xl flex items-center justify-center gap-2 transition-colors font-medium">
+        <Plus className="size-5" /> Ajouter un exercice
+      </button>
+
+      <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/50">
+        <h3 className="text-sm font-bold text-slate-400 mb-4">Métriques globales du jour</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="flex items-center justify-between p-3 bg-slate-950 rounded-lg border border-slate-800"><div className="flex flex-col w-full"><span className="flex items-center gap-1 text-xs text-slate-400 mb-1"><Battery className="size-3 text-red-500"/> Fatigue</span><input type="range" min="1" max="10" value={fatigue} onChange={(e) => setFatigue(parseInt(e.target.value))} className="w-full accent-red-500" /></div><span className="text-lg font-bold ml-4 text-white w-6 text-right">{fatigue}</span></div>
+          <div className="flex items-center justify-between p-3 bg-slate-950 rounded-lg border border-slate-800"><div className="flex flex-col"><span className="flex items-center gap-1 text-xs text-slate-400 mb-1"><Moon className="size-3 text-indigo-400"/> Sommeil</span><input type="number" step="0.5" value={sommeil} onChange={(e) => setSommeil(parseFloat(e.target.value))} className="w-16 bg-transparent text-lg font-bold text-white outline-none" /></div><span className="text-xs text-slate-500">h</span></div>
+          <div className="flex items-center justify-between p-3 bg-slate-950 rounded-lg border border-slate-800"><div className="flex flex-col"><span className="flex items-center gap-1 text-xs text-slate-400 mb-1"><Footprints className="size-3 text-orange-400"/> Pas</span><input type="number" value={pas} onChange={(e) => setPas(parseInt(e.target.value))} className="w-full bg-transparent text-lg font-bold text-white outline-none" /></div></div>
+        </div>
+      </div>
+
+      <button onClick={handleSave} disabled={loading} className={cn("w-full p-4 rounded-xl font-bold transition-all flex justify-center items-center gap-2 shadow-lg", saved ? "bg-emerald-600 shadow-emerald-500/25 text-white" : "bg-blue-600 hover:bg-blue-700 shadow-blue-500/25 text-white")}>
+        {loading ? 'Enregistrement en cours...' : saved ? <><Check className="size-5" /> Séance Mémorisée !</> : 'Enregistrer la séance'}
+      </button>
     </div>
   )
 }
