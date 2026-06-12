@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase' 
 import { Header } from '@/components/power/header'
 import { StatsCards } from '@/components/power/stats-cards'
@@ -15,15 +15,52 @@ import { cn } from '@/lib/utils'
 import ConfigPanel from '@/components/power/config-panel'
 
 export default function Page() {
-  const [vueActive, setVueActive] = useState('accueil')
+  // Initialisation à partir de l'URL pour garder la page après un rafraîchissement
+  const [vueActive, setVueActive] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('page') || 'accueil';
+    }
+    return 'accueil';
+  });
+
   const [menuOuvert, setMenuOuvert] = useState(false)
   const [dateActive, setDateActive] = useState<Date>(new Date())
   const [blockInfo, setBlockInfo] = useState('Chargement...')
+  
+  const menuRef = useRef<HTMLDivElement>(null)
+  const toggleBtnRef = useRef<HTMLButtonElement>(null)
 
   const changerVue = (vue: string) => {
     setVueActive(vue)
     setMenuOuvert(false)
+    // Met à jour l'URL sans recharger
+    window.history.pushState({}, '', `?page=${vue}`);
   }
+
+  // Écouteur pour fermer le menu au clic extérieur
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        menuRef.current && !menuRef.current.contains(event.target as Node) &&
+        toggleBtnRef.current && !toggleBtnRef.current.contains(event.target as Node)
+      ) {
+        setMenuOuvert(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  // Synchronisation avec le bouton "Retour en arrière" du navigateur
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      setVueActive(params.get('page') || 'accueil');
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   // ALGORITHME DE CALCUL DES SEMAINES
   useEffect(() => {
@@ -96,7 +133,6 @@ export default function Page() {
 
         <div className="flex items-center gap-2">
           
-          {/* BOUTON ACCUEIL RAPIDE */}
           <button 
             onClick={() => changerVue('accueil')} 
             className={cn(
@@ -110,16 +146,25 @@ export default function Page() {
             <Home className="size-5" />
           </button>
 
-          {/* MENU DE NAVIGATION CONTENANT UNIQUEMENT LES 3 OPTIONS */}
           <div className="relative">
-            <button onClick={() => setMenuOuvert(!menuOuvert)} className="flex items-center justify-center p-2 rounded-md bg-secondary/50 hover:bg-secondary border border-border transition-colors">
+            <button 
+              ref={toggleBtnRef}
+              onClick={() => setMenuOuvert(!menuOuvert)} 
+              className="flex items-center justify-center p-2 rounded-md bg-secondary/50 hover:bg-secondary border border-border transition-colors"
+            >
               {menuOuvert ? <X className="size-5" /> : <Menu className="size-5" />}
             </button>
 
             {menuOuvert && (
-              <div className="absolute top-12 right-0 w-56 bg-card border border-border p-2 rounded-lg shadow-xl flex flex-col gap-1 z-50">
+              <div 
+                ref={menuRef}
+                className="absolute top-12 right-0 w-56 bg-card border border-border p-2 rounded-lg shadow-xl flex flex-col gap-1 z-50 animate-in fade-in zoom-in-95 duration-200"
+              >
                 <button onClick={() => changerVue('analytique')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'analytique' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><BarChart2 className="size-4" /> Analytique</button>
                 <button onClick={() => changerVue('outils')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'outils' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Wrench className="size-4" /> Outils</button>
+                
+                <div className="h-px bg-border my-1"></div>
+                
                 <button onClick={() => changerVue('configuration')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'configuration' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Settings className="size-4" /> Configuration</button>
               </div>
             )}
