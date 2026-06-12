@@ -5,19 +5,16 @@ import { Header } from '@/components/power/header'
 import { StatsCards } from '@/components/power/stats-cards'
 import { AnalyticsChart } from '@/components/power/analytics-chart'
 import { WeekCalendar } from '@/components/power/week-calendar'
-import SessionForm from '@/components/power/session-form' // Sans accolades !
+import SessionForm from '@/components/power/session-form'
 import { PlateVisualizer } from '@/components/power/plate-visualizer'
 import { WarmupGenerator } from '@/components/power/warmup-generator'
 import { Card, CardTitle } from '@/components/power/card'
-import { LineChart, Flame, Menu, X, Home, BarChart2, Wrench } from 'lucide-react'
+import { LineChart, Menu, X, Home, BarChart2, Wrench } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export default function Page() {
-  const [peaking, setPeaking] = useState(false)
   const [vueActive, setVueActive] = useState('accueil')
   const [menuOuvert, setMenuOuvert] = useState(false)
-  
-  // LE CERVEAU CENTRAL : Garde en mémoire la date cliquée dans le calendrier
   const [dateActive, setDateActive] = useState<Date>(new Date())
 
   const changerVue = (vue: string) => {
@@ -27,7 +24,8 @@ export default function Page() {
 
   return (
     <div className="min-h-dvh bg-background pb-16 relative">
-      <Header peaking={peaking} onTogglePeaking={() => setPeaking((p) => !p)} />
+      {/* Header nettoyé sans aucun bouton de peaking */}
+      <Header />
 
       <div className="mx-auto max-w-5xl px-4 pt-4 flex justify-between items-center relative z-50">
         <h2 className="text-sm font-medium text-muted-foreground capitalize">
@@ -54,7 +52,6 @@ export default function Page() {
       <main className="mx-auto max-w-5xl space-y-6 px-4 py-4">
         {vueActive === 'accueil' && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            {/* On branche le calendrier et le formulaire au cerveau */}
             <WeekCalendar dateActive={dateActive} setDateActive={setDateActive} />
             <SessionForm dateActive={dateActive} />
           </div>
@@ -63,8 +60,8 @@ export default function Page() {
         {vueActive === 'analytique' && (
           <section className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <StatsCards />
-            <Card className={cn(peaking && 'border-primary/50')}>
-              <CardTitle icon={LineChart} title="Dashboard analytique" hint="RPE · Fatigue · Sensations — 7 dernières semaines" />
+            <Card>
+              <CardTitle icon={LineChart} title="Dashboard analytique" hint="RPE · Fatigue · Sommeil" />
               <AnalyticsChart />
             </Card>
           </section>

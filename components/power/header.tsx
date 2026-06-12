@@ -1,74 +1,19 @@
 'use client'
 
-import { cn } from '@/lib/utils'
-import { Zap, Flame } from 'lucide-react'
+import { Flame } from 'lucide-react'
 
-export function Header({
-  peaking,
-  onTogglePeaking,
-}: {
-  peaking: boolean
-  onTogglePeaking: () => void
-}) {
+export function Header() {
   return (
-    <header className="sticky top-0 z-20 border-b border-border bg-background/80 backdrop-blur-md">
-      <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3">
-        <div className="flex items-center gap-2.5">
-          <span className="flex size-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-            <Zap className="size-5" />
-          </span>
-          <div>
-            <h1 className="text-lg font-bold tracking-tight text-foreground">
-              PowerApp
-            </h1>
-            <p className="text-[11px] text-muted-foreground">
-              Powerlifting Performance
-            </p>
-          </div>
+    <header className="border-b border-slate-800 bg-slate-900/50 backdrop-blur sticky top-0 z-40">
+      <div className="mx-auto max-w-5xl px-4 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Flame className="size-6 text-blue-500 animate-pulse" />
+          <h1 className="text-xl font-bold tracking-tight text-white">Mota Performance</h1>
         </div>
-
-        <div className="flex items-center gap-3">
-          {peaking ? (
-            <span className="hidden items-center gap-1.5 rounded-full bg-primary/15 px-3 py-1 text-xs font-medium text-primary sm:flex">
-              <Flame className="size-3.5" />
-              Volume réduit · Focus Intensité
-            </span>
-          ) : null}
-          <button
-            type="button"
-            role="switch"
-            aria-checked={peaking}
-            onClick={onTogglePeaking}
-            className="flex items-center gap-2"
-          >
-            <span className="text-xs font-semibold text-foreground">
-              Mode Peaking
-            </span>
-            <span
-              className={cn(
-                'relative h-6 w-11 rounded-full transition-colors',
-                peaking ? 'bg-primary' : 'bg-secondary',
-              )}
-            >
-              <span
-                className={cn(
-                  'absolute top-0.5 size-5 rounded-full bg-background shadow-md transition-transform',
-                  peaking ? 'translate-x-5' : 'translate-x-0.5',
-                )}
-              />
-            </span>
-          </button>
+        <div className="text-xs text-slate-500 font-medium bg-slate-900 px-3 py-1.5 rounded-full border border-slate-800">
+          SBD Tracking Pro
         </div>
       </div>
-
-      {peaking ? (
-        <div className="bg-primary/10 px-4 py-1.5 text-center sm:hidden">
-          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-primary">
-            <Flame className="size-3.5" />
-            Volume réduit · Focus Intensité
-          </span>
-        </div>
-      ) : null}
     </header>
   )
 }
