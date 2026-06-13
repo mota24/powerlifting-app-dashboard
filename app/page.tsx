@@ -10,12 +10,12 @@ import SessionForm from '@/components/power/session-form'
 import { PlateVisualizer } from '@/components/power/plate-visualizer'
 import { WarmupGenerator } from '@/components/power/warmup-generator'
 import { Card, CardTitle } from '@/components/power/card'
-import { LineChart, Menu, X, Home, BarChart2, Wrench, Settings } from 'lucide-react'
+import { LineChart, Menu, X, Home, BarChart2, Wrench, Settings, Calculator } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import ConfigPanel from '@/components/power/config-panel'
+import CalculatorPanel from '@/components/power/calculator-panel'
 
 export default function Page() {
-  // Initialisation à partir de l'URL pour garder la page après un rafraîchissement
   const [vueActive, setVueActive] = useState(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
@@ -34,11 +34,9 @@ export default function Page() {
   const changerVue = (vue: string) => {
     setVueActive(vue)
     setMenuOuvert(false)
-    // Met à jour l'URL sans recharger
     window.history.pushState({}, '', `?page=${vue}`);
   }
 
-  // Écouteur pour fermer le menu au clic extérieur
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -52,7 +50,6 @@ export default function Page() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  // Synchronisation avec le bouton "Retour en arrière" du navigateur
   useEffect(() => {
     const handlePopState = () => {
       const params = new URLSearchParams(window.location.search);
@@ -126,6 +123,7 @@ export default function Page() {
             {vueActive === 'accueil' && "Séance & Calendrier"}
             {vueActive === 'analytique' && "Tableau de bord"}
             {vueActive === 'outils' && "Outils & Échauffement"}
+            {vueActive === 'calculatrice' && "Calculateur de force"}
             {vueActive === 'configuration' && "Configuration des Blocs"}
           </h2>
           <span className="text-xs font-bold text-blue-500 mt-1">{blockInfo}</span>
@@ -133,6 +131,7 @@ export default function Page() {
 
         <div className="flex items-center gap-2">
           
+          {/* BOUTON ACCUEIL RAPIDE */}
           <button 
             onClick={() => changerVue('accueil')} 
             className={cn(
@@ -146,6 +145,7 @@ export default function Page() {
             <Home className="size-5" />
           </button>
 
+          {/* MENU DE NAVIGATION */}
           <div className="relative">
             <button 
               ref={toggleBtnRef}
@@ -163,6 +163,9 @@ export default function Page() {
                 <button onClick={() => changerVue('analytique')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'analytique' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><BarChart2 className="size-4" /> Analytique</button>
                 <button onClick={() => changerVue('outils')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'outils' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Wrench className="size-4" /> Outils</button>
                 
+                {/* RANGÉ ICI : La case de ta nouvelle calculatrice */}
+                <button onClick={() => changerVue('calculatrice')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'calculatrice' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Calculator className="size-4" /> Calculatrice</button>
+                
                 <div className="h-px bg-border my-1"></div>
                 
                 <button onClick={() => changerVue('configuration')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'configuration' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Settings className="size-4" /> Configuration</button>
@@ -177,6 +180,10 @@ export default function Page() {
           <div className="animate-in fade-in slide-in-from-top-4 duration-500">
             <ConfigPanel />
           </div>
+        )}
+
+        {vueActive === 'calculatrice' && (
+          <CalculatorPanel />
         )}
 
         {vueActive === 'accueil' && (
