@@ -7,24 +7,23 @@ import { cn } from '@/lib/utils'
 export default function CalculatorPanel() {
   const [weight, setWeight] = useState('')
   const [reps, setReps] = useState('')
-  const [rpe, setRpe] = useState('10') // RPE 10 par défaut (échec)
+  const [rpe, setRpe] = useState('') // Vide par défaut
   const [lift, setLift] = useState<'squat' | 'bench' | 'deadlift'>('squat')
 
-  // L'ALGORITHME EXACT DE TON TABLEAU DE BORD (Workout Temple)
   const calculateExact1RM = () => {
     const w = parseFloat(weight)
     const r = parseInt(reps)
+    
+    // MAGIE ICI : Si rpe est vide (''), parseFloat(rpe) renvoie NaN, donc ça prend 10 par défaut.
     const rpeVal = parseFloat(rpe) || 10
 
     if (!w || !r || w <= 0 || r <= 0) return 0
 
-    // Calcul des répétitions effectives grâce au RPE
     const rir = 10 - rpeVal
     const effectiveReps = r + rir
     
     let result = 0
 
-    // Application des coefficients ultra-précis par mouvement
     if (lift === 'squat') {
       result = w * (1 + (effectiveReps * 0.03372))
     } else if (lift === 'bench') {
@@ -33,7 +32,6 @@ export default function CalculatorPanel() {
       result = w * (1 + (effectiveReps * 0.0428))
     }
     
-    // On arrondit vers le bas comme sur ton tableau de bord
     return Math.floor(result)
   }
 
@@ -48,7 +46,6 @@ export default function CalculatorPanel() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
-        {/* Paramètres de calcul */}
         <div className="p-5 rounded-xl border border-slate-800 bg-slate-900/50 space-y-5">
           
           {/* Sélection du mouvement */}
@@ -63,52 +60,49 @@ export default function CalculatorPanel() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          {/* Les 3 cases d'entrée de données */}
+          <div className="grid grid-cols-3 gap-3">
             <div className="flex flex-col space-y-2">
-              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-                <Scale className="size-3.5 text-blue-500" /> Poids (kg)
+              <label className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                <Scale className="size-3 text-blue-500" /> Poids
               </label>
               <input
                 type="number"
                 placeholder="Ex: 220"
                 value={weight}
                 onChange={(e) => setWeight(e.target.value)}
-                className="w-full p-3 bg-slate-950 border border-slate-800 rounded-lg text-white font-bold outline-none focus:border-blue-500 placeholder:text-slate-700"
+                className="w-full p-3 bg-slate-950 border border-slate-800 rounded-lg text-white font-bold outline-none focus:border-blue-500 placeholder:text-slate-700 text-center"
               />
             </div>
 
             <div className="flex flex-col space-y-2">
-              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-                <Hash className="size-3.5 text-blue-500" /> Répétitions
+              <label className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                <Hash className="size-3 text-blue-500" /> Reps
               </label>
               <input
                 type="number"
                 placeholder="Ex: 5"
                 value={reps}
                 onChange={(e) => setReps(e.target.value)}
-                className="w-full p-3 bg-slate-950 border border-slate-800 rounded-lg text-white font-bold outline-none focus:border-blue-500 placeholder:text-slate-700"
+                className="w-full p-3 bg-slate-950 border border-slate-800 rounded-lg text-white font-bold outline-none focus:border-blue-500 placeholder:text-slate-700 text-center"
+              />
+            </div>
+
+            <div className="flex flex-col space-y-2">
+              <label className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                <Battery className="size-3 text-red-500" /> RPE
+              </label>
+              <input
+                type="number"
+                step="0.5"
+                placeholder="Vide=10"
+                value={rpe}
+                onChange={(e) => setRpe(e.target.value)}
+                className="w-full p-3 bg-slate-950 border border-slate-800 rounded-lg text-white font-bold outline-none focus:border-red-500 placeholder:text-slate-700 text-center"
               />
             </div>
           </div>
-
-          <div className="flex flex-col space-y-2 pt-2 border-t border-slate-800">
-            <div className="flex justify-between items-center">
-              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-                <Battery className="size-3.5 text-red-500" /> RPE de la série
-              </label>
-              <span className="text-xs font-black text-white bg-slate-800 px-2 py-1 rounded">{rpe}</span>
-            </div>
-            <input
-              type="range"
-              min="5"
-              max="10"
-              step="0.5"
-              value={rpe}
-              onChange={(e) => setRpe(e.target.value)}
-              className="w-full accent-red-500"
-            />
-            <p className="text-[10px] text-slate-500 text-center">RPE 10 = Échec total. RPE inférieur = Répétitions en réserve prises en compte.</p>
-          </div>
+          <p className="text-[10px] text-slate-500 text-center italic">Laissez le RPE vide pour un effort à l'échec total (RPE 10).</p>
         </div>
 
         {/* Affichage du Résultat */}
@@ -127,7 +121,7 @@ export default function CalculatorPanel() {
           </div>
 
           <p className="text-xs text-slate-500 mt-3 max-w-[240px] relative z-10">
-            Calcul strictement identique à votre tableau de bord (Algorithme Workout Temple).
+            Calcul identique au Dashboard (Algorithme Workout Temple).
           </p>
         </div>
       </div>
