@@ -1,11 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-//import { supabase } from '@/lib/supabase'
-import { Target, Activity, Check, Moon, Footprints, Battery, Coffee, Plus, Trash2, MessageSquare, X, Copy } from 'lucide-react'
-//import { cn } from '@/lib/utils'
-import { supabase } from '../../lib/supabase'
-import { cn } from '../../lib/utils'
+import { useState, useEffect, useRef } from 'react'
+import { supabase } from '@/lib/supabase'
+import { Target, Activity, Check, Moon, Footprints, Battery, Coffee, Plus, Trash2, MessageSquare, X, Copy, RefreshCw } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 interface Props {
   dateActive: Date;
@@ -31,13 +29,16 @@ const LIFT_DEADLIFT = ['Deadlift', 'Sumo Deadlift', 'Deficit Deadlift', 'Paused 
 const ACCESSORIES = ['Pull-ups', 'Barbell Row', 'Lat Pulldown', 'Leg Press', 'Bulgarian Split Squat', 'Leg Extensions', 'Leg Curls', 'Bicep Curls', 'Tricep Extensions', 'Gainage (Planche)', 'Ab Rollout']
 
 export default function SessionForm({ dateActive }: Props) {
-  const [loading, setLoading] = useState(false)
-  const [saved, setSaved] = useState(false)
   const [exercices, setExercices] = useState<ExerciceRow[]>([])
   
   const [fatigue, setFatigue] = useState(5)
   const [sommeil, setSommeil] = useState(8)
   const [pas, setPas] = useState(8000)
+
+  // Variables pour l'Auto-Save
+  const [isAutoSaving, setIsAutoSaving] = useState(false)
+  const [lastSaved, setLastSaved] = useState<Date | null>(null)
+  const isInitialLoad = useRef(true)
 
   const dateFormatee = new Date(dateActive.getTime() - (dateActive.getTimezoneOffset() * 60000)).toISOString().split('T')[0]
   const jourSemaine = dateActive.getDay()
@@ -53,7 +54,11 @@ export default function SessionForm({ dateActive }: Props) {
     }
   }
 
+  // LECTURE DE LA BASE DE DONNÉES
   useEffect(() => {
+    isInitialLoad.current = true; // Empêche l'autosave lors d'un changement de date
+    setIsAutoSaving(false);
+
     const chargerSeance = async () => {
       const { data } = await supabase
         .from('workout_sets')
@@ -102,17 +107,114 @@ export default function SessionForm({ dateActive }: Props) {
         setSommeil(8);
         setPas(0);
       }
+
+      // Autorise l'auto-save après le chargement des données (délai de sécurité de 500ms)
+      setTimeout(() => { isInitialLoad.current = false; }, 500);
     };
     chargerSeance();
   }, [dateActive, dateFormatee]);
 
-  const creerExerciceVierge = (): ExerciceRow => ({
-    id: null, name: '', 
-    coachTracking: [{ reps: '', weight: '', rpe: '' }], 
-    tracking: [{ reps: '', weight: '', rpe: '' }], 
-    comments: '' 
-  })
+  // FONCTION UNIVERSELLE DE SAUVEGARDE
+  const executerSauvegarde = async () => {
+    // Cas Jour de Repos
+    if (jourSemaine === 0 || jourSemaine === 5) {
+      const payload = { date: dateFormatee, exercise_name: 'Repos', fatigue_score: fatigue, sleep_hours: sommeil, steps_count: pas }
+      const { data } = await supabase.from('workout_sets').select('id').eq('date', dateFormatee).limit(1)
+      if (data && data.length > 0) await supabase.from('workout_sets').update(payload).eq('id', data[0].id)
+      else await supabase.from('workout_sets').insert([payload])
+      return;
+    }
 
+    // Cas Jour d'Entraînement
+    const promesses = exercices.map((ex, index) => {
+      const payload = {
+        date: dateFormatee,
+        exercise_name: ex.name || 'Exercice Non Défini',
+        coach_tracking_data: ex.coachTracking,
+        tracking_data: ex.tracking,
+        comments: ex.comments || null,
+        fatigue_score: fatigue,
+        sleep_hours: sommeil,
+        steps_count: pas,
+        order_index: index 
+      }
+      if (ex.id) return supabase.from('workout_sets').update(payload).eq('id', ex.id)
+      else return supabase.from('workout_sets').insert([payload])
+    })
+
+    await Promise.all(promesses)
+    
+    // Mise à jour silencieuse des IDs pour ne pas couper la frappe au clavier
+    const { data } = await supabase.from('workout_sets').select('id').eq('date', dateFormatee).order('order_index', { ascending: true }) 
+    if (data) {
+      setExercices(prev => {
+        const newEx = [...prev];
+        data.forEach((d: any, i: number) => { if (newEx[i]) newEx[i].id = d.id });
+        return newEx;
+      });
+    }
+  }
+
+  // LE MOTEUR DE SAUVEGARDE AUTOMATIQUE (DEBOUNCE)
+  useEffect(() => {
+    // Si la page vient d'être chargée, on ne sauvegarde pas
+    if (isInitialLoad.current) return;
+
+    // S'il n'y a pas d'exercices, on évite les requêtes inutiles
+    if (exercices.length === 0 && (jourSemaine !== 0 && jourSemaine !== 5)) return;
+
+    const timeoutId = setTimeout(async () => {
+      setIsAutoSaving(true);
+      await executerSauvegarde();
+      setIsAutoSaving(false);
+      setLastSaved(new Date());
+    }, 1500); // Déclenche la sauvegarde 1.5 seconde après la dernière modification
+
+    return () => clearTimeout(timeoutId); // Si l'utilisateur tape encore, on annule et on relance le chrono
+  }, [exercices, fatigue, sommeil, pas]);
+
+  // FONCTION DE PROPAGATION (Utilise la sauvegarde)
+  const propagerSemaine1VersBloc = async () => {
+    if (!confirm("Voulez-vous sauvegarder cette séance ET la copier sur les 4 prochaines semaines du bloc ?")) return;
+    setIsAutoSaving(true);
+
+    try {
+      await executerSauvegarde(); 
+
+      const { data: semaine1Data, error: fetchError } = await supabase.from('workout_sets').select('*').eq('date', dateFormatee);
+      if (fetchError) throw fetchError;
+      if (!semaine1Data || semaine1Data.length === 0) throw new Error("Aucune donnée enregistrée à propager.");
+
+      const deltas = [7, 14, 21, 28];
+      const insertions = [];
+
+      for (const delta of deltas) {
+        const dateCible = new Date(dateActive);
+        dateCible.setDate(dateCible.getDate() + delta);
+        const dateCibleStr = dateCible.toISOString().split('T')[0];
+
+        await supabase.from('workout_sets').delete().eq('date', dateCibleStr);
+
+        for (const item of semaine1Data) {
+          const { id, created_at, ...dataToCopy } = item;
+          insertions.push({ ...dataToCopy, date: dateCibleStr });
+        }
+      }
+
+      const { error: insertError } = await supabase.from('workout_sets').insert(insertions);
+      if (insertError) throw insertError;
+
+      alert("Succès ! La séance a été propagée sur tout le bloc.");
+    } catch (err: any) {
+      console.error("Erreur technique:", err);
+      alert("Erreur de propagation : " + err.message);
+    } finally {
+      setIsAutoSaving(false);
+    }
+  };
+
+  const creerExerciceVierge = (): ExerciceRow => ({ id: null, name: '', coachTracking: [{ reps: '', weight: '', rpe: '' }], tracking: [{ reps: '', weight: '', rpe: '' }], comments: '' })
+  
   const ajouterExercice = () => setExercices([...exercices, creerExerciceVierge()])
   const supprimerExercice = async (index: number, dbId: string | null) => {
     if (dbId) await supabase.from('workout_sets').delete().eq('id', dbId)
@@ -167,113 +269,7 @@ export default function SessionForm({ dateActive }: Props) {
     setExercices(nouvelleListe)
   }
 
-  const handleSave = async () => {
-    setLoading(true)
-    
-    const promesses = exercices.map((ex, index) => {
-      const payload = {
-        date: dateFormatee,
-        exercise_name: ex.name || 'Exercice Non Défini',
-        coach_tracking_data: ex.coachTracking,
-        tracking_data: ex.tracking,
-        comments: ex.comments || null,
-        fatigue_score: fatigue,
-        sleep_hours: sommeil,
-        steps_count: pas,
-        order_index: index 
-      }
-      
-      if (ex.id) return supabase.from('workout_sets').update(payload).eq('id', ex.id)
-      else return supabase.from('workout_sets').insert([payload])
-    })
-
-    await Promise.all(promesses)
-    setLoading(false)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 3000)
-    
-    const { data } = await supabase
-      .from('workout_sets')
-      .select('id')
-      .eq('date', dateFormatee)
-      .order('order_index', { ascending: true }) 
-      
-    if (data) {
-      const listeMaj = [...exercices]
-      data.forEach((d: any, i: number) => { if(listeMaj[i]) listeMaj[i].id = d.id })
-      setExercices(listeMaj)
-    }
-  }
-
-  const propagerSemaine1VersBloc = async () => {
-    if (!confirm("Voulez-vous sauvegarder cette séance ET la copier sur les 4 prochaines semaines du bloc ?")) return;
-    
-    setLoading(true);
-
-    try {
-      await handleSave(); 
-
-      const { data: semaine1Data, error: fetchError } = await supabase
-        .from('workout_sets')
-        .select('*')
-        .eq('date', dateFormatee);
-
-      if (fetchError) throw fetchError;
-      if (!semaine1Data || semaine1Data.length === 0) {
-        throw new Error("Aucune donnée enregistrée à propager.");
-      }
-
-      const deltas = [7, 14, 21, 28];
-      const insertions = [];
-
-      for (const delta of deltas) {
-        const dateCible = new Date(dateActive);
-        dateCible.setDate(dateCible.getDate() + delta);
-        const dateCibleStr = dateCible.toISOString().split('T')[0];
-
-        await supabase.from('workout_sets').delete().eq('date', dateCibleStr);
-
-        for (const item of semaine1Data) {
-          const { id, created_at, ...dataToCopy } = item;
-          insertions.push({ ...dataToCopy, date: dateCibleStr });
-        }
-      }
-
-      const { error: insertError } = await supabase.from('workout_sets').insert(insertions);
-      if (insertError) throw insertError;
-
-      alert("Succès ! La séance a été propagée sur tout le bloc.");
-    } catch (err: any) {
-      console.error("Erreur technique:", err);
-      alert("Erreur de propagation : " + err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSaveMetricsOnly = async () => {
-    setLoading(true)
-    const payload = {
-      date: dateFormatee,
-      exercise_name: 'Repos',
-      fatigue_score: fatigue,
-      sleep_hours: sommeil,
-      steps_count: pas
-    }
-    
-    const { data } = await supabase.from('workout_sets').select('id').eq('date', dateFormatee).limit(1)
-
-    if (data && data.length > 0) {
-      await supabase.from('workout_sets').update(payload).eq('id', data[0].id)
-    } else {
-      await supabase.from('workout_sets').insert([payload])
-    }
-
-    setLoading(false)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 3000)
-  }
-
+  // VUE JOUR DE REPOS
   if (jourSemaine === 0 || jourSemaine === 5) {
     return (
       <div className="space-y-6 animate-in fade-in pb-10">
@@ -294,9 +290,16 @@ export default function SessionForm({ dateActive }: Props) {
           </div>
         </div>
 
-        <button onClick={handleSaveMetricsOnly} disabled={loading} className={cn("w-full p-4 rounded-xl font-bold transition-all flex justify-center items-center gap-2 shadow-lg", saved ? "bg-emerald-600 shadow-emerald-500/25 text-white" : "bg-blue-600 hover:bg-blue-700 shadow-blue-500/25 text-white")}>
-          {loading ? 'Enregistrement en cours...' : saved ? <><Check className="size-5" /> Suivi Mémorisé !</> : 'Enregistrer le suivi'}
-        </button>
+        {/* INDICATEUR D'AUTOSAVE (Remplace le bouton d'enregistrement) */}
+        <div className={cn("w-full p-4 rounded-xl font-bold flex justify-center items-center gap-2 border transition-colors", 
+          isAutoSaving ? "bg-slate-900 border-slate-800 text-slate-400" : "bg-emerald-500/10 border-emerald-500/30 text-emerald-500"
+        )}>
+          {isAutoSaving ? (
+            <><RefreshCw className="size-5 animate-spin" /> Enregistrement...</>
+          ) : (
+            <><Check className="size-5" /> Sauvegardé automatiquement {lastSaved ? `à ${lastSaved.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}` : ''}</>
+          )}
+        </div>
       </div>
     )
   }
@@ -427,13 +430,20 @@ export default function SessionForm({ dateActive }: Props) {
       </div>
 
       <div className="space-y-3">
-        <button onClick={propagerSemaine1VersBloc} disabled={loading} className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-bold flex items-center justify-center gap-2 border border-slate-700 transition-colors">
+        <button onClick={propagerSemaine1VersBloc} disabled={isAutoSaving} className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-bold flex items-center justify-center gap-2 border border-slate-700 transition-colors">
           <Copy className="size-5" /> Propager la séance sur le Bloc
         </button>
 
-        <button onClick={handleSave} disabled={loading} className={cn("w-full p-4 rounded-xl font-bold transition-all flex justify-center items-center gap-2 shadow-lg", saved ? "bg-emerald-600 shadow-emerald-500/25 text-white" : "bg-blue-600 hover:bg-blue-700 shadow-blue-500/25 text-white")}>
-          {loading ? 'Traitement...' : saved ? <><Check className="size-5" /> Séance Mémorisée !</> : 'Enregistrer la séance'}
-        </button>
+        {/* INDICATEUR D'AUTOSAVE (Remplace le bouton d'enregistrement) */}
+        <div className={cn("w-full p-4 rounded-xl font-bold flex justify-center items-center gap-2 border transition-colors", 
+          isAutoSaving ? "bg-slate-900 border-slate-800 text-slate-400" : "bg-emerald-500/10 border-emerald-500/30 text-emerald-500"
+        )}>
+          {isAutoSaving ? (
+            <><RefreshCw className="size-5 animate-spin" /> Enregistrement en arrière-plan...</>
+          ) : (
+            <><Check className="size-5" /> Sauvegardé automatiquement {lastSaved ? `à ${lastSaved.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}` : ''}</>
+          )}
+        </div>
       </div>
     </div>
   )

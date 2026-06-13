@@ -111,7 +111,7 @@ export default function CalculatorPanel() {
           </div>
 
           <p className="text-xs text-slate-500 mt-3 max-w-[240px] relative z-10">
-            Calcul basé sur la moyenne Epley/Brzycki, identique au Dashboard.
+            Calcul basé sur la moyenne Epley/Brzycki.
           </p>
         </div>
       </div>
