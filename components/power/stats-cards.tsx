@@ -1,11 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase } from '../../lib/supabase'
+import { supabase } from '@/lib/supabase'
 import { Trophy, Edit2, Check, X, Flame } from 'lucide-react'
-import { cn } from '../../lib/utils'
+import { cn } from '@/lib/utils'
 
-// Mots-clés pour catégoriser tes exercices
 const LIFT_SQUAT = ['squat']
 const LIFT_BENCH = ['bench press', 'paused bench', 'close grip bench', 'incline bench', 'spoto press', 'larsen press']
 const LIFT_DEADLIFT = ['deadlift', 'rdl', 'block pulls']
@@ -13,14 +12,10 @@ const LIFT_DEADLIFT = ['deadlift', 'rdl', 'block pulls']
 export function StatsCards() {
   const [isEditing, setIsEditing] = useState(false)
   
-  // PR Réels (Mémorisés localement sur ton navigateur pour l'instant)
   const [realPrs, setRealPrs] = useState({ squat: 300, bench: 175, deadlift: 340 })
   const [tempPrs, setTempPrs] = useState({ squat: 300, bench: 175, deadlift: 340 })
-  
-  // PR Théoriques (Calculés depuis Supabase)
   const [theoPrs, setTheoPrs] = useState({ squat: 0, bench: 0, deadlift: 0 })
 
-  // Chargement des PR réels sauvegardés
   useEffect(() => {
     const saved = localStorage.getItem('mota_real_prs')
     if (saved) {
@@ -29,7 +24,6 @@ export function StatsCards() {
     }
   }, [])
 
-  // Calcul Automatique des 1RM Théoriques depuis la base de données
   useEffect(() => {
     const calculateTheo1RM = async () => {
       const { data } = await supabase.from('workout_sets').select('exercise_name, tracking_data')
@@ -51,19 +45,16 @@ export function StatsCards() {
           const rpe = parseFloat(set.rpe) || 10 
 
           if (weight > 0 && reps > 0) {
-            // L'application calcule ton potentiel réel (Reps faites + Reps en réserve)
             const rir = 10 - rpe
             const effectiveReps = reps + rir
             
-            let e1rm = 0
+            let e1rm = weight
 
-            // LES FORMULES EXACTES DE TON SITE WORKOUT TEMPLE :
-            if (isSquat) {
-              e1rm = weight * (1 + (effectiveReps * 0.03372)) // Le coef extrait de ton tableau
-            } else if (isBench) {
-              e1rm = weight * (1 + (effectiveReps * 0.0250))
-            } else if (isDeadlift) {
-              e1rm = weight * (1 + (effectiveReps * 0.042))
+            // Calcul Moyenne (Epley + Brzycki)
+            if (effectiveReps > 1) {
+              const epley = weight * (1 + (effectiveReps / 30))
+              const brzycki = weight * (36 / (37 - effectiveReps))
+              e1rm = (epley + brzycki) / 2
             }
 
             if (isSquat && e1rm > maxS) maxS = e1rm
@@ -73,7 +64,12 @@ export function StatsCards() {
         })
       })
 
-      setTheoPrs({ squat: Math.round(maxS), bench: Math.round(maxB), deadlift: Math.round(maxD) })
+      // Math.round pour un affichage propre sans virgules sur le Dashboard
+      setTheoPrs({ 
+        squat: Math.round(maxS), 
+        bench: Math.round(maxB), 
+        deadlift: Math.round(maxD) 
+      })
     }
 
     calculateTheo1RM()
@@ -85,10 +81,7 @@ export function StatsCards() {
     setIsEditing(false)
   }
 
-  // Totaux
   const totalReel = realPrs.squat + realPrs.bench + realPrs.deadlift
-  
-  // Pour le total théorique, on prend le meilleur entre le Réel et le Théorique pour chaque lift
   const bestSquat = Math.max(realPrs.squat, theoPrs.squat)
   const bestBench = Math.max(realPrs.bench, theoPrs.bench)
   const bestDeadlift = Math.max(realPrs.deadlift, theoPrs.deadlift)
@@ -96,7 +89,6 @@ export function StatsCards() {
 
   return (
     <div className="p-5 rounded-xl border border-slate-800 bg-slate-900/50 space-y-4">
-      {/* En-tête : Titre et Bouton Modifier */}
       <div className="flex items-center justify-between border-b border-slate-800 pb-4">
         <div className="flex items-center gap-2">
           <div className="p-2 bg-yellow-500/10 rounded-lg"><Trophy className="size-5 text-yellow-500" /></div>
@@ -115,10 +107,8 @@ export function StatsCards() {
         )}
       </div>
 
-      {/* Grille des 4 Statistiques */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         
-        {/* SQUAT */}
         <div className="p-4 bg-slate-950 rounded-xl border border-slate-800">
           <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2">Squat</h3>
           {isEditing ? (
@@ -131,7 +121,6 @@ export function StatsCards() {
           </div>
         </div>
 
-        {/* BENCH */}
         <div className="p-4 bg-slate-950 rounded-xl border border-slate-800">
           <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2">Bench Press</h3>
           {isEditing ? (
@@ -144,7 +133,6 @@ export function StatsCards() {
           </div>
         </div>
 
-        {/* DEADLIFT */}
         <div className="p-4 bg-slate-950 rounded-xl border border-slate-800">
           <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2">Deadlift</h3>
           {isEditing ? (
@@ -157,7 +145,6 @@ export function StatsCards() {
           </div>
         </div>
 
-        {/* TOTAL SBD */}
         <div className="p-4 bg-blue-500/10 rounded-xl border border-blue-500/20 relative overflow-hidden">
           <div className="absolute -right-4 -top-4 opacity-10"><Flame className="size-24 text-blue-500" /></div>
           <h3 className="text-sm font-bold text-blue-400 uppercase tracking-wider mb-2 relative z-10">Total SBD</h3>
