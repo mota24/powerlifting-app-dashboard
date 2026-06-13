@@ -28,24 +28,17 @@ export function WeekCalendar({ dateActive, setDateActive, blockTitle }: WeekCale
     setDateActive(nouvelleDate)
   }
 
-  // ALGORITHME CORRIGÉ : Calcul strict des jours de la semaine
+  // ALGORITHME : Calcul strict des jours de la semaine
   const getJoursDeLaSemaine = (date: Date) => {
     const jours = []
     const baseDate = new Date(date)
-    
-    // 1. On trouve le jour de la semaine (0 = Dimanche, 1 = Lundi...)
     const day = baseDate.getDay()
-    
-    // 2. On calcule l'écart pour remonter jusqu'au Lundi de cette semaine
     const diff = baseDate.getDate() - day + (day === 0 ? -6 : 1) 
-    
-    // 3. On fixe fermement la date du Lundi (sans la muter dans la boucle)
     const lundi = new Date(baseDate.setDate(diff))
     
-    // 4. On génère proprement les 7 jours suivants
     for (let i = 0; i < 7; i++) {
-      const d = new Date(lundi) // On repart d'une copie vierge du Lundi
-      d.setDate(lundi.getDate() + i) // On ajoute juste +1, +2, +3...
+      const d = new Date(lundi)
+      d.setDate(lundi.getDate() + i)
       jours.push(d)
     }
     return jours
@@ -54,23 +47,44 @@ export function WeekCalendar({ dateActive, setDateActive, blockTitle }: WeekCale
   const joursSemaine = getJoursDeLaSemaine(dateActive)
   const jourSelectionneInfo = WEEK_PROGRAM.find(p => p.id === dateActive.getDay()) || WEEK_PROGRAM[0]
 
+  // Formatage de la date locale pour l'input natif (ex: "2024-05-15")
+  const localDateFormatee = new Date(dateActive.getTime() - (dateActive.getTimezoneOffset() * 60000)).toISOString().split('T')[0]
+
   return (
     <div className="space-y-4">
-      {/* En-tête */}
+      {/* En-tête avec Navigation */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Calendar className="size-5 text-blue-500" />
-          <h2 className="text-lg font-bold text-slate-200">
+        
+        {/* LA ZONE CLICABLE POUR LE CALENDRIER NATIF */}
+        <div className="relative flex items-center gap-2 group cursor-pointer hover:opacity-80 transition-opacity">
+          {/* L'input invisible qui déclenche le calendrier du téléphone/PC */}
+          <input 
+            type="date"
+            value={localDateFormatee}
+            onChange={(e) => {
+              if (e.target.value) {
+                setDateActive(new Date(e.target.value))
+              }
+            }}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+            title="Choisir une date spécifique"
+          />
+          
+          {/* Le visuel que l'utilisateur voit */}
+          <Calendar className="size-5 text-blue-500 relative z-0" />
+          <h2 className="text-lg font-bold text-slate-200 relative z-0">
             {blockTitle || "Calendrier"} 
           </h2>
         </div>
-        <div className="flex items-center gap-2">
+
+        {/* Flèches pour naviguer semaine par semaine */}
+        <div className="flex items-center gap-2 relative z-20">
           <button onClick={() => changerSemaine(-7)} className="p-1 hover:bg-slate-800 rounded text-slate-400 transition-colors"><ChevronLeft className="size-5"/></button>
           <button onClick={() => changerSemaine(7)} className="p-1 hover:bg-slate-800 rounded text-slate-400 transition-colors"><ChevronRight className="size-5"/></button>
         </div>
       </div>
 
-      {/* Onglets des jours */}
+      {/* Onglets des jours (LUN, MAR, MER...) */}
       <div className="flex border-b border-slate-800 overflow-x-auto scrollbar-none">
         {joursSemaine.map((dateObj, index) => {
           const estSelectionne = dateActive.toDateString() === dateObj.toDateString()
