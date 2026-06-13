@@ -1,37 +1,40 @@
 'use client'
 
 import { useState } from 'react'
-import { Calculator, Scale, Hash, Battery, Info } from 'lucide-react'
+import { Calculator, Scale, Hash, Battery } from 'lucide-react'
 
 export default function CalculatorPanel() {
   const [weight, setWeight] = useState('')
   const [reps, setReps] = useState('')
-  const [rpe, setRpe] = useState('') 
+  const [rpe, setRpe] = useState('') // Vide par défaut
 
-  const calculate1RM = () => {
+  const calculateAverage1RM = () => {
     const w = parseFloat(weight)
     const r = parseInt(reps)
+    
+    // Si la case RPE est vide, ça prend 10 par défaut (échec total)
     const rpeVal = parseFloat(rpe) || 10
 
-    if (!w || !r || w <= 0 || r <= 0) return { epley: 0, brzycki: 0, avg: 0 }
+    if (!w || !r || w <= 0 || r <= 0) return 0
 
+    // Calcul des répétitions effectives grâce au RPE
     const rir = 10 - rpeVal
     const effectiveReps = r + rir
+    
+    if (effectiveReps === 1) return w.toFixed(1)
 
-    if (effectiveReps === 1) return { epley: w, brzycki: w, avg: w }
-
+    // Formules Epley et Brzycki
     const epley = w * (1 + (effectiveReps / 30))
     const brzycki = w * (36 / (37 - effectiveReps))
+    
+    // On calcule la moyenne des deux
     const avg = (epley + brzycki) / 2
-
-    return {
-      epley: epley.toFixed(1),
-      brzycki: brzycki.toFixed(1),
-      avg: avg.toFixed(1)
-    }
+    
+    // On renvoie avec 1 chiffre après la virgule (ex: 343.8)
+    return avg.toFixed(1)
   }
 
-  const result = calculate1RM()
+  const result1RM = calculateAverage1RM()
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -42,9 +45,9 @@ export default function CalculatorPanel() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
-        <div className="p-5 rounded-xl border border-slate-800 bg-slate-900/50 space-y-5">
+        {/* Panneau des entrées (Poids, Reps, RPE) */}
+        <div className="p-5 rounded-xl border border-slate-800 bg-slate-900/50 flex flex-col justify-center space-y-5">
           
-          {/* Les 3 cases d'entrée */}
           <div className="grid grid-cols-3 gap-3">
             <div className="flex flex-col space-y-2">
               <label className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
@@ -52,7 +55,7 @@ export default function CalculatorPanel() {
               </label>
               <input
                 type="number"
-                placeholder="Ex: 300"
+                placeholder="Ex: 220"
                 value={weight}
                 onChange={(e) => setWeight(e.target.value)}
                 className="w-full p-3 bg-slate-950 border border-slate-800 rounded-lg text-white font-bold outline-none focus:border-blue-500 placeholder:text-slate-700 text-center"
@@ -86,32 +89,29 @@ export default function CalculatorPanel() {
               />
             </div>
           </div>
-          <p className="text-[10px] text-slate-500 text-center italic">Laissez le RPE vide pour un effort à l'échec total (RPE 10).</p>
+          
+          <p className="text-[10px] text-slate-500 text-center italic">
+            Laissez le RPE vide pour un effort à l'échec total (RPE 10).
+          </p>
         </div>
 
-        {/* Affichage des Résultats */}
-        <div className="p-5 rounded-xl border border-slate-800 bg-slate-900/50 flex flex-col justify-center relative overflow-hidden">
-          
-          <div className="space-y-4 relative z-10 w-full">
-            <div className="flex justify-between items-center border-b border-slate-800/50 pb-2">
-              <span className="text-sm font-medium text-slate-400">Epley</span>
-              <span className="text-lg font-bold text-white">{result.avg !== '0.0' ? result.epley : '—'} kg</span>
-            </div>
-            
-            <div className="flex justify-between items-center border-b border-slate-800/50 pb-2">
-              <span className="text-sm font-medium text-slate-400">Brzycki</span>
-              <span className="text-lg font-bold text-white">{result.avg !== '0.0' ? result.brzycki : '—'} kg</span>
-            </div>
-
-            <div className="flex justify-between items-center bg-blue-500/10 p-3 rounded-lg border border-blue-500/20">
-              <span className="text-sm font-black text-blue-400 uppercase tracking-wider">Moyenne</span>
-              <span className="text-2xl font-black text-white">{result.avg !== '0.0' ? result.avg : '—'} kg</span>
-            </div>
+        {/* Affichage du Résultat (Le beau design bleu avec la calculatrice de fond) */}
+        <div className="p-5 rounded-xl border border-blue-500/20 bg-blue-500/5 flex flex-col items-center justify-center text-center relative overflow-hidden min-h-[160px]">
+          <div className="absolute -right-6 -bottom-6 opacity-5">
+            <Calculator className="size-40 text-blue-500" />
           </div>
 
-          <p className="text-[10px] text-slate-500 mt-4 relative z-10 flex items-start gap-1.5">
-            <Info className="size-3 text-blue-500 shrink-0 mt-0.5" />
-            Le tableau de bord estime aussi vos 1RM automatiquement depuis vos meilleures séries.
+          <span className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-2 relative z-10">
+            PR THÉORIQUE
+          </span>
+          
+          <div className="text-5xl font-black text-white relative z-10 tracking-tight">
+            {parseFloat(result1RM as string) > 0 ? `${result1RM}` : '—'}{' '}
+            <span className="text-xl font-medium text-slate-500">kg</span>
+          </div>
+
+          <p className="text-xs text-slate-500 mt-3 max-w-[240px] relative z-10">
+            Calcul basé sur la moyenne Epley/Brzycki, identique au Dashboard.
           </p>
         </div>
       </div>
