@@ -1,10 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { generateWarmup } from '@/lib/powerlifting'
+
 import { Card, CardTitle } from './card'
 import { Flame } from 'lucide-react'
-
+import { generateWarmup } from '../../lib/powerlifting'
 export function WarmupGenerator() {
   const [topSet, setTopSet] = useState(180)
   const steps = generateWarmup(topSet)

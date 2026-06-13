@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '../../lib/supabase'
 import { Trophy, Edit2, Check, X, Flame } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn } from '../../lib/utils'
 
 // Mots-clés pour catégoriser tes exercices
 const LIFT_SQUAT = ['squat']
