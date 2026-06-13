@@ -34,12 +34,13 @@ export default function SessionForm({ dateActive }: Props) {
   const [sommeil, setSommeil] = useState(8)
   const [pas, setPas] = useState(8000)
 
-  // Auto-Save
-  const [isAutoSaving, setIsAutoSaving] = useState(false)
+  // États séparés pour ne pas faire clignoter l'interface
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
+  const [isValidating, setIsValidating] = useState(false)
+  const [isPropagating, setIsPropagating] = useState(false)
   const isInitialLoad = useRef(true)
 
-  // XP & Modal de Fin de mission
+  // XP & Modal
   const [showModal, setShowModal] = useState(false)
   const [xpGained, setXpGained] = useState(0)
   const [newStreakState, setNewStreakState] = useState(0)
@@ -61,7 +62,6 @@ export default function SessionForm({ dateActive }: Props) {
 
   useEffect(() => {
     isInitialLoad.current = true;
-    setIsAutoSaving(false);
 
     const chargerSeance = async () => {
       const { data } = await supabase.from('workout_sets').select('*').eq('date', dateFormatee).order('created_at', { ascending: true })
@@ -101,6 +101,7 @@ export default function SessionForm({ dateActive }: Props) {
     chargerSeance();
   }, [dateActive, dateFormatee]);
 
+  // Sauvegarde silencieuse (sans interface qui clignote)
   const executerSauvegarde = async () => {
     if (jourSemaine === 0 || jourSemaine === 5) {
       const payload = { date: dateFormatee, exercise_name: 'Repos', fatigue_score: fatigue, sleep_hours: sommeil, steps_count: pas }
@@ -127,15 +128,14 @@ export default function SessionForm({ dateActive }: Props) {
     }
   }
 
+  // Déclencheur Auto-save
   useEffect(() => {
     if (isInitialLoad.current) return;
     if (exercices.length === 0 && (jourSemaine !== 0 && jourSemaine !== 5)) return;
 
     const timeoutId = setTimeout(async () => {
-      setIsAutoSaving(true);
       await executerSauvegarde();
-      setIsAutoSaving(false);
-      setLastSaved(new Date());
+      setLastSaved(new Date()); // Met à jour l'heure silencieusement
     }, 1500);
     return () => clearTimeout(timeoutId);
   }, [exercices, fatigue, sommeil, pas]);
@@ -144,22 +144,19 @@ export default function SessionForm({ dateActive }: Props) {
   // SYSTÈME DE VALIDATION (PRESTIGE & XP)
   // ==========================================
   const validerMission = async () => {
-    setIsAutoSaving(true);
-    await executerSauvegarde(); // Sécurité : on sauvegarde avant de valider
+    setIsValidating(true); // Verrouille uniquement au clic
+    await executerSauvegarde(); 
 
     try {
-      // 1. Récupération des données du joueur
       const { data: progress } = await supabase.from('user_progress').select('*').limit(1).single();
       if (!progress) throw new Error("Profil joueur introuvable");
 
-      // 2. Vérification si la mission est déjà validée
       if (progress.last_completed_date === dateFormatee) {
         alert("Tu as déjà validé ta mission pour cette journée !");
-        setIsAutoSaving(false);
+        setIsValidating(false);
         return;
       }
 
-      // 3. Calcul du Streak (Série)
       let currentStreak = progress.streak_days || 0;
       let newStreak = currentStreak;
       
@@ -173,29 +170,27 @@ export default function SessionForm({ dateActive }: Props) {
         if (diffDays === 1) {
           newStreak += 1;
         } else if (diffDays > 1) {
-          // Streak Gelé : Vérifie si les jours ratés étaient UNIQUEMENT des jours de repos (0: Dimanche, 5: Vendredi)
           let brokeStreak = false;
           for (let i = 1; i < diffDays; i++) {
             const missingDate = new Date(lastDate);
             missingDate.setDate(missingDate.getDate() + i);
             const missingDay = missingDate.getDay();
             if (missingDay !== 0 && missingDay !== 5) {
-              brokeStreak = true; break; // Un jour d'entraînement a été raté !
+              brokeStreak = true; break; 
             }
           }
-          if (brokeStreak) newStreak = 1; // Punition
-          else newStreak += 1; // Gelé et continué
+          if (brokeStreak) newStreak = 1; 
+          else newStreak += 1; 
         }
       } else {
-        newStreak = 1; // Premier jour
+        newStreak = 1; 
       }
 
-      // 4. Calcul de l'XP de base
       let baseXP = 0;
       if (jourSemaine === 0 || jourSemaine === 5) {
-        baseXP = 50; // Jours de repos trackés
+        baseXP = 50; 
       } else {
-        baseXP += 50; // Présence
+        baseXP += 50; 
         if (pas >= 8000) baseXP += 25;
         if (sommeil >= 7.5) baseXP += 25;
         
@@ -206,7 +201,6 @@ export default function SessionForm({ dateActive }: Props) {
         if (hasAccessories) baseXP += 50;
       }
 
-      // 5. Multiplicateur de Streak
       let multiplier = 1;
       if (newStreak >= 7) multiplier = 1.5;
       else if (newStreak >= 5) multiplier = 1.25;
@@ -214,7 +208,6 @@ export default function SessionForm({ dateActive }: Props) {
 
       const finalXP = Math.round(baseXP * multiplier);
 
-      // 6. Gestion du Level Up
       let newLevel = progress.level;
       let newCurrentXP = progress.current_xp + finalXP;
       let newTotalXP = progress.total_xp + finalXP;
@@ -228,7 +221,6 @@ export default function SessionForm({ dateActive }: Props) {
         aLevelUp = true;
       }
 
-      // 7. Enregistrement en base de données
       await supabase.from('user_progress').update({
         level: newLevel,
         current_xp: newCurrentXP,
@@ -237,7 +229,6 @@ export default function SessionForm({ dateActive }: Props) {
         last_completed_date: dateFormatee
       }).eq('id', progress.id);
 
-      // 8. Affichage du pop-up
       setXpGained(finalXP);
       setNewStreakState(newStreak);
       setLeveledUp(aLevelUp);
@@ -246,11 +237,42 @@ export default function SessionForm({ dateActive }: Props) {
     } catch (e: any) {
       alert("Erreur lors de la validation : " + e.message);
     } finally {
-      setIsAutoSaving(false);
+      setIsValidating(false);
     }
   }
 
-  // Fonctions Exercices (ajouter/supprimer)
+  const propagerSemaine1VersBloc = async () => {
+    if (!confirm("Voulez-vous sauvegarder cette séance ET la copier sur les 4 prochaines semaines du bloc ?")) return;
+    setIsPropagating(true);
+
+    try {
+      await executerSauvegarde(); 
+      const { data: semaine1Data, error: fetchError } = await supabase.from('workout_sets').select('*').eq('date', dateFormatee);
+      if (fetchError) throw fetchError;
+      if (!semaine1Data || semaine1Data.length === 0) throw new Error("Aucune donnée enregistrée.");
+
+      const deltas = [7, 14, 21, 28];
+      const insertions = [];
+      for (const delta of deltas) {
+        const dateCible = new Date(dateActive);
+        dateCible.setDate(dateCible.getDate() + delta);
+        const dateCibleStr = dateCible.toISOString().split('T')[0];
+        await supabase.from('workout_sets').delete().eq('date', dateCibleStr);
+        for (const item of semaine1Data) {
+          const { id, created_at, ...dataToCopy } = item;
+          insertions.push({ ...dataToCopy, date: dateCibleStr });
+        }
+      }
+      const { error: insertError } = await supabase.from('workout_sets').insert(insertions);
+      if (insertError) throw insertError;
+      alert("Succès ! La séance a été propagée.");
+    } catch (err: any) {
+      alert("Erreur : " + err.message);
+    } finally {
+      setIsPropagating(false);
+    }
+  };
+
   const creerExerciceVierge = (): ExerciceRow => ({ id: null, name: '', coachTracking: [{ reps: '', weight: '', rpe: '' }], tracking: [{ reps: '', weight: '', rpe: '' }], comments: '' })
   const ajouterExercice = () => setExercices([...exercices, creerExerciceVierge()])
   const supprimerExercice = async (index: number, dbId: string | null) => {
@@ -302,7 +324,6 @@ export default function SessionForm({ dateActive }: Props) {
     setExercices(nouvelleListe)
   }
 
-  // --- RENDU UI JOUR DE REPOS ---
   if (jourSemaine === 0 || jourSemaine === 5) {
     return (
       <div className="space-y-6 animate-in fade-in pb-10">
@@ -323,13 +344,12 @@ export default function SessionForm({ dateActive }: Props) {
           </div>
         </div>
 
-        {/* Bouton de Validation de Mission */}
         <button 
           onClick={validerMission} 
-          disabled={isAutoSaving} 
+          disabled={isValidating} 
           className="w-full p-4 rounded-xl font-black text-lg bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white shadow-[0_0_20px_rgba(59,130,246,0.3)] transition-all flex justify-center items-center gap-2"
         >
-          {isAutoSaving ? <><RefreshCw className="size-5 animate-spin" /> SAUVEGARDE...</> : <><Award className="size-6" /> VALIDER LE REPOS & GAGNER XP</>}
+          {isValidating ? <><RefreshCw className="size-5 animate-spin" /> VALIDATION...</> : <><Award className="size-6" /> VALIDER LE REPOS & GAGNER XP</>}
         </button>
         {ModalGagnant()}
       </div>
@@ -338,7 +358,6 @@ export default function SessionForm({ dateActive }: Props) {
 
   const suggestionsDuJour = getExercicesDuJour()
 
-  // --- RENDU UI JOUR D'ENTRAÎNEMENT ---
   return (
     <div className="space-y-6 animate-in fade-in pb-10">
       
@@ -430,18 +449,27 @@ export default function SessionForm({ dateActive }: Props) {
       </div>
 
       <div className="space-y-4 pt-4 border-t border-slate-800">
-        {/* Autosave discret */}
-        <div className="flex items-center justify-center gap-2 text-xs font-medium text-slate-500">
-          {isAutoSaving ? <><RefreshCw className="size-3 animate-spin" /> Synchronisation en cours...</> : <><Check className="size-3 text-emerald-500" /> Sécurisé {lastSaved ? `à ${lastSaved.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}` : ''}</>}
+        
+        {/* Texte de sauvegarde 100% silencieux */}
+        <div className="h-4 flex items-center justify-center text-xs font-medium text-slate-600">
+          {lastSaved && `Sécurisé à ${lastSaved.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`}
         </div>
 
-        {/* Le gros bouton de fin de mission */}
+        <button 
+          onClick={propagerSemaine1VersBloc} 
+          disabled={isPropagating} 
+          className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-bold flex items-center justify-center gap-2 border border-slate-700 transition-colors"
+        >
+          {isPropagating ? <><RefreshCw className="size-5 animate-spin" /> Copie en cours...</> : <><Copy className="size-5" /> Propager la séance sur le Bloc</>}
+        </button>
+
+        {/* Le gros bouton statique qui ne bouge qu'au clic */}
         <button 
           onClick={validerMission} 
-          disabled={isAutoSaving} 
+          disabled={isValidating} 
           className="w-full p-5 rounded-xl font-black text-lg bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white shadow-[0_0_20px_rgba(59,130,246,0.3)] transition-all flex justify-center items-center gap-2"
         >
-          {isAutoSaving ? <><RefreshCw className="size-5 animate-spin" /> PATIENTEZ...</> : <><Award className="size-6" /> FIN DE SÉANCE - VALIDER LA MISSION</>}
+          {isValidating ? <><RefreshCw className="size-5 animate-spin" /> VALIDATION...</> : <><Award className="size-6" /> FIN DE SÉANCE - VALIDER LA MISSION</>}
         </button>
       </div>
 
