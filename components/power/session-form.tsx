@@ -1,9 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
-import { Target, Activity, Check, Moon, Footprints, Battery, Coffee, Plus, Trash2, MessageSquare, X } from 'lucide-react'
-import { cn } from '@/lib/utils'
+//import { supabase } from '@/lib/supabase'
+import { Target, Activity, Check, Moon, Footprints, Battery, Coffee, Plus, Trash2, MessageSquare, X, Copy } from 'lucide-react'
+//import { cn } from '@/lib/utils'
+import { supabase } from '../../lib/supabase'
+import { cn } from '../../lib/utils'
 
 interface Props {
   dateActive: Date;
@@ -19,7 +21,7 @@ interface ExerciceRow {
   id: string | null;
   name: string;
   coachTracking: SetData[]; 
-  tracking: SetData[];      
+  tracking: SetData[];       
   comments: string;
 }
 
@@ -51,28 +53,21 @@ export default function SessionForm({ dateActive }: Props) {
     }
   }
 
-  // LECTURE DE LA BASE DE DONNÉES
-// LECTURE DE LA BASE DE DONNÉES
-  // LECTURE DE LA BASE DE DONNÉES
   useEffect(() => {
     const chargerSeance = async () => {
       const { data } = await supabase
         .from('workout_sets')
         .select('*')
         .eq('date', dateFormatee)
-        .order('created_at', { ascending: true }) // <-- REMIS À TRUE POUR GARDER L'ORDRE (Squat en premier)
+        .order('created_at', { ascending: true })
 
       if (data && data.length > 0) {
-        // L'iPhone met à jour la ligne la plus récente, on prend donc les métriques sur la DERNIÈRE ligne trouvée
         const derniereLigne = data[data.length - 1];
-
-        // On nettoie : si la journée a de vrais exercices, on ignore la ligne "Repos" générée par l'iPhone
-        const vraisExercices = data.filter(item => item.exercise_name !== 'Repos' && item.exercise_name !== 'Jour de Repos');
-        // On trie les vrais exercices selon la position exacte que tu as sauvegardée
-        vraisExercices.sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
+        const vraisExercices = data.filter((item: any) => item.exercise_name !== 'Repos' && item.exercise_name !== 'Jour de Repos');
+        vraisExercices.sort((a: any, b: any) => (a.order_index || 0) - (b.order_index || 0));
 
         if (vraisExercices.length > 0) {
-          const listeExercices = vraisExercices.map(item => {
+          const listeExercices = vraisExercices.map((item: any) => {
             const fallbackCoachTracking = item.coach_reps ? [{ reps: item.coach_reps.toString(), weight: item.coach_weight?.toString() || '', rpe: item.coach_rpe?.toString() || '' }] : [{ reps: '', weight: '', rpe: '' }];
             const savedCoachTracking = item.coach_tracking_data ? item.coach_tracking_data : fallbackCoachTracking;
             let savedTracking = item.tracking_data ? [...item.tracking_data] : [{ reps: '', weight: '', rpe: '' }];
@@ -97,7 +92,6 @@ export default function SessionForm({ dateActive }: Props) {
           setExercices([creerExerciceVierge()]);
         }
 
-        // On applique les métriques globales
         setFatigue(derniereLigne.fatigue_score || 5);
         setSommeil(derniereLigne.sleep_hours || 8);
         setPas(derniereLigne.steps_count || 0);
@@ -173,53 +167,9 @@ export default function SessionForm({ dateActive }: Props) {
     setExercices(nouvelleListe)
   }
 
-  // SAUVEGARDE POUR UNE SÉANCE NORMALE
-  // Fonction pour copier la semaine 1 sur tout le reste du bloc
-  const propagerSemaine1VersBloc = async () => {
-    if (!confirm("Voulez-vous copier les exercices de la Semaine 1 sur toutes les semaines du bloc ?")) return;
-    
-    setLoading(true);
-
-    // 1. Récupérer les données de la semaine 1 (on part de la date de début du bloc)
-    // Ici on suppose que ta dateActive est dans la semaine 1
-    const { data: semaine1Data } = await supabase
-      .from('workout_sets')
-      .select('*')
-      .eq('date', dateFormatee); // Ta variable existante pour la date de la semaine 1
-
-    if (!semaine1Data || semaine1Data.length === 0) {
-      alert("Aucune donnée trouvée en Semaine 1.");
-      setLoading(false);
-      return;
-    }
-
-    // 2. Propagation
-    // On boucle sur les semaines 2, 3, 4, 5 (soit un décalage de +7, +14, +21, +28 jours)
-    const deltas = [7, 14, 21, 28];
-    const insertions = [];
-
-    for (const delta of deltas) {
-      const dateCible = new Date(dateActive);
-      dateCible.setDate(dateCible.getDate() + delta);
-      const dateCibleStr = dateCible.toISOString().split('T')[0];
-
-      for (const item of semaine1Data) {
-        // On prépare la copie sans l'ID (pour créer une nouvelle ligne)
-        const { id, created_at, ...dataToCopy } = item;
-        insertions.push({ ...dataToCopy, date: dateCibleStr });
-      }
-    }
-
-    // 3. Insertion par lots dans Supabase
-    await supabase.from('workout_sets').insert(insertions);
-    
-    setLoading(false);
-    alert("Semaine 1 propagée avec succès sur le bloc !");
-  };
   const handleSave = async () => {
     setLoading(true)
     
-    // On ajoute 'index' ici pour connaître la position de l'exercice (0, 1, 2...)
     const promesses = exercices.map((ex, index) => {
       const payload = {
         date: dateFormatee,
@@ -230,7 +180,7 @@ export default function SessionForm({ dateActive }: Props) {
         fatigue_score: fatigue,
         sleep_hours: sommeil,
         steps_count: pas,
-        order_index: index // <-- C'est ici qu'on fige l'ordre exact !
+        order_index: index 
       }
       
       if (ex.id) return supabase.from('workout_sets').update(payload).eq('id', ex.id)
@@ -242,20 +192,65 @@ export default function SessionForm({ dateActive }: Props) {
     setSaved(true)
     setTimeout(() => setSaved(false), 3000)
     
-    // On récupère les ID fraîchement créés, mais triés par notre nouvel ordre
     const { data } = await supabase
       .from('workout_sets')
       .select('id')
       .eq('date', dateFormatee)
-      .order('order_index', { ascending: true }) // <-- Trié par ordre d'affichage
+      .order('order_index', { ascending: true }) 
       
     if (data) {
       const listeMaj = [...exercices]
-      data.forEach((d, i) => { if(listeMaj[i]) listeMaj[i].id = d.id })
+      data.forEach((d: any, i: number) => { if(listeMaj[i]) listeMaj[i].id = d.id })
       setExercices(listeMaj)
     }
   }
-  // SAUVEGARDE SPÉCIFIQUE POUR LES JOURS DE REPOS (Uniquement les métriques)
+
+  const propagerSemaine1VersBloc = async () => {
+    if (!confirm("Voulez-vous sauvegarder cette séance ET la copier sur les 4 prochaines semaines du bloc ?")) return;
+    
+    setLoading(true);
+
+    try {
+      await handleSave(); 
+
+      const { data: semaine1Data, error: fetchError } = await supabase
+        .from('workout_sets')
+        .select('*')
+        .eq('date', dateFormatee);
+
+      if (fetchError) throw fetchError;
+      if (!semaine1Data || semaine1Data.length === 0) {
+        throw new Error("Aucune donnée enregistrée à propager.");
+      }
+
+      const deltas = [7, 14, 21, 28];
+      const insertions = [];
+
+      for (const delta of deltas) {
+        const dateCible = new Date(dateActive);
+        dateCible.setDate(dateCible.getDate() + delta);
+        const dateCibleStr = dateCible.toISOString().split('T')[0];
+
+        await supabase.from('workout_sets').delete().eq('date', dateCibleStr);
+
+        for (const item of semaine1Data) {
+          const { id, created_at, ...dataToCopy } = item;
+          insertions.push({ ...dataToCopy, date: dateCibleStr });
+        }
+      }
+
+      const { error: insertError } = await supabase.from('workout_sets').insert(insertions);
+      if (insertError) throw insertError;
+
+      alert("Succès ! La séance a été propagée sur tout le bloc.");
+    } catch (err: any) {
+      console.error("Erreur technique:", err);
+      alert("Erreur de propagation : " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSaveMetricsOnly = async () => {
     setLoading(true)
     const payload = {
@@ -279,7 +274,6 @@ export default function SessionForm({ dateActive }: Props) {
     setTimeout(() => setSaved(false), 3000)
   }
 
-  // --- VUE JOUR DE REPOS ---
   if (jourSemaine === 0 || jourSemaine === 5) {
     return (
       <div className="space-y-6 animate-in fade-in pb-10">
@@ -291,7 +285,6 @@ export default function SessionForm({ dateActive }: Props) {
           </div>
         </div>
 
-        {/* MÉTRIQUES AFFICHÉES MÊME LE JOUR DE REPOS */}
         <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/50">
           <h3 className="text-sm font-bold text-slate-400 mb-4">Suivi quotidien</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -308,7 +301,6 @@ export default function SessionForm({ dateActive }: Props) {
     )
   }
 
-  // --- VUE JOUR D'ENTRAÎNEMENT NORMALE ---
   const suggestionsDuJour = getExercicesDuJour()
 
   return (
@@ -434,9 +426,15 @@ export default function SessionForm({ dateActive }: Props) {
         </div>
       </div>
 
-      <button onClick={handleSave} disabled={loading} className={cn("w-full p-4 rounded-xl font-bold transition-all flex justify-center items-center gap-2 shadow-lg", saved ? "bg-emerald-600 shadow-emerald-500/25 text-white" : "bg-blue-600 hover:bg-blue-700 shadow-blue-500/25 text-white")}>
-        {loading ? 'Enregistrement en cours...' : saved ? <><Check className="size-5" /> Séance Mémorisée !</> : 'Enregistrer la séance'}
-      </button>
+      <div className="space-y-3">
+        <button onClick={propagerSemaine1VersBloc} disabled={loading} className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-bold flex items-center justify-center gap-2 border border-slate-700 transition-colors">
+          <Copy className="size-5" /> Propager la séance sur le Bloc
+        </button>
+
+        <button onClick={handleSave} disabled={loading} className={cn("w-full p-4 rounded-xl font-bold transition-all flex justify-center items-center gap-2 shadow-lg", saved ? "bg-emerald-600 shadow-emerald-500/25 text-white" : "bg-blue-600 hover:bg-blue-700 shadow-blue-500/25 text-white")}>
+          {loading ? 'Traitement...' : saved ? <><Check className="size-5" /> Séance Mémorisée !</> : 'Enregistrer la séance'}
+        </button>
+      </div>
     </div>
   )
 }

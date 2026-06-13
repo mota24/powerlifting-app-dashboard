@@ -1,97 +1,128 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
-import { Save, Check, Calendar } from 'lucide-react'
-import { cn } from '@/lib/utils'
+//import { supabase } from '@/lib/supabase'
+import { supabase } from '../../lib/supabase'
+import { Plus, Trash2, Calendar, Settings, RefreshCw } from 'lucide-react'
 
-interface BlockData {
-  date: string;
-  duration: number;
+interface TrainingBlock {
+  id: string;
+  block_number: number;
+  start_date: string;
+  duration_weeks: number;
 }
 
 export default function ConfigPanel() {
-  const [blocks, setBlocks] = useState<BlockData[]>([
-    { date: '', duration: 5 }, { date: '', duration: 5 }, { date: '', duration: 5 }, { date: '', duration: 5 }, { date: '', duration: 5 }
-  ])
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
+  const [blocks, setBlocks] = useState<TrainingBlock[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const fetchBlocks = async () => {
-      const { data } = await supabase.from('training_blocks').select('*').order('block_number', { ascending: true })
-      if (data && data.length > 0) {
-        const newBlocks = [...blocks]
-        data.forEach(b => {
-          if (b.block_number >= 1 && b.block_number <= 5) {
-            newBlocks[b.block_number - 1] = { date: b.start_date, duration: b.duration_weeks || 5 }
-          }
-        })
-        setBlocks(newBlocks)
-      }
-    }
     fetchBlocks()
   }, [])
 
-  const handleSave = async () => {
-    setSaving(true)
-    const promises = blocks.map((block, index) => {
-      if (!block.date) return null
-      return supabase
-        .from('training_blocks')
-        .upsert({ block_number: index + 1, start_date: block.date, duration_weeks: block.duration }, { onConflict: 'block_number' })
-    }).filter(Boolean)
-
-    await Promise.all(promises)
-    setSaving(false)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 3000)
+  const fetchBlocks = async () => {
+    setLoading(true)
+    const { data } = await supabase
+      .from('training_blocks')
+      .select('*')
+      .order('block_number', { ascending: true })
+    
+    if (data) setBlocks(data)
+    setLoading(false)
   }
 
-  const updateBlock = (index: number, field: keyof BlockData, value: string | number) => {
-    const newBlocks = [...blocks]
-    newBlocks[index] = { ...newBlocks[index], [field]: value }
-    setBlocks(newBlocks)
+  const ajouterBloc = async () => {
+    const nextNumber = blocks.length > 0 ? Math.max(...blocks.map(b => b.block_number)) + 1 : 1
+    const today = new Date().toISOString().split('T')[0]
+
+    const { data, error } = await supabase
+      .from('training_blocks')
+      .insert([{ block_number: nextNumber, start_date: today, duration_weeks: 5 }])
+      .select()
+
+    if (data) setBlocks([...blocks, data[0]])
+    if (error) alert("Erreur lors de l'ajout : " + error.message)
+  }
+
+  const supprimerBloc = async (id: string) => {
+    if (!confirm("Es-tu sûr de vouloir supprimer ce bloc ?")) return
+
+    await supabase.from('training_blocks').delete().eq('id', id)
+    setBlocks(blocks.filter(b => b.id !== id))
+  }
+
+  const updateBlock = async (id: string, field: string, value: string | number) => {
+    setBlocks(blocks.map(b => b.id === id ? { ...b, [field]: value } : b))
+    await supabase.from('training_blocks').update({ [field]: value }).eq('id', id)
+  }
+
+  if (loading) {
+    return <div className="p-8 text-center text-slate-500 animate-pulse">Chargement de la configuration...</div>
   }
 
   return (
-    <div className="p-6 bg-slate-900 rounded-xl border border-slate-800 animate-in fade-in">
-      <div className="flex items-center gap-3 mb-6">
-        <div className="p-2 bg-blue-500/10 rounded-lg"><Calendar className="size-5 text-blue-400" /></div>
-        <h2 className="text-lg text-white font-bold">Planification des Blocs</h2>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-bold text-slate-200 flex items-center gap-2">
+          <Settings className="size-5 text-blue-500" /> Gestion des Blocs
+        </h2>
+        <button onClick={fetchBlocks} className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors">
+          <RefreshCw className="size-4" />
+        </button>
       </div>
 
-      <div className="grid grid-cols-[auto_1fr_auto] gap-4 mb-4 px-2">
-        <div className="w-16"></div>
-        <div className="text-xs font-bold text-slate-500 uppercase">Date de début</div>
-        <div className="text-xs font-bold text-slate-500 uppercase text-center w-24">Durée (Semaines)</div>
-      </div>
+      <div className="space-y-4">
+        {blocks.map((block) => (
+          <div key={block.id} className="p-4 rounded-xl border border-slate-800 bg-slate-900/50 flex flex-col md:flex-row gap-4 items-center justify-between">
+            
+            <div className="flex items-center gap-3 w-full md:w-auto">
+              <div className="bg-blue-500/10 text-blue-400 px-3 py-2 rounded-lg font-black text-lg border border-blue-500/20">
+                B{block.block_number}
+              </div>
+              <div className="flex flex-col">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Numéro du bloc</span>
+                <input 
+                  type="number" 
+                  value={block.block_number} 
+                  onChange={(e) => updateBlock(block.id, 'block_number', parseInt(e.target.value))}
+                  className="bg-transparent text-white font-bold outline-none border-b border-transparent focus:border-slate-700 w-16"
+                />
+              </div>
+            </div>
 
-      <div className="space-y-3">
-        {blocks.map((block, index) => (
-          <div key={index} className="flex items-center gap-4 bg-slate-950 p-2 rounded-lg border border-slate-800/50">
-            <label className="text-slate-300 font-bold w-16 text-center">B{index + 1}</label>
-            <input
-              type="date"
-              className="flex-1 bg-transparent p-2 text-white outline-none focus:text-blue-400 transition-colors"
-              value={block.date}
-              onChange={(e) => updateBlock(index, 'date', e.target.value)}
-            />
-            <input
-              type="number"
-              min="1"
-              max="12"
-              className="w-24 bg-slate-900 p-2 rounded border border-slate-800 text-white text-center outline-none focus:border-blue-500"
-              value={block.duration}
-              onChange={(e) => updateBlock(index, 'duration', parseInt(e.target.value) || 5)}
-            />
+            <div className="flex flex-col w-full md:w-auto">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1"><Calendar className="size-3" /> Date de début</span>
+              <input 
+                type="date" 
+                value={block.start_date} 
+                onChange={(e) => updateBlock(block.id, 'start_date', e.target.value)}
+                className="bg-slate-950 border border-slate-800 rounded-md p-2 text-sm text-slate-300 outline-none focus:border-blue-500 mt-1"
+              />
+            </div>
+
+            <div className="flex flex-col w-full md:w-auto">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Durée (Semaines)</span>
+              <div className="flex items-center gap-2 mt-1">
+                <input 
+                  type="number" 
+                  value={block.duration_weeks} 
+                  onChange={(e) => updateBlock(block.id, 'duration_weeks', parseInt(e.target.value))}
+                  className="bg-slate-950 border border-slate-800 rounded-md p-2 text-sm text-slate-300 outline-none focus:border-blue-500 w-20 text-center"
+                />
+              </div>
+            </div>
+
+            <button onClick={() => supprimerBloc(block.id)} className="p-3 text-slate-500 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors w-full md:w-auto flex justify-center">
+              <Trash2 className="size-5" />
+            </button>
+
           </div>
         ))}
-      </div>
 
-      <button onClick={handleSave} disabled={saving} className={cn("w-full mt-6 p-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg", saved ? "bg-emerald-600 text-white" : "bg-blue-600 hover:bg-blue-700 text-white")}>
-        {saving ? 'Sauvegarde...' : saved ? <><Check className="size-5"/> Mémorisé !</> : <><Save className="size-5"/> Enregistrer</>}
-      </button>
+        <button onClick={ajouterBloc} className="w-full py-4 border-2 border-dashed border-slate-700 hover:border-blue-500 hover:text-blue-400 text-slate-500 rounded-xl flex items-center justify-center gap-2 transition-colors font-bold mt-4">
+          <Plus className="size-5" /> Ajouter un nouveau bloc
+        </button>
+      </div>
     </div>
   )
 }
