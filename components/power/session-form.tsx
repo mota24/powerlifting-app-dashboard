@@ -9,6 +9,7 @@ interface Props {
   dateActive: Date;
   isRestDayMode: boolean;
   setIsRestDayMode: (val: boolean) => void;
+  pasDuJour: number | null; // <-- Ajouté pour recevoir la donnée
 }
 
 interface SetData {
@@ -30,12 +31,12 @@ const LIFT_BENCH = ['Bench Press', 'Paused Bench', 'Close Grip Bench', 'Incline 
 const LIFT_DEADLIFT = ['Deadlift', 'Sumo Deadlift', 'Deficit Deadlift', 'Paused Deadlift', 'RDL', 'Block Pulls']
 const ACCESSORIES = ['Pull-ups', 'Barbell Row', 'Lat Pulldown', 'Leg Press', 'Bulgarian Split Squat', 'Leg Extensions', 'Leg Curls', 'Bicep Curls', 'Tricep Extensions', 'Gainage (Planche)', 'Ab Rollout']
 
-export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMode }: Props) {
+export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMode, pasDuJour }: Props) {
   
   const [exercices, setExercices] = useState<ExerciceRow[]>([])
   const [fatigue, setFatigue] = useState(5)
   const [sommeil, setSommeil] = useState(8)
-  const [pas, setPas] = useState(8000)
+  const [pas, setPas] = useState(0) // Mis à 0 par défaut
 
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [isValidating, setIsValidating] = useState(false)
@@ -64,6 +65,13 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
       default: return [...LIFT_SQUAT, ...LIFT_BENCH, ...LIFT_DEADLIFT, ...ACCESSORIES]
     }
   }
+
+  // NOUVEAU : Synchronisation automatique des pas reçus de page.tsx vers l'input
+  useEffect(() => {
+    if (pasDuJour !== null) {
+      setPas(pasDuJour);
+    }
+  }, [pasDuJour]);
 
   useEffect(() => {
     isInitialLoad.current = true;
@@ -107,17 +115,22 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
 
         setFatigue(derniereLigne.fatigue_score || 5);
         setSommeil(derniereLigne.sleep_hours || 8);
-        setPas(derniereLigne.steps_count || 0);
+        
+        // On ne met à jour 'pas' depuis la BDD que si l'iPhone n'a pas déjà fourni la donnée
+        if (pasDuJour === null) {
+          setPas(derniereLigne.steps_count || 0);
+        }
 
       } else {
         setIsRestDayMode(jourSemaine === 0 || jourSemaine === 5);
         setExercices([creerExerciceVierge()]); 
-        setFatigue(5); setSommeil(8); setPas(0);
+        setFatigue(5); setSommeil(8); 
+        if (pasDuJour === null) setPas(0);
       }
       setTimeout(() => { isInitialLoad.current = false; }, 500);
     };
     chargerSeance();
-  }, [dateActive, dateFormatee, jourSemaine, setIsRestDayMode]);
+  }, [dateActive, dateFormatee, jourSemaine, setIsRestDayMode, pasDuJour]);
 
   const handleToggleMode = async () => {
     if (!isRestDayMode && exercices.length > 0 && exercices[0].name !== '') {

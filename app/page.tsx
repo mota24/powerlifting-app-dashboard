@@ -24,59 +24,49 @@ export default function Page() {
   const [authError, setAuthError] = useState('')
   const [isLoggingIn, setIsLoggingIn] = useState(false)
   
-  // NOUVEAU : La page globale connaît maintenant le mode repos
   const [isRestDayMode, setIsRestDayMode] = useState(false)
   const [pasDuJour, setPasDuJour] = useState<number | null>(null);
+
   useEffect(() => {
-    // On s'assure qu'on est sur le navigateur
     if (typeof window !== 'undefined') {
-      // Ce code fouille dans l'URL pour trouver "steps=..."
       const urlParams = new URLSearchParams(window.location.search || window.location.hash.split('?')[1]);
       const stepsEnregistres = urlParams.get('steps');
 
       if (stepsEnregistres) {
-        const nombreDePas = parseInt(stepsEnregistres, 10);//hol
+        const nombreDePas = parseInt(stepsEnregistres, 10);
         setPasDuJour(nombreDePas);
         
-        // On affiche une alerte pour TE PROUVER que le chiffre est bien arrivé
         alert("Succès ! L'iPhone a envoyé : " + nombreDePas + " pas.");
         
-        // On nettoie l'URL pour faire propre
         window.history.replaceState({}, '', window.location.pathname);
       }
     }
   }, []);
-  // Ajoute ce useEffect dans ton composant Pagesdvx
-// ... dans ton app/page.tsx, trouve ton useEffect pour fetchTodaySteps
 
-  // ... dans ton fichier app/page.tsx
+  useEffect(() => {
+    if (!session) return;
 
-useEffect(() => {
-  if (!session) return;
+    const fetchTodaySteps = async () => {
+      const { data, error } = await supabase
+        .from('seances_pas')
+        .select('pas, date')
+        .eq('user_id', 'mota24')
+        .order('date', { ascending: false })
+        .limit(5);
 
-  const fetchTodaySteps = async () => {
-    const { data, error } = await supabase
-      .from('seances_pas')
-      .select('pas, date')
-      .eq('user_id', 'mota24')
-      .order('date', { ascending: false })
-      .limit(5);
+      if (error) {
+        console.error("Erreur de récupération :", error);
+      } else if (data && data.length > 0) {
+        console.log("Données reçues de Supabase :", data);
+        setPasDuJour(data[0].pas); 
+      } else {
+        console.log("Aucune donnée trouvée.");
+      }
+    };
 
-    // --- COPIE À PARTIR D'ICI ---
-    if (error) {
-      console.error("Erreur de récupération :", error);
-    } else if (data && data.length > 0) {
-      console.log("Données reçues de Supabase :", data);
-      // C'est ici qu'on force l'affichage du premier résultat
-      setPasDuJour(data[0].pas); 
-    } else {
-      console.log("Aucune donnée trouvée.");
-    }
-    // --- JUSQU'ICI ---
-  };
+    fetchTodaySteps();
+  }, [session]);
 
-  fetchTodaySteps();
-}, [session]);
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
@@ -91,7 +81,6 @@ useEffect(() => {
 
     return () => subscription.unsubscribe()
   }, [])
-  
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -290,7 +279,6 @@ useEffect(() => {
         
         <div className="flex flex-col">
           <h2 className="text-sm font-medium text-muted-foreground capitalize">
-            {/* ICI : Le titre s'adapte au mode ! */}
             {vueActive === 'accueil' && (isRestDayMode ? "Jour de Repos" : "Séance & Calendrier")}
             {vueActive === 'analytique' && "Tableau de bord"}
             {vueActive === 'outils' && "Outils & Échauffement"}
@@ -368,12 +356,13 @@ useEffect(() => {
               dateActive={dateActive} 
               setDateActive={setDateActive} 
               blockTitle={blockInfo} 
-              isRestDayMode={isRestDayMode} /* On passe l'info au calendrier */
+              isRestDayMode={isRestDayMode}
             />
             <SessionForm 
               dateActive={dateActive} 
-              isRestDayMode={isRestDayMode} /* On passe l'info au formulaire */
+              isRestDayMode={isRestDayMode}
               setIsRestDayMode={setIsRestDayMode} 
+              pasDuJour={pasDuJour}
             />
           </div>
         )}
