@@ -46,6 +46,28 @@ export default function Page() {
       }
     }
   }, []);
+  // Ajoute ce useEffect dans ton composant Page
+useEffect(() => {
+  if (!session) return;
+
+  const fetchTodaySteps = async () => {
+    const today = new Date().toISOString().split('T')[0];
+    
+    // On va chercher la ligne correspondant à aujourd'hui pour cet utilisateur
+    const { data, error } = await supabase
+      .from('seances_pas')
+      .select('pas')
+      .eq('date', today)
+      .eq('user_id', session.user.id) // Important pour filtrer par utilisateur
+      .single();
+
+    if (!error && data) {
+      setPasDuJour(data.pas);
+    }
+  };
+
+  fetchTodaySteps();
+}, [session]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -349,7 +371,7 @@ export default function Page() {
 
         {vueActive === 'analytique' && (
           <section className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <StatsCards />
+            <StatsCards pasDuJour={pasDuJour} />
             <Card>
               <CardTitle icon={LineChart} title="Dashboard analytique" hint="RPE · Fatigue · Sommeil" />
               <AnalyticsChart />

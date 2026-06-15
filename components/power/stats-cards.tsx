@@ -9,7 +9,7 @@ const LIFT_SQUAT = ['squat']
 const LIFT_BENCH = ['bench press', 'paused bench', 'close grip bench', 'incline bench', 'spoto press', 'larsen press']
 const LIFT_DEADLIFT = ['deadlift', 'rdl', 'block pulls']
 
-export function StatsCards() {
+export function StatsCards({ pasDuJour }: { pasDuJour: number | null }) {
   const [isEditing, setIsEditing] = useState(false)
   
   const [realPrs, setRealPrs] = useState({ squat: 300, bench: 175, deadlift: 340 })
@@ -144,7 +144,16 @@ export function StatsCards() {
             Théorique: {theoPrs.deadlift > 0 ? theoPrs.deadlift : '-'} kg
           </div>
         </div>
-
+          <div className="p-4 bg-slate-950 rounded-xl border border-slate-800">
+  <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2">Pas</h3>
+  <div className="text-2xl font-black text-white mb-1">
+    {pasDuJour !== null ? pasDuJour : 0} 
+    <span className="text-sm font-medium text-slate-500"> pas</span>
+  </div>
+  <div className="text-xs font-bold text-slate-500">
+    Aujourd'hui
+  </div>
+</div>
         <div className="p-4 bg-blue-500/10 rounded-xl border border-blue-500/20 relative overflow-hidden">
           <div className="absolute -right-4 -top-4 opacity-10"><Flame className="size-24 text-blue-500" /></div>
           <h3 className="text-sm font-bold text-blue-400 uppercase tracking-wider mb-2 relative z-10">Total SBD</h3>
