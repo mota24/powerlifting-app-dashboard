@@ -58,7 +58,7 @@ useEffect(() => {
       .from('seances_pas')
       .select('pas')
       .eq('date', today)
-      .eq('user_id', session.user.id) // Important pour filtrer par utilisateur
+      .eq('user_id', 'mota24') // Important pour filtrer par utilisateur
       .single();
 
     if (!error && data) {
