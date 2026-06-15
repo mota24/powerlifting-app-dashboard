@@ -46,7 +46,7 @@ export default function Page() {
       }
     }
   }, []);
-  // Ajoute ce useEffect dans ton composant Page
+  // Ajoute ce useEffect dans ton composant Pagesdvx
 useEffect(() => {
   if (!session) return;
 
