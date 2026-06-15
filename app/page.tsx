@@ -206,7 +206,7 @@ export default function Page() {
               </label>
               <input 
                 type="text" 
-                placeholder="Ex: 1"
+                placeholder=""
                 value={identifiant}
                 onChange={(e) => setIdentifiant(e.target.value)}
                 className="w-full p-3 bg-slate-950 border border-slate-800 rounded-lg text-white font-bold outline-none focus:border-blue-500 transition-colors placeholder:text-slate-700"
