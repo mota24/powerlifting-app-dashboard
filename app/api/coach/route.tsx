@@ -11,9 +11,11 @@ export async function POST(req: Request) {
 
     const { prompt } = await req.json();
     const genAI = new GoogleGenerativeAI(apiKey);
+// On force l'utilisation de la version stable v1
+    genAI.apiKey = apiKey;
     
     const model = genAI.getGenerativeModel({
-      model: 'gemini-1.0-pro', // Change 'gemini-1.5-flash' par ceci
+      model: 'gemini-1.5-flash', // Change 'gemini-1.5-flash' par ceci
       systemInstruction: `Tu es un expert powerlifting. Réponds UNIQUEMENT avec un tableau JSON, rien d'autre...`
     });
 
