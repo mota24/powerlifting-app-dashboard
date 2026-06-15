@@ -48,25 +48,23 @@ export default function Page() {
   }, []);
   // Ajoute ce useEffect dans ton composant Page
 useEffect(() => {
-  // On attend que la session soit définie pour avoir l'ID
   if (!session) return;
 
   const fetchTodaySteps = async () => {
     const today = new Date().toISOString().split('T')[0];
     
-    // On utilise l'identifiant saisi pour chercher la correspondance dans ta table
-    // Assure-toi que la colonne 'user_id' dans Supabase contient bien le texte "mota24"
     const { data, error } = await supabase
       .from('seances_pas')
       .select('pas')
       .eq('date', today)
-      .eq('user_id', 'mota24') // <--- REMPLACE 'mota24' par ton identifiant actuel
-      .single();
+      .eq('user_id', 'mota24')
+      .order('date', { ascending: false }); // Trie par date pour être propre
 
     if (error) {
-      console.error("Erreur de récupération des pas :", error);
-    } else if (data) {
-      setPasDuJour(data.pas);
+      console.error("Erreur de récupération :", error);
+    } else if (data && data.length > 0) {
+      // On prend la première valeur de la liste au lieu de faire .single()
+      setPasDuJour(data[0].pas); 
     }
   };
 
