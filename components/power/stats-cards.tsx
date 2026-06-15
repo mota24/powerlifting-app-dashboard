@@ -146,4 +146,4 @@ export function StatsCards({ pasDuJour }: { pasDuJour: number | null }) {
       </div>
     </div>
   )
-}
+}///bcv 
