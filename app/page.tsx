@@ -17,6 +17,7 @@ import CalculatorPanel from '@/components/power/calculator-panel'
 import GLCalculator from '@/components/power/GLCalculator';
 
 export default function Page() {
+  // 1. TOUTES LES DÉCLARATIONS DE VARIABLES SONT MAINTENANT ICI EN HAUT
   const [session, setSession] = useState<any>(null)
   const [loadingAuth, setLoadingAuth] = useState(true)
   const [identifiant, setIdentifiant] = useState('')
@@ -26,7 +27,23 @@ export default function Page() {
   
   const [isRestDayMode, setIsRestDayMode] = useState(false)
   const [pasDuJour, setPasDuJour] = useState<number | null>(null);
+  
+  const [dateActive, setDateActive] = useState<Date>(new Date()) // <--- LIGNE REMONTÉE ICI
+  const [menuOuvert, setMenuOuvert] = useState(false)
+  const [blockInfo, setBlockInfo] = useState('Chargement...')
+  
+  const [vueActive, setVueActive] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('page') || 'accueil';
+    }
+    return 'accueil';
+  });
 
+  const menuRef = useRef<HTMLDivElement>(null)
+  const toggleBtnRef = useRef<HTMLButtonElement>(null)
+
+  // 2. MAINTENANT LES USEEFFECTS PEUVENT UTILISER LES VARIABLES SANS ERREUR
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const urlParams = new URLSearchParams(window.location.search || window.location.hash.split('?')[1]);
@@ -46,26 +63,28 @@ export default function Page() {
   useEffect(() => {
     if (!session) return;
 
-    const fetchTodaySteps = async () => {
+    const fetchStepsForSelectedDate = async () => {
+      // Maintenant dateActive est bien reconnue !
+      const dateStr = new Date(dateActive.getTime() - (dateActive.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+      
       const { data, error } = await supabase
         .from('seances_pas')
-        .select('pas, date')
+        .select('pas')
         .eq('user_id', 'mota24')
-        .order('date', { ascending: false })
-        .limit(5);
+        .eq('date', dateStr) 
+        .limit(1);
 
       if (error) {
         console.error("Erreur de récupération :", error);
       } else if (data && data.length > 0) {
-        console.log("Données reçues de Supabase :", data);
         setPasDuJour(data[0].pas); 
       } else {
-        console.log("Aucune donnée trouvée.");
+        setPasDuJour(null); 
       }
     };
 
-    fetchTodaySteps();
-  }, [session]);
+    fetchStepsForSelectedDate();
+  }, [session, dateActive]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -103,21 +122,6 @@ export default function Page() {
   const handleLogout = async () => {
     await supabase.auth.signOut()
   }
-
-  const [vueActive, setVueActive] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      return params.get('page') || 'accueil';
-    }
-    return 'accueil';
-  });
-
-  const [menuOuvert, setMenuOuvert] = useState(false)
-  const [dateActive, setDateActive] = useState<Date>(new Date())
-  const [blockInfo, setBlockInfo] = useState('Chargement...')
-  
-  const menuRef = useRef<HTMLDivElement>(null)
-  const toggleBtnRef = useRef<HTMLButtonElement>(null)
 
   const changerVue = (vue: string) => {
     setVueActive(vue)

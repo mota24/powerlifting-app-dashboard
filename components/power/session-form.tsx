@@ -9,7 +9,7 @@ interface Props {
   dateActive: Date;
   isRestDayMode: boolean;
   setIsRestDayMode: (val: boolean) => void;
-  pasDuJour: number | null; // <-- Ajouté pour recevoir la donnée
+  pasDuJour: number | null; 
 }
 
 interface SetData {
@@ -36,14 +36,13 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
   const [exercices, setExercices] = useState<ExerciceRow[]>([])
   const [fatigue, setFatigue] = useState(5)
   const [sommeil, setSommeil] = useState(8)
-  const [pas, setPas] = useState(0) // Mis à 0 par défaut
+  const [pas, setPas] = useState(0) 
 
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [isValidating, setIsValidating] = useState(false)
   const [isPropagating, setIsPropagating] = useState(false)
   const isInitialLoad = useRef(true)
 
-  // NOUVEAU : États pour l'Intelligence Artificielle
   const [aiPrompt, setAiPrompt] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
 
@@ -66,7 +65,6 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
     }
   }
 
-  // NOUVEAU : Synchronisation automatique des pas reçus de page.tsx vers l'input
   useEffect(() => {
     if (pasDuJour !== null) {
       setPas(pasDuJour);
@@ -116,21 +114,21 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
         setFatigue(derniereLigne.fatigue_score || 5);
         setSommeil(derniereLigne.sleep_hours || 8);
         
-        // On ne met à jour 'pas' depuis la BDD que si l'iPhone n'a pas déjà fourni la donnée
-        if (pasDuJour === null) {
-          setPas(derniereLigne.steps_count || 0);
-        }
+        // LE FIX EST ICI : On charge toujours la donnée de la base par défaut
+        setPas(derniereLigne.steps_count || 0);
 
       } else {
         setIsRestDayMode(jourSemaine === 0 || jourSemaine === 5);
         setExercices([creerExerciceVierge()]); 
         setFatigue(5); setSommeil(8); 
-        if (pasDuJour === null) setPas(0);
+        
+        // LE FIX EST ICI AUSSI : On réinitialise proprement à 0 s'il n'y a rien
+        setPas(0);
       }
       setTimeout(() => { isInitialLoad.current = false; }, 500);
     };
     chargerSeance();
-  }, [dateActive, dateFormatee, jourSemaine, setIsRestDayMode, pasDuJour]);
+  }, [dateActive, dateFormatee, jourSemaine, setIsRestDayMode]); // Retrait de pasDuJour des dépendances pour ne pas écraser
 
   const handleToggleMode = async () => {
     if (!isRestDayMode && exercices.length > 0 && exercices[0].name !== '') {
@@ -172,7 +170,6 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
     }
   }
 
-  // NOUVEAU : Fonction de génération IA
   const handleAIGeneration = async () => {
     if (!aiPrompt.trim()) return;
     setIsGenerating(true);
@@ -188,14 +185,12 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
 
       const aiData = await res.json();
 
-      // On transforme la donnée IA pour qu'elle rentre dans nos cases
       const newExercices: ExerciceRow[] = aiData.map((ex: any) => {
         const coachTracking = ex.coachTracking || [{ reps: '', weight: '', rpe: '' }];
-        // On crée le suivi athlète de la même longueur
         const tracking = coachTracking.map(() => ({ reps: '', weight: '', rpe: '' }));
         
         return {
-          id: null, // Nouvel exercice
+          id: null,
           name: ex.name,
           comments: ex.comments || '',
           coachTracking,
@@ -203,14 +198,13 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
         };
       });
 
-      // Si le formulaire était vide, on le remplace. Sinon on ajoute à la suite.
       if (exercices.length === 1 && exercices[0].name === '') {
         setExercices(newExercices);
       } else {
         setExercices([...exercices, ...newExercices]);
       }
       
-      setAiPrompt(''); // On vide la barre de recherche
+      setAiPrompt('');
     } catch (err) {
       alert("Impossible de générer le programme. Vérifie ta clé API !");
     } finally {
@@ -474,7 +468,6 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
 
       <div className="space-y-6 animate-in fade-in">
         
-        {/* NOUVEAU : BARRE SMART COACH (IA) */}
         <div className="flex flex-col sm:flex-row gap-3 p-4 bg-gradient-to-r from-blue-900/40 to-purple-900/40 border border-blue-500/30 rounded-xl shadow-inner">
           <div className="flex-1 flex items-center gap-3 bg-slate-950/80 px-4 py-2 rounded-lg border border-slate-800">
             <Sparkles className="size-5 text-blue-400 flex-shrink-0" />
