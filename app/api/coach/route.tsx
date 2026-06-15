@@ -15,7 +15,7 @@ export async function POST(req: Request) {
     genAI.apiKey = apiKey;
     
     const model = genAI.getGenerativeModel({
-      model: 'gemini-1.5-flash', // Change 'gemini-1.5-flash' par ceci
+      model: 'gemini-pro', // Change 'gemini-1.5-flash' par ceci
       systemInstruction: `Tu es un expert powerlifting. Réponds UNIQUEMENT avec un tableau JSON, rien d'autre...`
     });
 
