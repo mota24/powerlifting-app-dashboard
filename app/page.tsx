@@ -16,15 +16,15 @@ import ConfigPanel from '@/components/power/config-panel'
 import CalculatorPanel from '@/components/power/calculator-panel'
 
 export default function Page() {
-  // ==========================================
-  // SYSTÈME D'AUTHENTIFICATION
-  // ==========================================
   const [session, setSession] = useState<any>(null)
   const [loadingAuth, setLoadingAuth] = useState(true)
   const [identifiant, setIdentifiant] = useState('')
   const [password, setPassword] = useState('')
   const [authError, setAuthError] = useState('')
   const [isLoggingIn, setIsLoggingIn] = useState(false)
+  
+  // NOUVEAU : La page globale connaît maintenant le mode repos
+  const [isRestDayMode, setIsRestDayMode] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -46,7 +46,6 @@ export default function Page() {
     setIsLoggingIn(true)
     setAuthError('')
     
-    // ASTUCE : On transforme ton identifiant en faux email pour Supabase
     const emailFantome = `${identifiant.trim().toLowerCase()}@power.app`
     
     const { error } = await supabase.auth.signInWithPassword({
@@ -64,9 +63,6 @@ export default function Page() {
     await supabase.auth.signOut()
   }
 
-  // ==========================================
-  // LOGIQUE DU TABLEAU DE BORD
-  // ==========================================
   const [vueActive, setVueActive] = useState(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
@@ -111,7 +107,6 @@ export default function Page() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  // ALGORITHME DE CALCUL DES SEMAINES
   useEffect(() => {
     if (!session) return;
     
@@ -166,10 +161,6 @@ export default function Page() {
     calculateCurrentWeek()
   }, [dateActive, vueActive, session])
 
-  // ==========================================
-  // RENDU DE LA PAGE
-  // ==========================================
-
   if (loadingAuth) {
     return (
       <div className="min-h-dvh flex items-center justify-center bg-background">
@@ -181,7 +172,6 @@ export default function Page() {
   if (!session) {
     return (
       <div className="min-h-dvh bg-background flex flex-col items-center justify-center p-4 relative overflow-hidden">
-        {/* Décoration de fond */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-blue-500/10 blur-[120px] rounded-full pointer-events-none"></div>
 
         <div className="w-full max-w-sm p-8 rounded-2xl border border-slate-800 bg-slate-900/80 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-300 relative z-10">
@@ -206,7 +196,7 @@ export default function Page() {
               </label>
               <input 
                 type="text" 
-                placeholder=""
+                placeholder="Ex: 1"
                 value={identifiant}
                 onChange={(e) => setIdentifiant(e.target.value)}
                 className="w-full p-3 bg-slate-950 border border-slate-800 rounded-lg text-white font-bold outline-none focus:border-blue-500 transition-colors placeholder:text-slate-700"
@@ -248,7 +238,8 @@ export default function Page() {
         
         <div className="flex flex-col">
           <h2 className="text-sm font-medium text-muted-foreground capitalize">
-            {vueActive === 'accueil' && "Séance & Calendrier"}
+            {/* ICI : Le titre s'adapte au mode ! */}
+            {vueActive === 'accueil' && (isRestDayMode ? "Jour de Repos" : "Séance & Calendrier")}
             {vueActive === 'analytique' && "Tableau de bord"}
             {vueActive === 'outils' && "Outils & Échauffement"}
             {vueActive === 'calculatrice' && "Calculateur de force"}
@@ -318,8 +309,17 @@ export default function Page() {
 
         {vueActive === 'accueil' && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <WeekCalendar dateActive={dateActive} setDateActive={setDateActive} blockTitle={blockInfo} />
-            <SessionForm dateActive={dateActive} />
+            <WeekCalendar 
+              dateActive={dateActive} 
+              setDateActive={setDateActive} 
+              blockTitle={blockInfo} 
+              isRestDayMode={isRestDayMode} /* On passe l'info au calendrier */
+            />
+            <SessionForm 
+              dateActive={dateActive} 
+              isRestDayMode={isRestDayMode} /* On passe l'info au formulaire */
+              setIsRestDayMode={setIsRestDayMode} 
+            />
           </div>
         )}
 

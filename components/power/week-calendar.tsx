@@ -1,12 +1,13 @@
 'use client'
 
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react'
-import { cn } from '../../lib/utils'
+import { cn } from '@/lib/utils' // ou '../../lib/utils' selon ton fichier
 
 interface WeekCalendarProps {
   dateActive: Date;
   setDateActive: (date: Date) => void;
   blockTitle?: string;
+  isRestDayMode?: boolean; // NOUVEAU
 }
 
 const WEEK_PROGRAM = [
@@ -19,16 +20,14 @@ const WEEK_PROGRAM = [
   { id: 0, dayName: 'Dim', title: 'Repos', desc: 'Récupération totale' }, 
 ]
 
-export function WeekCalendar({ dateActive, setDateActive, blockTitle }: WeekCalendarProps) {
+export function WeekCalendar({ dateActive, setDateActive, blockTitle, isRestDayMode = false }: WeekCalendarProps) {
   
-  // Fonction pour changer de semaine (boutons précédent/suivant)
   const changerSemaine = (jours: number) => {
     const nouvelleDate = new Date(dateActive)
     nouvelleDate.setDate(nouvelleDate.getDate() + jours)
     setDateActive(nouvelleDate)
   }
 
-  // ALGORITHME : Calcul strict des jours de la semaine
   const getJoursDeLaSemaine = (date: Date) => {
     const jours = []
     const baseDate = new Date(date)
@@ -46,18 +45,13 @@ export function WeekCalendar({ dateActive, setDateActive, blockTitle }: WeekCale
 
   const joursSemaine = getJoursDeLaSemaine(dateActive)
   const jourSelectionneInfo = WEEK_PROGRAM.find(p => p.id === dateActive.getDay()) || WEEK_PROGRAM[0]
-
-  // Formatage de la date locale pour l'input natif (ex: "2024-05-15")
   const localDateFormatee = new Date(dateActive.getTime() - (dateActive.getTimezoneOffset() * 60000)).toISOString().split('T')[0]
 
   return (
     <div className="space-y-4">
-      {/* En-tête avec Navigation */}
       <div className="flex items-center justify-between">
         
-        {/* LA ZONE CLICABLE POUR LE CALENDRIER NATIF */}
         <div className="relative flex items-center gap-2 group cursor-pointer hover:opacity-80 transition-opacity">
-          {/* L'input invisible qui déclenche le calendrier du téléphone/PC */}
           <input 
             type="date"
             value={localDateFormatee}
@@ -70,21 +64,18 @@ export function WeekCalendar({ dateActive, setDateActive, blockTitle }: WeekCale
             title="Choisir une date spécifique"
           />
           
-          {/* Le visuel que l'utilisateur voit */}
           <Calendar className="size-5 text-blue-500 relative z-0" />
           <h2 className="text-lg font-bold text-slate-200 relative z-0">
             {blockTitle || "Calendrier"} 
           </h2>
         </div>
 
-        {/* Flèches pour naviguer semaine par semaine */}
         <div className="flex items-center gap-2 relative z-20">
           <button onClick={() => changerSemaine(-7)} className="p-1 hover:bg-slate-800 rounded text-slate-400 transition-colors"><ChevronLeft className="size-5"/></button>
           <button onClick={() => changerSemaine(7)} className="p-1 hover:bg-slate-800 rounded text-slate-400 transition-colors"><ChevronRight className="size-5"/></button>
         </div>
       </div>
 
-      {/* Onglets des jours (LUN, MAR, MER...) */}
       <div className="flex border-b border-slate-800 overflow-x-auto scrollbar-none">
         {joursSemaine.map((dateObj, index) => {
           const estSelectionne = dateActive.toDateString() === dateObj.toDateString()
@@ -97,7 +88,7 @@ export function WeekCalendar({ dateActive, setDateActive, blockTitle }: WeekCale
               className={cn(
                 "px-4 py-3 flex flex-col items-center min-w-[4rem] text-sm font-medium transition-colors whitespace-nowrap border-b-2",
                 estSelectionne
-                  ? "border-blue-500 text-blue-400"
+                  ? (isRestDayMode ? "border-emerald-500 text-emerald-400" : "border-blue-500 text-blue-400")
                   : "border-transparent text-slate-500 hover:text-slate-300 hover:border-slate-700"
               )}
             >
@@ -108,10 +99,14 @@ export function WeekCalendar({ dateActive, setDateActive, blockTitle }: WeekCale
         })}
       </div>
 
-      {/* Description du jour */}
-      <div className="p-4 rounded-lg bg-slate-900/50 border border-slate-800">
-        <h3 className="font-bold text-slate-200">{jourSelectionneInfo.title}</h3>
-        <p className="text-sm text-slate-400 mt-1">{jourSelectionneInfo.desc}</p>
+      {/* ICI : Le bloc change dynamiquement d'apparence selon le mode */}
+      <div className={cn("p-4 rounded-lg border transition-colors duration-300", isRestDayMode ? "bg-emerald-500/5 border-emerald-500/20" : "bg-slate-900/50 border-slate-800")}>
+        <h3 className={cn("font-bold", isRestDayMode ? "text-emerald-400" : "text-slate-200")}>
+          {isRestDayMode ? "Repos" : jourSelectionneInfo.title}
+        </h3>
+        <p className="text-sm text-slate-400 mt-1">
+          {isRestDayMode ? "Récupération active pour le système nerveux." : jourSelectionneInfo.desc}
+        </p>
       </div>
     </div>
   )

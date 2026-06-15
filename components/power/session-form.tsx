@@ -7,6 +7,8 @@ import { cn } from '@/lib/utils'
 
 interface Props {
   dateActive: Date;
+  isRestDayMode: boolean;
+  setIsRestDayMode: (val: boolean) => void;
 }
 
 interface SetData {
@@ -28,9 +30,7 @@ const LIFT_BENCH = ['Bench Press', 'Paused Bench', 'Close Grip Bench', 'Incline 
 const LIFT_DEADLIFT = ['Deadlift', 'Sumo Deadlift', 'Deficit Deadlift', 'Paused Deadlift', 'RDL', 'Block Pulls']
 const ACCESSORIES = ['Pull-ups', 'Barbell Row', 'Lat Pulldown', 'Leg Press', 'Bulgarian Split Squat', 'Leg Extensions', 'Leg Curls', 'Bicep Curls', 'Tricep Extensions', 'Gainage (Planche)', 'Ab Rollout']
 
-export default function SessionForm({ dateActive }: Props) {
-  // L'ÉTAT QUI GÈRE LE BOUTON (Repos vs Séance)
-  const [isRestDayMode, setIsRestDayMode] = useState<boolean>(false)
+export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMode }: Props) {
   
   const [exercices, setExercices] = useState<ExerciceRow[]>([])
   const [fatigue, setFatigue] = useState(5)
@@ -68,7 +68,6 @@ export default function SessionForm({ dateActive }: Props) {
       const { data } = await supabase.from('workout_sets').select('*').eq('date', dateFormatee).order('created_at', { ascending: true })
 
       if (data && data.length > 0) {
-        // On vérifie si la DB dit que c'est un jour de repos
         const isExplicitRest = data.some((item: any) => item.exercise_name === 'Repos' || item.exercise_name === 'Jour de Repos');
         const hasLifts = data.some((item: any) => item.exercise_name !== 'Repos' && item.exercise_name !== 'Jour de Repos');
 
@@ -77,7 +76,6 @@ export default function SessionForm({ dateActive }: Props) {
         } else if (hasLifts) {
             setIsRestDayMode(false);
         } else {
-            // Logique par défaut si base de données ambiguë
             setIsRestDayMode(jourSemaine === 0 || jourSemaine === 5);
         }
 
@@ -115,9 +113,8 @@ export default function SessionForm({ dateActive }: Props) {
       setTimeout(() => { isInitialLoad.current = false; }, 500);
     };
     chargerSeance();
-  }, [dateActive, dateFormatee, jourSemaine]);
+  }, [dateActive, dateFormatee, jourSemaine, setIsRestDayMode]);
 
-  // FONCTION DU BOUTON TOGGLE
   const handleToggleMode = async () => {
     if (!isRestDayMode && exercices.length > 0 && exercices[0].name !== '') {
         if (!confirm("Passer en mode Repos va effacer la séance en cours. Es-tu sûr ?")) {
@@ -127,12 +124,10 @@ export default function SessionForm({ dateActive }: Props) {
     setIsRestDayMode(!isRestDayMode);
   }
 
-  // Sauvegarde silencieuse
   const executerSauvegarde = async () => {
     if (isRestDayMode) {
       const payload = { date: dateFormatee, exercise_name: 'Jour de Repos', fatigue_score: fatigue, sleep_hours: sommeil, steps_count: pas }
       
-      // On nettoie les anciens exos pour éviter les conflits
       await supabase.from('workout_sets').delete().eq('date', dateFormatee).neq('exercise_name', 'Jour de Repos');
       
       const { data } = await supabase.from('workout_sets').select('id').eq('date', dateFormatee).limit(1)
@@ -141,7 +136,6 @@ export default function SessionForm({ dateActive }: Props) {
       return;
     }
 
-    // Si on est en mode séance, on efface le Jour de repos s'il y était
     await supabase.from('workout_sets').delete().eq('date', dateFormatee).in('exercise_name', ['Repos', 'Jour de Repos']);
 
     const promesses = exercices.map((ex, index) => {
@@ -161,7 +155,6 @@ export default function SessionForm({ dateActive }: Props) {
     }
   }
 
-  // Déclencheur Auto-save
   useEffect(() => {
     if (isInitialLoad.current) return;
     if (!isRestDayMode && exercices.length === 0) return;
@@ -359,7 +352,6 @@ export default function SessionForm({ dateActive }: Props) {
   return (
     <div className="space-y-6 animate-in fade-in pb-10">
       
-      {/* 🟢 LE NOUVEAU BOUTON MAGIQUE ICI 🟢 */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-slate-900/80 p-4 rounded-xl border border-slate-700 shadow-sm gap-4">
         <div>
           <h2 className="text-lg font-bold text-slate-200 flex items-center gap-2">
@@ -388,7 +380,6 @@ export default function SessionForm({ dateActive }: Props) {
         </div>
       </div>
 
-      {/* 🟦 INTERFACE JOUR DE REPOS */}
       {isRestDayMode ? (
         <div className="space-y-6 animate-in fade-in">
           <div className="p-8 rounded-xl border border-emerald-500/20 bg-emerald-500/5 flex flex-col items-center text-center space-y-4">
@@ -418,7 +409,6 @@ export default function SessionForm({ dateActive }: Props) {
         </div>
       ) : (
 
-      /* 🟥 INTERFACE ENTRAINEMENT */
       <div className="space-y-6 animate-in fade-in">
         {exercices.map((ex, exIndex) => (
           <div key={exIndex} className="p-4 rounded-xl border border-slate-800 bg-slate-900/50 space-y-4 relative group shadow-sm">
