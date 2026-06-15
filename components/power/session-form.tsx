@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Target, Activity, Check, Moon, Footprints, Battery, Coffee, Plus, Trash2, MessageSquare, X, Copy, RefreshCw, Award, Zap, Flame } from 'lucide-react'
+import { Target, Activity, Check, Moon, Footprints, Battery, Coffee, Plus, Trash2, MessageSquare, X, Copy, RefreshCw, Award, Zap, Flame, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -41,6 +41,10 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
   const [isValidating, setIsValidating] = useState(false)
   const [isPropagating, setIsPropagating] = useState(false)
   const isInitialLoad = useRef(true)
+
+  // NOUVEAU : États pour l'Intelligence Artificielle
+  const [aiPrompt, setAiPrompt] = useState('')
+  const [isGenerating, setIsGenerating] = useState(false)
 
   const [showModal, setShowModal] = useState(false)
   const [xpGained, setXpGained] = useState(0)
@@ -152,6 +156,52 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
         data.forEach((d: any, i: number) => { if (newEx[i]) newEx[i].id = d.id });
         return newEx;
       });
+    }
+  }
+
+  // NOUVEAU : Fonction de génération IA
+  const handleAIGeneration = async () => {
+    if (!aiPrompt.trim()) return;
+    setIsGenerating(true);
+    
+    try {
+      const res = await fetch('/api/coach', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: aiPrompt })
+      });
+
+      if (!res.ok) throw new Error("Erreur de l'API");
+
+      const aiData = await res.json();
+
+      // On transforme la donnée IA pour qu'elle rentre dans nos cases
+      const newExercices: ExerciceRow[] = aiData.map((ex: any) => {
+        const coachTracking = ex.coachTracking || [{ reps: '', weight: '', rpe: '' }];
+        // On crée le suivi athlète de la même longueur
+        const tracking = coachTracking.map(() => ({ reps: '', weight: '', rpe: '' }));
+        
+        return {
+          id: null, // Nouvel exercice
+          name: ex.name,
+          comments: ex.comments || '',
+          coachTracking,
+          tracking
+        };
+      });
+
+      // Si le formulaire était vide, on le remplace. Sinon on ajoute à la suite.
+      if (exercices.length === 1 && exercices[0].name === '') {
+        setExercices(newExercices);
+      } else {
+        setExercices([...exercices, ...newExercices]);
+      }
+      
+      setAiPrompt(''); // On vide la barre de recherche
+    } catch (err) {
+      alert("Impossible de générer le programme. Vérifie ta clé API !");
+    } finally {
+      setIsGenerating(false);
     }
   }
 
@@ -410,6 +460,30 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
       ) : (
 
       <div className="space-y-6 animate-in fade-in">
+        
+        {/* NOUVEAU : BARRE SMART COACH (IA) */}
+        <div className="flex flex-col sm:flex-row gap-3 p-4 bg-gradient-to-r from-blue-900/40 to-purple-900/40 border border-blue-500/30 rounded-xl shadow-inner">
+          <div className="flex-1 flex items-center gap-3 bg-slate-950/80 px-4 py-2 rounded-lg border border-slate-800">
+            <Sparkles className="size-5 text-blue-400 flex-shrink-0" />
+            <input 
+              type="text" 
+              placeholder="Ex: 3x3 squat 180, puis 4x10 tractions..." 
+              value={aiPrompt}
+              onChange={(e) => setAiPrompt(e.target.value)}
+              onKeyDown={(e) => { if(e.key === 'Enter') handleAIGeneration() }}
+              className="w-full bg-transparent text-white outline-none placeholder:text-slate-500 text-sm"
+              disabled={isGenerating}
+            />
+          </div>
+          <button 
+            onClick={handleAIGeneration}
+            disabled={isGenerating || !aiPrompt.trim()}
+            className="whitespace-nowrap px-6 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-bold rounded-lg transition-colors flex items-center justify-center gap-2"
+          >
+            {isGenerating ? <RefreshCw className="size-4 animate-spin" /> : 'Générer avec l\'IA'}
+          </button>
+        </div>
+
         {exercices.map((ex, exIndex) => (
           <div key={exIndex} className="p-4 rounded-xl border border-slate-800 bg-slate-900/50 space-y-4 relative group shadow-sm">
             
