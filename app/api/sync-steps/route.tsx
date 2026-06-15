@@ -12,14 +12,14 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
   }
 
-  // Envoi vers Supabase
+  
   const { error } = await supabase
     .from('seances_pas')
-    .upsert({
+    .insert({
       user_id: userId,
       date: new Date().toISOString().split('T')[0],
       pas: parseInt(steps || "0", 10)
-    }, { onConflict: 'user_id,date' });
+    });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ success: true });
