@@ -1,48 +1,41 @@
-import { NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+// Fichier : app/api/sync-steps/route.ts
+import { NextResponse } from 'next/server';
+import { supabase } from '@/lib/supabase'; // Ajuste le chemin si besoin
 
-export async function POST(request: Request) {
+export async function POST(req: Request) {
   try {
-    const body = await request.json()
-    const { secret, date, steps } = body
+    // 1. On lit les données secrètes envoyées par l'iPhone
+    const body = await req.json();
+    const { steps, userId, secretKey } = body;
 
-    // 1. SÉCURITÉ : Mot de passe pour éviter que n'importe qui modifie tes données
-    if (secret !== 'MOTA_IPHONE_SECRET') {
-      return NextResponse.json({ error: 'Accès refusé' }, { status: 401 })
+    // 2. Sécurité de base : on empêche n'importe qui de poster des pas
+    if (secretKey !== "MON_MOT_DE_PASSE_SECRET_123") {
+      return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
     }
 
-    // 2. Chercher si une séance existe déjà aujourd'hui
-    const { data: existingData } = await supabase
-      .from('workout_sets')
-      .select('id')
-      .eq('date', date)
-      .order('created_at', { ascending: false })
-      .limit(1)
-
-    let result;
-    if (existingData && existingData.length > 0) {
-      // Si une séance existe, on met juste à jour les pas
-      result = await supabase
-        .from('workout_sets')
-        .update({ steps_count: steps })
-        .eq('id', existingData[0].id)
-    } else {
-      // Si c'est un jour de repos (aucune séance), on crée une ligne pour stocker les pas
-      result = await supabase
-        .from('workout_sets')
-        .insert([{ 
-          date: date,
-          exercise_name: 'Jour de Repos',
-          steps_count: steps,
-          fatigue_score: 5,
-          sleep_hours: 8
-        }])
+    if (!steps || !userId) {
+      return NextResponse.json({ error: "Données manquantes" }, { status: 400 });
     }
 
-    if (result.error) throw result.error
+    // 3. Calcul de la date locale (ex: "2026-06-15")
+    const tzoffset = (new Date()).getTimezoneOffset() * 60000;
+    const localISODate = (new Date(Date.now() - tzoffset)).toISOString().split('T')[0];
 
-    return NextResponse.json({ success: true, steps })
+    // 4. Sauvegarde dans ta table Supabase (remplace 'seances' par le nom de ta table)
+    const { error } = await supabase
+      .from('seances')
+      .upsert({
+        user_id: userId,
+        date: localISODate,
+        steps: parseInt(steps, 10)
+      }, { onConflict: 'user_id,date' });
+
+    if (error) throw error;
+
+    return NextResponse.json({ success: true, message: `Pas (${steps}) enregistrés pour le ${localISODate}` });
+
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error("Erreur API Sync Steps :", error.message);
+    return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }
