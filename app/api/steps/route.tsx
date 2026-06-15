@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server';
-
-export async function GET(req: Request) {
-  // On répond juste "OK" pour voir si l'iPhone reçoit quelque chose
-  return new Response("TEST OK", { status: 200 });
+export async function GET(request: Request) {
+  return new Response("SERVEUR OK", {
+    status: 200,
+    headers: { 'Content-Type': 'text/plain' },
+  });
 }
