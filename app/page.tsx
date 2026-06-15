@@ -56,12 +56,11 @@ export default function Page() {
       const today = new Date().toISOString().split('T')[0];
       
       const { data, error } = await supabase
-        .from('seances_pas')
-        .select('pas')
-        .eq('date', today)
-        .eq('user_id', 'mota24')
-        .order('date', { ascending: false });
-
+  .from('seances_pas')
+  .select('pas, date')
+  .eq('user_id', 'mota24') // Garde seulement le filtre utilisateur
+  .order('date', { ascending: false })
+  .limit(5); // On en récupère 5 pour voir ce qu'il y a dedans
       // C'EST ICI QUE TU COPIES LE BLOC :
       if (error) {
         console.error("Erreur de récupération :", error);
