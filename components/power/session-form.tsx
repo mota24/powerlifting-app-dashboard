@@ -29,18 +29,19 @@ const LIFT_DEADLIFT = ['Deadlift', 'Sumo Deadlift', 'Deficit Deadlift', 'Paused 
 const ACCESSORIES = ['Pull-ups', 'Barbell Row', 'Lat Pulldown', 'Leg Press', 'Bulgarian Split Squat', 'Leg Extensions', 'Leg Curls', 'Bicep Curls', 'Tricep Extensions', 'Gainage (Planche)', 'Ab Rollout']
 
 export default function SessionForm({ dateActive }: Props) {
+  // L'ÉTAT QUI GÈRE LE BOUTON (Repos vs Séance)
+  const [isRestDayMode, setIsRestDayMode] = useState<boolean>(false)
+  
   const [exercices, setExercices] = useState<ExerciceRow[]>([])
   const [fatigue, setFatigue] = useState(5)
   const [sommeil, setSommeil] = useState(8)
   const [pas, setPas] = useState(8000)
 
-  // États séparés pour ne pas faire clignoter l'interface
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [isValidating, setIsValidating] = useState(false)
   const [isPropagating, setIsPropagating] = useState(false)
   const isInitialLoad = useRef(true)
 
-  // XP & Modal
   const [showModal, setShowModal] = useState(false)
   const [xpGained, setXpGained] = useState(0)
   const [newStreakState, setNewStreakState] = useState(0)
@@ -67,6 +68,19 @@ export default function SessionForm({ dateActive }: Props) {
       const { data } = await supabase.from('workout_sets').select('*').eq('date', dateFormatee).order('created_at', { ascending: true })
 
       if (data && data.length > 0) {
+        // On vérifie si la DB dit que c'est un jour de repos
+        const isExplicitRest = data.some((item: any) => item.exercise_name === 'Repos' || item.exercise_name === 'Jour de Repos');
+        const hasLifts = data.some((item: any) => item.exercise_name !== 'Repos' && item.exercise_name !== 'Jour de Repos');
+
+        if (isExplicitRest && !hasLifts) {
+            setIsRestDayMode(true);
+        } else if (hasLifts) {
+            setIsRestDayMode(false);
+        } else {
+            // Logique par défaut si base de données ambiguë
+            setIsRestDayMode(jourSemaine === 0 || jourSemaine === 5);
+        }
+
         const derniereLigne = data[data.length - 1];
         const vraisExercices = data.filter((item: any) => item.exercise_name !== 'Repos' && item.exercise_name !== 'Jour de Repos');
         vraisExercices.sort((a: any, b: any) => (a.order_index || 0) - (b.order_index || 0));
@@ -94,22 +108,41 @@ export default function SessionForm({ dateActive }: Props) {
         setPas(derniereLigne.steps_count || 0);
 
       } else {
-        setExercices([creerExerciceVierge()]); setFatigue(5); setSommeil(8); setPas(0);
+        setIsRestDayMode(jourSemaine === 0 || jourSemaine === 5);
+        setExercices([creerExerciceVierge()]); 
+        setFatigue(5); setSommeil(8); setPas(0);
       }
       setTimeout(() => { isInitialLoad.current = false; }, 500);
     };
     chargerSeance();
-  }, [dateActive, dateFormatee]);
+  }, [dateActive, dateFormatee, jourSemaine]);
 
-  // Sauvegarde silencieuse (sans interface qui clignote)
+  // FONCTION DU BOUTON TOGGLE
+  const handleToggleMode = async () => {
+    if (!isRestDayMode && exercices.length > 0 && exercices[0].name !== '') {
+        if (!confirm("Passer en mode Repos va effacer la séance en cours. Es-tu sûr ?")) {
+            return;
+        }
+    }
+    setIsRestDayMode(!isRestDayMode);
+  }
+
+  // Sauvegarde silencieuse
   const executerSauvegarde = async () => {
-    if (jourSemaine === 0 || jourSemaine === 5) {
-      const payload = { date: dateFormatee, exercise_name: 'Repos', fatigue_score: fatigue, sleep_hours: sommeil, steps_count: pas }
+    if (isRestDayMode) {
+      const payload = { date: dateFormatee, exercise_name: 'Jour de Repos', fatigue_score: fatigue, sleep_hours: sommeil, steps_count: pas }
+      
+      // On nettoie les anciens exos pour éviter les conflits
+      await supabase.from('workout_sets').delete().eq('date', dateFormatee).neq('exercise_name', 'Jour de Repos');
+      
       const { data } = await supabase.from('workout_sets').select('id').eq('date', dateFormatee).limit(1)
       if (data && data.length > 0) await supabase.from('workout_sets').update(payload).eq('id', data[0].id)
       else await supabase.from('workout_sets').insert([payload])
       return;
     }
+
+    // Si on est en mode séance, on efface le Jour de repos s'il y était
+    await supabase.from('workout_sets').delete().eq('date', dateFormatee).in('exercise_name', ['Repos', 'Jour de Repos']);
 
     const promesses = exercices.map((ex, index) => {
       const payload = { date: dateFormatee, exercise_name: ex.name || 'Exercice Non Défini', coach_tracking_data: ex.coachTracking, tracking_data: ex.tracking, comments: ex.comments || null, fatigue_score: fatigue, sleep_hours: sommeil, steps_count: pas, order_index: index }
@@ -131,20 +164,17 @@ export default function SessionForm({ dateActive }: Props) {
   // Déclencheur Auto-save
   useEffect(() => {
     if (isInitialLoad.current) return;
-    if (exercices.length === 0 && (jourSemaine !== 0 && jourSemaine !== 5)) return;
+    if (!isRestDayMode && exercices.length === 0) return;
 
     const timeoutId = setTimeout(async () => {
       await executerSauvegarde();
-      setLastSaved(new Date()); // Met à jour l'heure silencieusement
+      setLastSaved(new Date()); 
     }, 1500);
     return () => clearTimeout(timeoutId);
-  }, [exercices, fatigue, sommeil, pas]);
+  }, [exercices, fatigue, sommeil, pas, isRestDayMode]);
 
-  // ==========================================
-  // SYSTÈME DE VALIDATION (PRESTIGE & XP)
-  // ==========================================
   const validerMission = async () => {
-    setIsValidating(true); // Verrouille uniquement au clic
+    setIsValidating(true); 
     await executerSauvegarde(); 
 
     try {
@@ -187,7 +217,7 @@ export default function SessionForm({ dateActive }: Props) {
       }
 
       let baseXP = 0;
-      if (jourSemaine === 0 || jourSemaine === 5) {
+      if (isRestDayMode) {
         baseXP = 50; 
       } else {
         baseXP += 50; 
@@ -324,50 +354,72 @@ export default function SessionForm({ dateActive }: Props) {
     setExercices(nouvelleListe)
   }
 
-  if (jourSemaine === 0 || jourSemaine === 5) {
-    return (
-      <div className="space-y-6 animate-in fade-in pb-10">
-        <div className="p-8 rounded-xl border border-slate-800 bg-slate-900/30 flex flex-col items-center text-center space-y-4">
-          <div className="p-4 bg-slate-800/50 rounded-full"><Coffee className="size-8 text-slate-400" /></div>
-          <div>
-            <h2 className="text-lg font-bold text-slate-200">Jour de Repos</h2>
-            <p className="text-sm text-slate-500 mt-1">Maintiens ton Streak en loggant ton suivi quotidien !</p>
-          </div>
-        </div>
-
-        <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/50">
-          <h3 className="text-sm font-bold text-slate-400 mb-4">Suivi quotidien</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="flex items-center justify-between p-3 bg-slate-950 rounded-lg border border-slate-800"><div className="flex flex-col w-full"><span className="flex items-center gap-1 text-xs text-slate-400 mb-1"><Battery className="size-3 text-red-500"/> Fatigue</span><input type="range" min="1" max="10" value={fatigue} onChange={(e) => setFatigue(parseInt(e.target.value))} className="w-full accent-red-500" /></div><span className="text-lg font-bold ml-4 text-white w-6 text-right">{fatigue}</span></div>
-            <div className="flex items-center justify-between p-3 bg-slate-950 rounded-lg border border-slate-800"><div className="flex flex-col"><span className="flex items-center gap-1 text-xs text-slate-400 mb-1"><Moon className="size-3 text-indigo-400"/> Sommeil</span><input type="number" step="0.5" value={sommeil} onChange={(e) => setSommeil(parseFloat(e.target.value))} className="w-16 bg-transparent text-lg font-bold text-white outline-none" /></div><span className="text-xs text-slate-500">h</span></div>
-            <div className="flex items-center justify-between p-3 bg-slate-950 rounded-lg border border-slate-800"><div className="flex flex-col"><span className="flex items-center gap-1 text-xs text-slate-400 mb-1"><Footprints className="size-3 text-orange-400"/> Pas</span><input type="number" value={pas} onChange={(e) => setPas(parseInt(e.target.value))} className="w-full bg-transparent text-lg font-bold text-white outline-none" /></div></div>
-          </div>
-        </div>
-
-        <button 
-          onClick={validerMission} 
-          disabled={isValidating} 
-          className="w-full p-4 rounded-xl font-black text-lg bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white shadow-[0_0_20px_rgba(59,130,246,0.3)] transition-all flex justify-center items-center gap-2"
-        >
-          {isValidating ? <><RefreshCw className="size-5 animate-spin" /> VALIDATION...</> : <><Award className="size-6" /> VALIDER LE REPOS & GAGNER XP</>}
-        </button>
-        {ModalGagnant()}
-      </div>
-    )
-  }
-
   const suggestionsDuJour = getExercicesDuJour()
 
   return (
     <div className="space-y-6 animate-in fade-in pb-10">
       
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-bold text-slate-200 flex items-center gap-2">
-          <Activity className="size-5 text-blue-500" /> Séance du {dateActive.toLocaleDateString('fr-FR')}
-        </h2>
+      {/* 🟢 LE NOUVEAU BOUTON MAGIQUE ICI 🟢 */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-slate-900/80 p-4 rounded-xl border border-slate-700 shadow-sm gap-4">
+        <div>
+          <h2 className="text-lg font-bold text-slate-200 flex items-center gap-2">
+            {isRestDayMode ? <Coffee className="size-5 text-emerald-500" /> : <Activity className="size-5 text-blue-500" />} 
+            {isRestDayMode ? 'Mode Récupération' : `Séance du ${dateActive.toLocaleDateString('fr-FR')}`}
+          </h2>
+          <p className="text-xs text-slate-500 mt-1">Gère la nature de ta journée.</p>
+        </div>
+        
+        <div className="flex items-center gap-3 bg-slate-950 p-2 rounded-lg border border-slate-800 w-full sm:w-auto justify-center">
+          <span className={cn("text-xs font-bold uppercase tracking-wider", !isRestDayMode ? "text-blue-400" : "text-slate-500")}>Séance</span>
+          <button
+            onClick={handleToggleMode}
+            className={cn(
+              "relative inline-flex h-8 w-16 items-center rounded-full transition-colors focus:outline-none shadow-inner border border-black/20",
+              isRestDayMode ? "bg-emerald-500" : "bg-blue-600"
+            )}
+          >
+            <span className={cn(
+                "inline-block h-6 w-6 transform rounded-full bg-white transition duration-300 ease-in-out shadow-md",
+                isRestDayMode ? "translate-x-9" : "translate-x-1"
+              )}
+            />
+          </button>
+          <span className={cn("text-xs font-bold uppercase tracking-wider", isRestDayMode ? "text-emerald-400" : "text-slate-500")}>Repos</span>
+        </div>
       </div>
 
-      <div className="space-y-6">
+      {/* 🟦 INTERFACE JOUR DE REPOS */}
+      {isRestDayMode ? (
+        <div className="space-y-6 animate-in fade-in">
+          <div className="p-8 rounded-xl border border-emerald-500/20 bg-emerald-500/5 flex flex-col items-center text-center space-y-4">
+            <div className="p-4 bg-emerald-500/20 rounded-full"><Coffee className="size-8 text-emerald-400" /></div>
+            <div>
+              <h2 className="text-xl font-black text-emerald-400">Jour de Repos Activé</h2>
+              <p className="text-sm text-slate-400 mt-1">Laisse ton système nerveux et ton dos récupérer. Maintiens ton Streak en dessous.</p>
+            </div>
+          </div>
+
+          <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/50">
+            <h3 className="text-sm font-bold text-slate-400 mb-4">Suivi quotidien</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="flex items-center justify-between p-3 bg-slate-950 rounded-lg border border-slate-800"><div className="flex flex-col w-full"><span className="flex items-center gap-1 text-xs text-slate-400 mb-1"><Battery className="size-3 text-red-500"/> Fatigue</span><input type="range" min="1" max="10" value={fatigue} onChange={(e) => setFatigue(parseInt(e.target.value))} className="w-full accent-red-500" /></div><span className="text-lg font-bold ml-4 text-white w-6 text-right">{fatigue}</span></div>
+              <div className="flex items-center justify-between p-3 bg-slate-950 rounded-lg border border-slate-800"><div className="flex flex-col"><span className="flex items-center gap-1 text-xs text-slate-400 mb-1"><Moon className="size-3 text-indigo-400"/> Sommeil</span><input type="number" step="0.5" value={sommeil} onChange={(e) => setSommeil(parseFloat(e.target.value))} className="w-16 bg-transparent text-lg font-bold text-white outline-none" /></div><span className="text-xs text-slate-500">h</span></div>
+              <div className="flex items-center justify-between p-3 bg-slate-950 rounded-lg border border-slate-800"><div className="flex flex-col"><span className="flex items-center gap-1 text-xs text-slate-400 mb-1"><Footprints className="size-3 text-orange-400"/> Pas</span><input type="number" value={pas} onChange={(e) => setPas(parseInt(e.target.value))} className="w-full bg-transparent text-lg font-bold text-white outline-none" /></div></div>
+            </div>
+          </div>
+
+          <button 
+            onClick={validerMission} 
+            disabled={isValidating} 
+            className="w-full p-4 rounded-xl font-black text-lg bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white shadow-[0_0_20px_rgba(16,185,129,0.3)] transition-all flex justify-center items-center gap-2"
+          >
+            {isValidating ? <><RefreshCw className="size-5 animate-spin" /> VALIDATION...</> : <><Award className="size-6" /> VALIDER LE REPOS & GAGNER XP</>}
+          </button>
+        </div>
+      ) : (
+
+      /* 🟥 INTERFACE ENTRAINEMENT */
+      <div className="space-y-6 animate-in fade-in">
         {exercices.map((ex, exIndex) => (
           <div key={exIndex} className="p-4 rounded-xl border border-slate-800 bg-slate-900/50 space-y-4 relative group shadow-sm">
             
@@ -433,45 +485,43 @@ export default function SessionForm({ dateActive }: Props) {
             </div>
           </div>
         ))}
-      </div>
 
-      <button onClick={ajouterExercice} className="w-full py-3 border-2 border-dashed border-slate-700 hover:border-blue-500 hover:text-blue-400 text-slate-500 rounded-xl flex items-center justify-center gap-2 transition-colors font-medium">
-        <Plus className="size-5" /> Ajouter un exercice
-      </button>
-
-      <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/50">
-        <h3 className="text-sm font-bold text-slate-400 mb-4">Métriques globales du jour</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="flex items-center justify-between p-3 bg-slate-950 rounded-lg border border-slate-800"><div className="flex flex-col w-full"><span className="flex items-center gap-1 text-xs text-slate-400 mb-1"><Battery className="size-3 text-red-500"/> Fatigue</span><input type="range" min="1" max="10" value={fatigue} onChange={(e) => setFatigue(parseInt(e.target.value))} className="w-full accent-red-500" /></div><span className="text-lg font-bold ml-4 text-white w-6 text-right">{fatigue}</span></div>
-          <div className="flex items-center justify-between p-3 bg-slate-950 rounded-lg border border-slate-800"><div className="flex flex-col"><span className="flex items-center gap-1 text-xs text-slate-400 mb-1"><Moon className="size-3 text-indigo-400"/> Sommeil</span><input type="number" step="0.5" value={sommeil} onChange={(e) => setSommeil(parseFloat(e.target.value))} className="w-16 bg-transparent text-lg font-bold text-white outline-none" /></div><span className="text-xs text-slate-500">h</span></div>
-          <div className="flex items-center justify-between p-3 bg-slate-950 rounded-lg border border-slate-800"><div className="flex flex-col"><span className="flex items-center gap-1 text-xs text-slate-400 mb-1"><Footprints className="size-3 text-orange-400"/> Pas</span><input type="number" value={pas} onChange={(e) => setPas(parseInt(e.target.value))} className="w-full bg-transparent text-lg font-bold text-white outline-none" /></div></div>
-        </div>
-      </div>
-
-      <div className="space-y-4 pt-4 border-t border-slate-800">
-        
-        {/* Texte de sauvegarde 100% silencieux */}
-        <div className="h-4 flex items-center justify-center text-xs font-medium text-slate-600">
-          {lastSaved && `Sécurisé à ${lastSaved.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`}
-        </div>
-
-        <button 
-          onClick={propagerSemaine1VersBloc} 
-          disabled={isPropagating} 
-          className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-bold flex items-center justify-center gap-2 border border-slate-700 transition-colors"
-        >
-          {isPropagating ? <><RefreshCw className="size-5 animate-spin" /> Copie en cours...</> : <><Copy className="size-5" /> Propager la séance sur le Bloc</>}
+        <button onClick={ajouterExercice} className="w-full py-3 border-2 border-dashed border-slate-700 hover:border-blue-500 hover:text-blue-400 text-slate-500 rounded-xl flex items-center justify-center gap-2 transition-colors font-medium">
+          <Plus className="size-5" /> Ajouter un exercice
         </button>
 
-        {/* Le gros bouton statique qui ne bouge qu'au clic */}
-        <button 
-          onClick={validerMission} 
-          disabled={isValidating} 
-          className="w-full p-5 rounded-xl font-black text-lg bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white shadow-[0_0_20px_rgba(59,130,246,0.3)] transition-all flex justify-center items-center gap-2"
-        >
-          {isValidating ? <><RefreshCw className="size-5 animate-spin" /> VALIDATION...</> : <><Award className="size-6" /> FIN DE SÉANCE - VALIDER LA MISSION</>}
-        </button>
+        <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/50">
+          <h3 className="text-sm font-bold text-slate-400 mb-4">Métriques globales du jour</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="flex items-center justify-between p-3 bg-slate-950 rounded-lg border border-slate-800"><div className="flex flex-col w-full"><span className="flex items-center gap-1 text-xs text-slate-400 mb-1"><Battery className="size-3 text-red-500"/> Fatigue</span><input type="range" min="1" max="10" value={fatigue} onChange={(e) => setFatigue(parseInt(e.target.value))} className="w-full accent-red-500" /></div><span className="text-lg font-bold ml-4 text-white w-6 text-right">{fatigue}</span></div>
+            <div className="flex items-center justify-between p-3 bg-slate-950 rounded-lg border border-slate-800"><div className="flex flex-col"><span className="flex items-center gap-1 text-xs text-slate-400 mb-1"><Moon className="size-3 text-indigo-400"/> Sommeil</span><input type="number" step="0.5" value={sommeil} onChange={(e) => setSommeil(parseFloat(e.target.value))} className="w-16 bg-transparent text-lg font-bold text-white outline-none" /></div><span className="text-xs text-slate-500">h</span></div>
+            <div className="flex items-center justify-between p-3 bg-slate-950 rounded-lg border border-slate-800"><div className="flex flex-col"><span className="flex items-center gap-1 text-xs text-slate-400 mb-1"><Footprints className="size-3 text-orange-400"/> Pas</span><input type="number" value={pas} onChange={(e) => setPas(parseInt(e.target.value))} className="w-full bg-transparent text-lg font-bold text-white outline-none" /></div></div>
+          </div>
+        </div>
+
+        <div className="space-y-4 pt-4 border-t border-slate-800">
+          <div className="h-4 flex items-center justify-center text-xs font-medium text-slate-600">
+            {lastSaved && `Sécurisé à ${lastSaved.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`}
+          </div>
+
+          <button 
+            onClick={propagerSemaine1VersBloc} 
+            disabled={isPropagating} 
+            className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-bold flex items-center justify-center gap-2 border border-slate-700 transition-colors"
+          >
+            {isPropagating ? <><RefreshCw className="size-5 animate-spin" /> Copie en cours...</> : <><Copy className="size-5" /> Propager la séance sur le Bloc</>}
+          </button>
+
+          <button 
+            onClick={validerMission} 
+            disabled={isValidating} 
+            className="w-full p-5 rounded-xl font-black text-lg bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white shadow-[0_0_20px_rgba(59,130,246,0.3)] transition-all flex justify-center items-center gap-2"
+          >
+            {isValidating ? <><RefreshCw className="size-5 animate-spin" /> VALIDATION...</> : <><Award className="size-6" /> FIN DE SÉANCE - VALIDER LA MISSION</>}
+          </button>
+        </div>
       </div>
+      )}
 
       {ModalGagnant()}
     </div>

@@ -10,11 +10,10 @@ import SessionForm from '@/components/power/session-form'
 import { PlateVisualizer } from '@/components/power/plate-visualizer'
 import { WarmupGenerator } from '@/components/power/warmup-generator'
 import { Card, CardTitle } from '@/components/power/card'
-import { LineChart, Menu, X, Home, BarChart2, Wrench, Settings, Calculator, HeartPulse } from 'lucide-react'
+import { LineChart, Menu, X, Home, BarChart2, Wrench, Settings, Calculator } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import ConfigPanel from '@/components/power/config-panel'
 import CalculatorPanel from '@/components/power/calculator-panel'
-import { WeeklySchedule } from '@/components/power/weekly-schedule'
 
 export default function Page() {
   const [vueActive, setVueActive] = useState(() => {
@@ -126,14 +125,12 @@ export default function Page() {
             {vueActive === 'outils' && "Outils & Échauffement"}
             {vueActive === 'calculatrice' && "Calculateur de force"}
             {vueActive === 'configuration' && "Configuration des Blocs"}
-            {vueActive === 'rehab' && "Santé & Planning"}
           </h2>
           <span className="text-xs font-bold text-blue-500 mt-1">{blockInfo}</span>
         </div>
 
         <div className="flex items-center gap-2">
           
-          {/* BOUTON ACCUEIL RAPIDE */}
           <button 
             onClick={() => changerVue('accueil')} 
             className={cn(
@@ -147,7 +144,6 @@ export default function Page() {
             <Home className="size-5" />
           </button>
 
-          {/* MENU DE NAVIGATION */}
           <div className="relative">
             <button 
               ref={toggleBtnRef}
@@ -164,10 +160,7 @@ export default function Page() {
               >
                 <button onClick={() => changerVue('analytique')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'analytique' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><BarChart2 className="size-4" /> Analytique</button>
                 <button onClick={() => changerVue('outils')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'outils' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Wrench className="size-4" /> Outils</button>
-                
                 <button onClick={() => changerVue('calculatrice')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'calculatrice' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Calculator className="size-4" /> Calculatrice</button>
-                
-                <button onClick={() => changerVue('rehab')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'rehab' ? "bg-emerald-500/10 text-emerald-500 font-medium" : "hover:bg-secondary text-foreground")}><HeartPulse className="size-4" /> Santé & Planning</button>
                 
                 <div className="h-px bg-border my-1"></div>
                 
@@ -182,12 +175,6 @@ export default function Page() {
         {vueActive === 'configuration' && (
           <div className="animate-in fade-in slide-in-from-top-4 duration-500">
             <ConfigPanel />
-          </div>
-        )}
-
-        {vueActive === 'rehab' && (
-          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <WeeklySchedule />
           </div>
         )}
 
