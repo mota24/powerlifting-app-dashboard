@@ -13,9 +13,8 @@ export async function POST(req: Request) {
     const genAI = new GoogleGenerativeAI(apiKey);
     
     const model = genAI.getGenerativeModel({
-      model: 'gemini-1.5-flash',
-      systemInstruction: `Tu es un expert powerlifting. Réponds UNIQUEMENT avec un tableau JSON, rien d'autre. Pas de \`\`\`json, pas de texte, pas d'explication.
-FORMAT: [{"name": "Nom", "coachTracking": [{"reps": "3", "weight": "180", "rpe": ""}], "comments": "..."}]`
+      model: 'gemini-1.0-pro', // Change 'gemini-1.5-flash' par ceci
+      systemInstruction: `Tu es un expert powerlifting. Réponds UNIQUEMENT avec un tableau JSON, rien d'autre...`
     });
 
     const result = await model.generateContent(prompt);
