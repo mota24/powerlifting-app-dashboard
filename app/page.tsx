@@ -52,27 +52,25 @@ export default function Page() {
   useEffect(() => {
     if (!session) return;
 
-    const fetchTodaySteps = async () => {
-      const today = new Date().toISOString().split('T')[0];
-      
+    const fetchLastSteps = async () => {
+      // On cherche dans la table, on filtre par user_id, 
+      // et on prend le dernier entré (le plus récent)
       const { data, error } = await supabase
-  .from('seances_pas')
-  .select('pas, date')
-  .eq('user_id', 'mota24') // Garde seulement le filtre utilisateur
-  .order('date', { ascending: false })
-  .limit(5); // On en récupère 5 pour voir ce qu'il y a dedans
-      // C'EST ICI QUE TU COPIES LE BLOC :
+        .from('seances_pas')
+        .select('pas')
+        .eq('user_id', 'mota24') 
+        .order('created_at', { ascending: false }) // On trie par date de création
+        .limit(1); // On ne prend que le dernier
+
       if (error) {
-        console.error("Erreur de récupération :", error);
+        console.error("Erreur Supabase :", error);
       } else if (data && data.length > 0) {
-        console.log("Données reçues de Supabase :", data);
+        console.log("Voici tes pas :", data[0].pas);
         setPasDuJour(data[0].pas); 
-      } else {
-        console.log("Aucune donnée trouvée pour cette date.");
       }
     };
 
-    fetchTodaySteps();
+    fetchLastSteps();
   }, [session]);
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
