@@ -10,12 +10,62 @@ import SessionForm from '@/components/power/session-form'
 import { PlateVisualizer } from '@/components/power/plate-visualizer'
 import { WarmupGenerator } from '@/components/power/warmup-generator'
 import { Card, CardTitle } from '@/components/power/card'
-import { LineChart, Menu, X, Home, BarChart2, Wrench, Settings, Calculator } from 'lucide-react'
+import { LineChart, Menu, X, Home, BarChart2, Wrench, Settings, Calculator, Lock, LogOut, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import ConfigPanel from '@/components/power/config-panel'
 import CalculatorPanel from '@/components/power/calculator-panel'
 
 export default function Page() {
+  // ==========================================
+  // SYSTÈME D'AUTHENTIFICATION
+  // ==========================================
+  const [session, setSession] = useState<any>(null)
+  const [loadingAuth, setLoadingAuth] = useState(true)
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [authError, setAuthError] = useState('')
+  const [isLoggingIn, setIsLoggingIn] = useState(false)
+
+  useEffect(() => {
+    // Vérifie s'il y a déjà une session active au chargement
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session)
+      setLoadingAuth(false)
+    })
+
+    // Écoute les changements de connexion/déconnexion
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session)
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsLoggingIn(true)
+    setAuthError('')
+    
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
+    
+    if (error) {
+      setAuthError("Identifiants incorrects.")
+    }
+    setIsLoggingIn(false)
+  }
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+  }
+
+  // ==========================================
+  // LOGIQUE DU TABLEAU DE BORD
+  // ==========================================
   const [vueActive, setVueActive] = useState(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
@@ -38,6 +88,7 @@ export default function Page() {
   }
 
   useEffect(() => {
+    if (!session) return;
     const handleClickOutside = (event: MouseEvent) => {
       if (
         menuRef.current && !menuRef.current.contains(event.target as Node) &&
@@ -48,7 +99,7 @@ export default function Page() {
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
+  }, [session])
 
   useEffect(() => {
     const handlePopState = () => {
@@ -61,6 +112,8 @@ export default function Page() {
 
   // ALGORITHME DE CALCUL DES SEMAINES
   useEffect(() => {
+    if (!session) return;
+    
     const calculateCurrentWeek = async () => {
       const { data } = await supabase
         .from('training_blocks')
@@ -110,8 +163,77 @@ export default function Page() {
     }
 
     calculateCurrentWeek()
-  }, [dateActive, vueActive])
+  }, [dateActive, vueActive, session])
 
+  // ==========================================
+  // RENDU DE LA PAGE
+  // ==========================================
+
+  // 1. Écran de chargement
+  if (loadingAuth) {
+    return (
+      <div className="min-h-dvh flex items-center justify-center bg-background">
+        <RefreshCw className="size-8 text-blue-500 animate-spin" />
+      </div>
+    )
+  }
+
+  // 2. Écran de Connexion
+  if (!session) {
+    return (
+      <div className="min-h-dvh bg-background flex flex-col items-center justify-center p-4">
+        <div className="w-full max-w-sm p-8 rounded-2xl border border-slate-800 bg-slate-900/50 shadow-2xl animate-in fade-in zoom-in-95 duration-300">
+          <div className="flex flex-col items-center mb-8">
+            <div className="p-4 bg-blue-500/10 text-blue-500 rounded-full mb-4">
+              <Lock className="size-8" />
+            </div>
+            <h1 className="text-2xl font-black text-white">Accès Sécurisé</h1>
+            <p className="text-sm text-slate-500 mt-1">Plateforme réservée</p>
+          </div>
+          
+          <form onSubmit={handleLogin} className="space-y-5">
+            {authError && (
+              <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-bold rounded-lg text-center">
+                {authError}
+              </div>
+            )}
+            
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Email</label>
+              <input 
+                type="email" 
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full p-3 bg-slate-950 border border-slate-800 rounded-lg text-white outline-none focus:border-blue-500 transition-colors"
+                required 
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Mot de passe</label>
+              <input 
+                type="password" 
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full p-3 bg-slate-950 border border-slate-800 rounded-lg text-white outline-none focus:border-blue-500 transition-colors"
+                required 
+              />
+            </div>
+
+            <button 
+              type="submit" 
+              disabled={isLoggingIn}
+              className="w-full py-4 mt-4 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white font-black rounded-xl transition-all shadow-[0_0_20px_rgba(59,130,246,0.2)] flex justify-center items-center gap-2"
+            >
+              {isLoggingIn ? <RefreshCw className="size-5 animate-spin" /> : "SE CONNECTER"}
+            </button>
+          </form>
+        </div>
+      </div>
+    )
+  }
+
+  // 3. L'Application Sécurisée
   return (
     <div className="min-h-dvh bg-background pb-16 relative">
       <Header />
@@ -165,6 +287,13 @@ export default function Page() {
                 <div className="h-px bg-border my-1"></div>
                 
                 <button onClick={() => changerVue('configuration')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'configuration' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Settings className="size-4" /> Configuration</button>
+                
+                <div className="h-px bg-border my-1"></div>
+                
+                {/* Bouton de déconnexion */}
+                <button onClick={handleLogout} className="flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors hover:bg-red-500/10 text-red-400 font-medium">
+                  <LogOut className="size-4" /> Se déconnecter
+                </button>
               </div>
             )}
           </div>
