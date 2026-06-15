@@ -47,30 +47,34 @@ export default function Page() {
     }
   }, []);
   // Ajoute ce useEffect dans ton composant Pagesdvx
-useEffect(() => {
-  if (!session) return;
+// ... dans ton app/page.tsx, trouve ton useEffect pour fetchTodaySteps
 
-  const fetchTodaySteps = async () => {
-    const today = new Date().toISOString().split('T')[0];
-    
-    const { data, error } = await supabase
-      .from('seances_pas')
-      .select('pas')
-      .eq('date', today)
-      .eq('user_id', 'mota24')
-      .order('date', { ascending: false }); // Trie par date pour être propre
+  useEffect(() => {
+    if (!session) return;
 
-    if (error) {
-      console.error("Erreur de récupération :", error);
-    } else if (data && data.length > 0) {
-      // On prend la première valeur de la liste au lieu de faire .single()
-      setPasDuJour(data[0].pas); 
-    }
-  };
+    const fetchTodaySteps = async () => {
+      const today = new Date().toISOString().split('T')[0];
+      
+      const { data, error } = await supabase
+        .from('seances_pas')
+        .select('pas')
+        .eq('date', today)
+        .eq('user_id', 'mota24')
+        .order('date', { ascending: false });
 
-  fetchTodaySteps();
-}, [session]);
+      // C'EST ICI QUE TU COPIES LE BLOC :
+      if (error) {
+        console.error("Erreur de récupération :", error);
+      } else if (data && data.length > 0) {
+        console.log("Données reçues de Supabase :", data);
+        setPasDuJour(data[0].pas); 
+      } else {
+        console.log("Aucune donnée trouvée pour cette date.");
+      }
+    };
 
+    fetchTodaySteps();
+  }, [session]);
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
@@ -85,6 +89,7 @@ useEffect(() => {
 
     return () => subscription.unsubscribe()
   }, [])
+  
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
