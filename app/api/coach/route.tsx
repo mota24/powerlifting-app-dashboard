@@ -1,30 +1,32 @@
 import { NextResponse } from 'next/server';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+
+const apiKey = process.env.GEMINI_API_KEY;
 
 export async function POST(req: Request) {
-  const apiKey = process.env.GEMINI_API_KEY;
-
   try {
-    if (!apiKey) {
-      return NextResponse.json({ error: "Clé API introuvable" }, { status: 500 });
-    }
+    if (!apiKey) return NextResponse.json({ error: "Clé API absente" }, { status: 500 });
 
-    // On interroge directement l'URL de Google pour lister TES modèles
-    const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
-    const response = await fetch(url);
-    const data = await response.json();
+    const { prompt } = await req.json();
+    const genAI = new GoogleGenerativeAI(apiKey);
+    
+    // Utilisation du modèle de nouvelle génération autorisé par ta clé
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
-    // On affiche le résultat complet et brut dans la console Vercel
-    console.error("====== DIAGNOSTIC : LISTE DES MODÈLES ======");
-    console.error(JSON.stringify(data, null, 2));
-    console.error("===========================================");
+    const result = await model.generateContent(`Tu es un expert powerlifting. Réponds UNIQUEMENT par un tableau JSON pur.
+    Format attendu : [{"name": "Nom", "coachTracking": [{"reps": "3", "weight": "180", "rpe": "8"}], "comments": "IA"}]
+    Demande utilisateur : ${prompt}`);
 
-    return NextResponse.json({ 
-      error: "Regarde les logs Vercel pour voir tes modèles autorisés",
-      details: data 
-    }, { status: 500 });
+    const responseText = result.response.text();
+    
+    // Extraction sécurisée du JSON
+    const cleanJson = responseText.substring(responseText.indexOf('['), responseText.lastIndexOf(']') + 1);
+    const data = JSON.parse(cleanJson);
+    
+    return NextResponse.json(data);
 
   } catch (error: any) {
-    console.error("Erreur fatale de diagnostic :", error.message);
-    return NextResponse.json({ error: "Échec du diagnostic" }, { status: 500 });
+    console.error("ERREUR DÉTAILLÉE :", error.message);
+    return NextResponse.json({ error: "Erreur IA" }, { status: 500 });
   }
 }
