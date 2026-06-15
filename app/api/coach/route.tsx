@@ -17,7 +17,7 @@ export async function POST(req: Request) {
     
     // On utilise le modèle flash qui est le plus rapide et accessible
     const model = genAI.getGenerativeModel({
-      model: 'gemini-1.5-flash'
+      model: 'gemini-pro'
     });
 
     const systemInstruction = `Tu es un expert en Powerlifting. 
