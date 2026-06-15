@@ -1,56 +1,32 @@
 import { NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-// Vérification de la clé au démarrage
 const apiKey = process.env.GEMINI_API_KEY;
 
 export async function POST(req: Request) {
   try {
-    if (!apiKey) {
-      return NextResponse.json({ error: "Clé API absente dans Vercel" }, { status: 500 });
-    }
+    if (!apiKey) return NextResponse.json({ error: "Clé API absente" }, { status: 500 });
 
     const { prompt } = await req.json();
-    
-    // Initialisation du client
     const genAI = new GoogleGenerativeAI(apiKey);
     
-    // On utilise le modèle flash qui est le plus rapide et accessible
-    const model = genAI.getGenerativeModel({
-      model: 'gemini-pro'
-    });
+    // ON FORCE la toute dernière version du modèle
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
 
-    const systemInstruction = `Tu es un expert en Powerlifting. 
-    Transforme la demande de l'utilisateur en format JSON strict.
-    Ne renvoie AUCUN texte, aucune explication, aucune balise markdown.
-    Format attendu :
-    [
-      {
-        "name": "Nom de l'exercice",
-        "coachTracking": [
-          { "reps": "3", "weight": "180", "rpe": "8" }
-        ],
-        "comments": "Généré par IA"
-      }
-    ]`;
-
-    const result = await model.generateContent({
-      contents: [{ role: "user", parts: [{ text: `${systemInstruction}\n\nDemande utilisateur : ${prompt}` }] }]
-    });
+    const result = await model.generateContent(`Tu es un expert powerlifting. Réponds UNIQUEMENT par un tableau JSON pur.
+    Format attendu : [{"name": "Nom", "coachTracking": [{"reps": "3", "weight": "180", "rpe": "8"}], "comments": "IA"}]
+    Demande utilisateur : ${prompt}`);
 
     const responseText = result.response.text();
+    const cleanJson = responseText.substring(responseText.indexOf('['), responseText.lastIndexOf(']') + 1);
     
-    // Nettoyage robuste pour ne garder que le JSON
-    const jsonMatch = responseText.match(/\[.*\]/s);
-    if (!jsonMatch) {
-      throw new Error("L'IA n'a pas renvoyé de JSON valide");
-    }
-
-    const data = JSON.parse(jsonMatch[0]);
+    const data = JSON.parse(cleanJson);
     return NextResponse.json(data);
 
   } catch (error: any) {
+    // LE TEST ESPION : On affiche le début de la clé pour voir si Vercel a bien la nouvelle
+    console.error("ESPION - Clé lue par Vercel :", apiKey ? apiKey.substring(0, 10) + "..." : "VIDE");
     console.error("ERREUR DÉTAILLÉE :", error.message);
-    return NextResponse.json({ error: "Erreur de génération : " + error.message }, { status: 500 });
+    return NextResponse.json({ error: "Erreur IA" }, { status: 500 });
   }
 }
