@@ -10,8 +10,8 @@ export async function POST(req: Request) {
     const { prompt } = await req.json();
     const genAI = new GoogleGenerativeAI(apiKey);
     
-    // ON FORCE la toute dernière version du modèle
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
+    // Le modèle officiel et rapide
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
     const result = await model.generateContent(`Tu es un expert powerlifting. Réponds UNIQUEMENT par un tableau JSON pur.
     Format attendu : [{"name": "Nom", "coachTracking": [{"reps": "3", "weight": "180", "rpe": "8"}], "comments": "IA"}]
@@ -24,8 +24,6 @@ export async function POST(req: Request) {
     return NextResponse.json(data);
 
   } catch (error: any) {
-    // LE TEST ESPION : On affiche le début de la clé pour voir si Vercel a bien la nouvelle
-    console.error("ESPION - Clé lue par Vercel :", apiKey ? apiKey.substring(0, 10) + "..." : "VIDE");
     console.error("ERREUR DÉTAILLÉE :", error.message);
     return NextResponse.json({ error: "Erreur IA" }, { status: 500 });
   }
