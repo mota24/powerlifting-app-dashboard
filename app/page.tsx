@@ -14,6 +14,7 @@ import { LineChart, Menu, X, Home, BarChart2, Wrench, Settings, Calculator, Lock
 import { cn } from '@/lib/utils'
 import ConfigPanel from '@/components/power/config-panel'
 import CalculatorPanel from '@/components/power/calculator-panel'
+import GLCalculator from '@/components/power/GLCalculator';
 
 export default function Page() {
   const [session, setSession] = useState<any>(null)
@@ -304,7 +305,10 @@ export default function Page() {
         )}
 
         {vueActive === 'calculatrice' && (
-          <CalculatorPanel />
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <CalculatorPanel />
+            <GLCalculator />
+          </div>
         )}
 
         {vueActive === 'accueil' && (
