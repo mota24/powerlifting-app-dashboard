@@ -26,6 +26,26 @@ export default function Page() {
   
   // NOUVEAU : La page globale connaît maintenant le mode repos
   const [isRestDayMode, setIsRestDayMode] = useState(false)
+  const [pasDuJour, setPasDuJour] = useState<number | null>(null);
+  useEffect(() => {
+    // On s'assure qu'on est sur le navigateur
+    if (typeof window !== 'undefined') {
+      // Ce code fouille dans l'URL pour trouver "steps=..."
+      const urlParams = new URLSearchParams(window.location.search || window.location.hash.split('?')[1]);
+      const stepsEnregistres = urlParams.get('steps');
+
+      if (stepsEnregistres) {
+        const nombreDePas = parseInt(stepsEnregistres, 10);
+        setPasDuJour(nombreDePas);
+        
+        // On affiche une alerte pour TE PROUVER que le chiffre est bien arrivé
+        alert("Succès ! L'iPhone a envoyé : " + nombreDePas + " pas.");
+        
+        // On nettoie l'URL pour faire propre
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
