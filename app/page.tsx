@@ -35,7 +35,7 @@ export default function Page() {
       const stepsEnregistres = urlParams.get('steps');
 
       if (stepsEnregistres) {
-        const nombreDePas = parseInt(stepsEnregistres, 10);
+        const nombreDePas = parseInt(stepsEnregistres, 10);//hol
         setPasDuJour(nombreDePas);
         
         // On affiche une alerte pour TE PROUVER que le chiffre est bien arrivé
