@@ -7,7 +7,7 @@ interface WeekCalendarProps {
   dateActive: Date;
   setDateActive: (date: Date) => void;
   blockTitle?: string;
-  isRestDayMode?: boolean; // NOUVEAU
+  isRestDayMode?: boolean;
 }
 
 const WEEK_PROGRAM = [
@@ -44,7 +44,6 @@ export function WeekCalendar({ dateActive, setDateActive, blockTitle, isRestDayM
   }
 
   const joursSemaine = getJoursDeLaSemaine(dateActive)
-  const jourSelectionneInfo = WEEK_PROGRAM.find(p => p.id === dateActive.getDay()) || WEEK_PROGRAM[0]
   const localDateFormatee = new Date(dateActive.getTime() - (dateActive.getTimezoneOffset() * 60000)).toISOString().split('T')[0]
 
   return (
@@ -99,15 +98,6 @@ export function WeekCalendar({ dateActive, setDateActive, blockTitle, isRestDayM
         })}
       </div>
 
-      {/* ICI : Le bloc change dynamiquement d'apparence selon le mode */}
-      <div className={cn("p-4 rounded-lg border transition-colors duration-300", isRestDayMode ? "bg-emerald-500/5 border-emerald-500/20" : "bg-slate-900/50 border-slate-800")}>
-        <h3 className={cn("font-bold", isRestDayMode ? "text-emerald-400" : "text-slate-200")}>
-          {isRestDayMode ? "Repos" : jourSelectionneInfo.title}
-        </h3>
-        <p className="text-sm text-slate-400 mt-1">
-          {isRestDayMode ? "Récupération active pour le système nerveux." : jourSelectionneInfo.desc}
-        </p>
-      </div>
     </div>
   )
 }
