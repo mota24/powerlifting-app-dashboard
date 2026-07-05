@@ -1,9 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-//import { supabase } from '@/lib/supabase'
 import { supabase } from '../../lib/supabase'
-import { Plus, Trash2, Calendar, Settings, RefreshCw } from 'lucide-react'
+import { Plus, Trash2, Calendar, Settings, RefreshCw, Download } from 'lucide-react'
 
 interface TrainingBlock {
   id: string;
@@ -15,6 +14,7 @@ interface TrainingBlock {
 export default function ConfigPanel() {
   const [blocks, setBlocks] = useState<TrainingBlock[]>([])
   const [loading, setLoading] = useState(true)
+  const [isDownloading, setIsDownloading] = useState(false)
 
   useEffect(() => {
     fetchBlocks()
@@ -56,6 +56,58 @@ export default function ConfigPanel() {
     await supabase.from('training_blocks').update({ [field]: value }).eq('id', id)
   }
 
+  const telechargerHistorique = async () => {
+    setIsDownloading(true)
+    try {
+      const { data, error } = await supabase
+        .from('workout_sets')
+        .select('*')
+        .order('date', { ascending: false })
+
+      if (error) throw error
+      if (!data || data.length === 0) {
+        alert("Aucune donnée d'entraînement à télécharger.")
+        setIsDownloading(false)
+        return
+      }
+
+      let contenu = "=== HISTORIQUE DES SÉANCES ===\n\n"
+      
+      data.forEach((row) => {
+        contenu += `DATE: ${row.date}\n`
+        contenu += `EXERCICE: ${row.exercise_name}\n`
+        
+        if (row.tracking_data && Array.isArray(row.tracking_data)) {
+          contenu += `SÉRIES RÉALISÉES:\n`
+          row.tracking_data.forEach((set: any, index: number) => {
+            if (set.reps || set.weight) {
+              contenu += `  S${index + 1}: ${set.reps} reps @ ${set.weight} kg (RPE: ${set.rpe || '-'})\n`
+            }
+          })
+        }
+        
+        if (row.comments) contenu += `NOTES: ${row.comments}\n`
+        contenu += `MÉTRIQUES -> Fatigue: ${row.fatigue_score}/10 | Sommeil: ${row.sleep_hours}h | Pas: ${row.steps_count}\n`
+        contenu += "--------------------------------------------------\n\n"
+      })
+
+      const blob = new Blob([contenu], { type: 'text/plain;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const lien = document.createElement('a')
+      lien.href = url
+      lien.download = `historique_entrainements_${new Date().toISOString().split('T')[0]}.txt`
+      document.body.appendChild(lien)
+      lien.click()
+      document.body.removeChild(lien)
+      URL.revokeObjectURL(url)
+      
+    } catch (err: any) {
+      alert("Erreur lors du téléchargement : " + err.message)
+    } finally {
+      setIsDownloading(false)
+    }
+  }
+
   if (loading) {
     return <div className="p-8 text-center text-slate-500 animate-pulse">Chargement de la configuration...</div>
   }
@@ -66,9 +118,21 @@ export default function ConfigPanel() {
         <h2 className="text-lg font-bold text-slate-200 flex items-center gap-2">
           <Settings className="size-5 text-blue-500" /> Gestion des Blocs
         </h2>
-        <button onClick={fetchBlocks} className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors">
-          <RefreshCw className="size-4" />
-        </button>
+        
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={telechargerHistorique} 
+            disabled={isDownloading}
+            title="Télécharger l'historique" 
+            className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors disabled:opacity-50"
+          >
+            {isDownloading ? <RefreshCw className="size-5 animate-spin" /> : <Download className="size-5 text-blue-400" />}
+          </button>
+          
+          <button onClick={fetchBlocks} title="Rafraîchir" className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors">
+            <RefreshCw className="size-5" />
+          </button>
+        </div>
       </div>
 
       <div className="space-y-4">
