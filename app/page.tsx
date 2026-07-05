@@ -17,7 +17,6 @@ import CalculatorPanel from '@/components/power/calculator-panel'
 import GLCalculator from '@/components/power/GLCalculator';
 
 export default function Page() {
-  // 1. TOUTES LES DÉCLARATIONS DE VARIABLES SONT MAINTENANT ICI EN HAUT
   const [session, setSession] = useState<any>(null)
   const [loadingAuth, setLoadingAuth] = useState(true)
   const [identifiant, setIdentifiant] = useState('')
@@ -28,7 +27,7 @@ export default function Page() {
   const [isRestDayMode, setIsRestDayMode] = useState(false)
   const [pasDuJour, setPasDuJour] = useState<number | null>(null);
   
-  const [dateActive, setDateActive] = useState<Date>(new Date()) // <--- LIGNE REMONTÉE ICI
+  const [dateActive, setDateActive] = useState<Date>(new Date())
   const [menuOuvert, setMenuOuvert] = useState(false)
   const [blockInfo, setBlockInfo] = useState('Chargement...')
   
@@ -43,7 +42,6 @@ export default function Page() {
   const menuRef = useRef<HTMLDivElement>(null)
   const toggleBtnRef = useRef<HTMLButtonElement>(null)
 
-  // 2. MAINTENANT LES USEEFFECTS PEUVENT UTILISER LES VARIABLES SANS ERREUR
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const urlParams = new URLSearchParams(window.location.search || window.location.hash.split('?')[1]);
@@ -64,7 +62,6 @@ export default function Page() {
     if (!session) return;
 
     const fetchStepsForSelectedDate = async () => {
-      // Maintenant dateActive est bien reconnue !
       const dateStr = new Date(dateActive.getTime() - (dateActive.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
       
       const { data, error } = await supabase
@@ -287,9 +284,8 @@ export default function Page() {
             {vueActive === 'analytique' && "Tableau de bord"}
             {vueActive === 'outils' && "Outils & Échauffement"}
             {vueActive === 'calculatrice' && "Calculateur de force"}
-            {vueActive === 'configuration' && "Configuration des Blocs"}
+            {vueActive === 'configuration' && "Gestion de mes Blocs"}
           </h2>
-          <span className="text-xs font-bold text-blue-500 mt-1">{blockInfo}</span>
         </div>
 
         <div className="flex items-center gap-2">
@@ -327,7 +323,7 @@ export default function Page() {
                 
                 <div className="h-px bg-border my-1"></div>
                 
-                <button onClick={() => changerVue('configuration')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'configuration' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Settings className="size-4" /> Configuration</button>
+                <button onClick={() => changerVue('configuration')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'configuration' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Settings className="size-4" /> Mes Blocs</button>
                 
                 <div className="h-px bg-border my-1"></div>
                 
