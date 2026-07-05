@@ -14,7 +14,7 @@ interface TrainingBlock {
 export default function ConfigPanel() {
   const [blocks, setBlocks] = useState<TrainingBlock[]>([])
   const [loading, setLoading] = useState(true)
-  const [isDownloading, setIsDownloading] = useState(false)
+  const [downloadingId, setDownloadingId] = useState<string | null>(null)
 
   useEffect(() => {
     fetchBlocks()
@@ -56,22 +56,35 @@ export default function ConfigPanel() {
     await supabase.from('training_blocks').update({ [field]: value }).eq('id', id)
   }
 
-  const telechargerHistorique = async () => {
-    setIsDownloading(true)
+  const telechargerBloc = async (block: TrainingBlock) => {
+    setDownloadingId(block.id)
+    
+    // 1. Calcul de la fenêtre de tir stricte (Début du bloc -> Aujourd'hui MAX)
+    const today = new Date().toISOString().split('T')[0];
+    const startDate = new Date(block.start_date);
+    const endDate = new Date(startDate);
+    endDate.setDate(startDate.getDate() + (block.duration_weeks * 7) - 1);
+    const blockEndDateStr = endDate.toISOString().split('T')[0];
+    
+    // On bloque la récupération à aujourd'hui si le bloc n'est pas encore fini
+    const maxDate = today < blockEndDateStr ? today : blockEndDateStr;
+
     try {
       const { data, error } = await supabase
         .from('workout_sets')
         .select('*')
+        .gte('date', block.start_date)
+        .lte('date', maxDate)
         .order('date', { ascending: false })
 
       if (error) throw error
       if (!data || data.length === 0) {
-        alert("Aucune donnée d'entraînement à télécharger.")
-        setIsDownloading(false)
+        alert("Aucune séance n'a encore été validée pour ce bloc.")
+        setDownloadingId(null)
         return
       }
 
-      let contenu = "=== HISTORIQUE DES SÉANCES ===\n\n"
+      let contenu = `=== HISTORIQUE DU BLOC ${block.block_number} ===\n\n`
       
       data.forEach((row) => {
         contenu += `DATE: ${row.date}\n`
@@ -95,7 +108,7 @@ export default function ConfigPanel() {
       const url = URL.createObjectURL(blob)
       const lien = document.createElement('a')
       lien.href = url
-      lien.download = `historique_entrainements_${new Date().toISOString().split('T')[0]}.txt`
+      lien.download = `Bloc_${block.block_number}_export_${today}.txt`
       document.body.appendChild(lien)
       lien.click()
       document.body.removeChild(lien)
@@ -104,7 +117,7 @@ export default function ConfigPanel() {
     } catch (err: any) {
       alert("Erreur lors du téléchargement : " + err.message)
     } finally {
-      setIsDownloading(false)
+      setDownloadingId(null)
     }
   }
 
@@ -118,21 +131,9 @@ export default function ConfigPanel() {
         <h2 className="text-lg font-bold text-slate-200 flex items-center gap-2">
           <Settings className="size-5 text-blue-500" /> Gestion des Blocs
         </h2>
-        
-        <div className="flex items-center gap-2">
-          <button 
-            onClick={telechargerHistorique} 
-            disabled={isDownloading}
-            title="Télécharger l'historique" 
-            className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors disabled:opacity-50"
-          >
-            {isDownloading ? <RefreshCw className="size-5 animate-spin" /> : <Download className="size-5 text-blue-400" />}
-          </button>
-          
-          <button onClick={fetchBlocks} title="Rafraîchir" className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors">
-            <RefreshCw className="size-5" />
-          </button>
-        </div>
+        <button onClick={fetchBlocks} title="Rafraîchir" className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors">
+          <RefreshCw className="size-5" />
+        </button>
       </div>
 
       <div className="space-y-4">
@@ -176,9 +177,20 @@ export default function ConfigPanel() {
               </div>
             </div>
 
-            <button onClick={() => supprimerBloc(block.id)} className="p-3 text-slate-500 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors w-full md:w-auto flex justify-center">
-              <Trash2 className="size-5" />
-            </button>
+            <div className="flex items-center gap-2 w-full md:w-auto justify-center mt-4 md:mt-0">
+              <button 
+                onClick={() => telechargerBloc(block)} 
+                disabled={downloadingId === block.id}
+                className="p-3 text-slate-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors disabled:opacity-50"
+                title="Télécharger l'historique du bloc (jusqu'à aujourd'hui)"
+              >
+                {downloadingId === block.id ? <RefreshCw className="size-5 animate-spin" /> : <Download className="size-5" />}
+              </button>
+
+              <button onClick={() => supprimerBloc(block.id)} className="p-3 text-slate-500 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors">
+                <Trash2 className="size-5" />
+              </button>
+            </div>
 
           </div>
         ))}
