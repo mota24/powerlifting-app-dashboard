@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Target, Activity, Check, Moon, Footprints, Battery, Coffee, Plus, Trash2, MessageSquare, X, Copy, RefreshCw, Award, Zap, Flame, Sparkles } from 'lucide-react'
+import { Target, Activity, Check, Moon, Footprints, Battery, Coffee, Plus, Trash2, MessageSquare, X, Copy, RefreshCw, Award, Zap, Flame, Sparkles, ChevronUp, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -76,7 +76,7 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
     isInitialLoad.current = true;
 
     const chargerSeance = async () => {
-      const { data } = await supabase.from('workout_sets').select('*').eq('date', dateFormatee).order('created_at', { ascending: true })
+      const { data } = await supabase.from('workout_sets').select('*').eq('date', dateFormatee).order('order_index', { ascending: true })
 
       if (data && data.length > 0) {
         const isExplicitRest = data.some((item: any) => item.exercise_name === 'Repos' || item.exercise_name === 'Jour de Repos');
@@ -320,10 +320,27 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
 
   const creerExerciceVierge = (): ExerciceRow => ({ id: null, name: '', coachTracking: [{ reps: '', weight: '', rpe: '' }], tracking: [{ reps: '', weight: '', rpe: '' }], comments: '' })
   const ajouterExercice = () => setExercices([...exercices, creerExerciceVierge()])
+  
   const supprimerExercice = async (index: number, dbId: string | null) => {
     if (dbId) await supabase.from('workout_sets').delete().eq('id', dbId)
     const nouvelleListe = [...exercices]; nouvelleListe.splice(index, 1); setExercices(nouvelleListe)
   }
+
+  // NOUVELLE FONCTION : DÉPLACER UN EXERCICE
+  const deplacerExercice = (index: number, direction: 'up' | 'down') => {
+    if (direction === 'up' && index === 0) return;
+    if (direction === 'down' && index === exercices.length - 1) return;
+    
+    const nouvelleListe = [...exercices];
+    const newIndex = direction === 'up' ? index - 1 : index + 1;
+    
+    const temp = nouvelleListe[index];
+    nouvelleListe[index] = nouvelleListe[newIndex];
+    nouvelleListe[newIndex] = temp;
+    
+    setExercices(nouvelleListe);
+  }
+
   const updateExerciceNom = (index: number, valeur: string) => {
     const nouvelleListe = [...exercices]; nouvelleListe[index].name = valeur; setExercices(nouvelleListe)
   }
@@ -421,6 +438,13 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
               <div className="bg-slate-800 text-slate-400 px-3 py-1 rounded-md text-sm font-bold">{exIndex + 1}</div>
               <input list={`liste-exos-${jourSemaine}`} placeholder="Nom de l'exercice..." className="flex-1 p-2 bg-slate-950 border border-slate-800 rounded-lg text-white outline-none focus:border-blue-500 font-medium placeholder:text-slate-600" value={ex.name} onChange={(e) => updateExerciceNom(exIndex, e.target.value)} />
               <datalist id={`liste-exos-${jourSemaine}`}>{suggestionsDuJour.map(nomExo => <option key={nomExo} value={nomExo} />)}</datalist>
+              
+              {/* NOUVEAUX BOUTONS DE DÉPLACEMENT */}
+              <div className="flex items-center bg-slate-950 border border-slate-800 rounded-lg">
+                <button onClick={() => deplacerExercice(exIndex, 'up')} disabled={exIndex === 0} className="p-2 text-slate-500 hover:text-white disabled:opacity-30 transition-colors border-r border-slate-800"><ChevronUp className="size-5" /></button>
+                <button onClick={() => deplacerExercice(exIndex, 'down')} disabled={exIndex === exercices.length - 1} className="p-2 text-slate-500 hover:text-white disabled:opacity-30 transition-colors"><ChevronDown className="size-5" /></button>
+              </div>
+
               <button onClick={() => supprimerExercice(exIndex, ex.id)} className="p-2 text-slate-500 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"><Trash2 className="size-5" /></button>
             </div>
 
@@ -434,9 +458,10 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
                   {ex.coachTracking.map((set, setIndex) => (
                     <div key={setIndex} className="grid grid-cols-[auto_1fr_1fr_1fr_auto] gap-2 items-center">
                       <span className="w-6 text-xs font-bold text-slate-600 text-center">S{setIndex + 1}</span>
-                      <input type="number" value={set.reps} onChange={(e) => updateSerieCoach(exIndex, setIndex, 'reps', e.target.value)} className="w-full p-2 bg-slate-900/50 rounded-md text-slate-300 text-center outline-none focus:bg-slate-800 transition-colors" />
-                      <input type="number" value={set.weight} onChange={(e) => updateSerieCoach(exIndex, setIndex, 'weight', e.target.value)} className="w-full p-2 bg-slate-900/50 rounded-md text-slate-300 text-center outline-none focus:bg-slate-800 transition-colors" />
-                      <input type="number" step="0.5" value={set.rpe} onChange={(e) => updateSerieCoach(exIndex, setIndex, 'rpe', e.target.value)} className="w-full p-2 bg-slate-900/50 rounded-md text-slate-300 text-center outline-none focus:bg-slate-800 transition-colors" />
+                      {/* TYPE="TEXT" POUR PERMETTRE LES / */}
+                      <input type="text" value={set.reps} onChange={(e) => updateSerieCoach(exIndex, setIndex, 'reps', e.target.value)} className="w-full p-2 bg-slate-900/50 rounded-md text-slate-300 text-center outline-none focus:bg-slate-800 transition-colors" />
+                      <input type="text" value={set.weight} onChange={(e) => updateSerieCoach(exIndex, setIndex, 'weight', e.target.value)} className="w-full p-2 bg-slate-900/50 rounded-md text-slate-300 text-center outline-none focus:bg-slate-800 transition-colors" />
+                      <input type="text" value={set.rpe} onChange={(e) => updateSerieCoach(exIndex, setIndex, 'rpe', e.target.value)} className="w-full p-2 bg-slate-900/50 rounded-md text-slate-300 text-center outline-none focus:bg-slate-800 transition-colors" />
                       <button onClick={() => supprimerSerieCoach(exIndex, setIndex)} className="w-6 flex justify-center text-slate-500 hover:text-red-500 transition-colors"><X className="size-4" /></button>
                     </div>
                   ))}
@@ -453,9 +478,10 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
                   {ex.tracking.map((set, setIndex) => (
                     <div key={setIndex} className="grid grid-cols-[auto_1fr_1fr_1fr_auto] gap-2 items-center">
                       <span className="w-6 text-xs font-bold text-slate-500 text-center">S{setIndex + 1}</span>
-                      <input type="number" value={set.reps} onChange={(e) => updateSerieAthlete(exIndex, setIndex, 'reps', e.target.value)} className="w-full p-2 bg-blue-950/20 rounded-md text-blue-100 text-center outline-none focus:bg-blue-900/40 transition-colors" />
-                      <input type="number" value={set.weight} onChange={(e) => updateSerieAthlete(exIndex, setIndex, 'weight', e.target.value)} className="w-full p-2 bg-blue-950/20 rounded-md text-blue-100 text-center outline-none focus:bg-blue-900/40 transition-colors" />
-                      <input type="number" step="0.5" value={set.rpe} onChange={(e) => updateSerieAthlete(exIndex, setIndex, 'rpe', e.target.value)} className="w-full p-2 bg-blue-950/20 rounded-md text-blue-100 text-center outline-none focus:bg-blue-900/40 transition-colors" />
+                      {/* TYPE="TEXT" POUR PERMETTRE LES / */}
+                      <input type="text" value={set.reps} onChange={(e) => updateSerieAthlete(exIndex, setIndex, 'reps', e.target.value)} className="w-full p-2 bg-blue-950/20 rounded-md text-blue-100 text-center outline-none focus:bg-blue-900/40 transition-colors" />
+                      <input type="text" value={set.weight} onChange={(e) => updateSerieAthlete(exIndex, setIndex, 'weight', e.target.value)} className="w-full p-2 bg-blue-950/20 rounded-md text-blue-100 text-center outline-none focus:bg-blue-900/40 transition-colors" />
+                      <input type="text" value={set.rpe} onChange={(e) => updateSerieAthlete(exIndex, setIndex, 'rpe', e.target.value)} className="w-full p-2 bg-blue-950/20 rounded-md text-blue-100 text-center outline-none focus:bg-blue-900/40 transition-colors" />
                       <button onClick={() => supprimerSerieAthlete(exIndex, setIndex)} className="w-6 flex justify-center text-slate-500 hover:text-red-500 transition-colors"><X className="size-4" /></button>
                     </div>
                   ))}
