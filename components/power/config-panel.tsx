@@ -2,13 +2,14 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
-import { Plus, Trash2, Calendar, Settings, RefreshCw, Download } from 'lucide-react'
+import { Plus, Trash2, Calendar, Settings, RefreshCw, Download, Tag } from 'lucide-react'
 
 interface TrainingBlock {
   id: string;
   block_number: number;
   start_date: string;
   duration_weeks: number;
+  name?: string;
 }
 
 export default function ConfigPanel() {
@@ -37,7 +38,7 @@ export default function ConfigPanel() {
 
     const { data, error } = await supabase
       .from('training_blocks')
-      .insert([{ block_number: nextNumber, start_date: today, duration_weeks: 5 }])
+      .insert([{ block_number: nextNumber, start_date: today, duration_weeks: 4, name: 'Nouveau Bloc' }])
       .select()
 
     if (data) setBlocks([...blocks, data[0]])
@@ -59,14 +60,12 @@ export default function ConfigPanel() {
   const telechargerBloc = async (block: TrainingBlock) => {
     setDownloadingId(block.id)
     
-    // 1. Calcul de la fenêtre de tir stricte (Début du bloc -> Aujourd'hui MAX)
     const today = new Date().toISOString().split('T')[0];
     const startDate = new Date(block.start_date);
     const endDate = new Date(startDate);
     endDate.setDate(startDate.getDate() + (block.duration_weeks * 7) - 1);
     const blockEndDateStr = endDate.toISOString().split('T')[0];
     
-    // On bloque la récupération à aujourd'hui si le bloc n'est pas encore fini
     const maxDate = today < blockEndDateStr ? today : blockEndDateStr;
 
     try {
@@ -84,7 +83,7 @@ export default function ConfigPanel() {
         return
       }
 
-      let contenu = `=== HISTORIQUE DU BLOC ${block.block_number} ===\n\n`
+      let contenu = `=== HISTORIQUE DU BLOC ${block.block_number} ${block.name ? `(${block.name})` : ''} ===\n\n`
       
       data.forEach((row) => {
         contenu += `DATE: ${row.date}\n`
@@ -108,7 +107,8 @@ export default function ConfigPanel() {
       const url = URL.createObjectURL(blob)
       const lien = document.createElement('a')
       lien.href = url
-      lien.download = `Bloc_${block.block_number}_export_${today}.txt`
+      const safeName = block.name ? `_${block.name.replace(/[^a-z0-9]/gi, '_')}` : ''
+      lien.download = `Bloc_${block.block_number}${safeName}_export_${today}.txt`
       document.body.appendChild(lien)
       lien.click()
       document.body.removeChild(lien)
@@ -145,18 +145,38 @@ export default function ConfigPanel() {
                 B{block.block_number}
               </div>
               <div className="flex flex-col">
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Numéro du bloc</span>
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">N°</span>
                 <input 
                   type="number" 
                   value={block.block_number} 
                   onChange={(e) => updateBlock(block.id, 'block_number', parseInt(e.target.value))}
-                  className="bg-transparent text-white font-bold outline-none border-b border-transparent focus:border-slate-700 w-16"
+                  className="bg-transparent text-white font-bold outline-none border-b border-transparent focus:border-slate-700 w-12"
                 />
               </div>
             </div>
 
+            {/* NOUVEAU CHAMP : NOM DU BLOC */}
             <div className="flex flex-col w-full md:w-auto">
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1"><Calendar className="size-3" /> Date de début</span>
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1"><Tag className="size-3" /> Nom du bloc</span>
+              <input 
+                type="text" 
+                list="block-names"
+                value={block.name || ''} 
+                onChange={(e) => updateBlock(block.id, 'name', e.target.value)}
+                placeholder="Ex: Rééducation..."
+                className="bg-slate-950 border border-slate-800 rounded-md p-2 text-sm text-slate-300 outline-none focus:border-blue-500 mt-1 min-w-[140px]"
+              />
+              <datalist id="block-names">
+                <option value="Rééducation" />
+                <option value="Hypertrophie" />
+                <option value="Force (Charge)" />
+                <option value="Décharge (Deload)" />
+                <option value="Pré-comp (Peaking)" />
+              </datalist>
+            </div>
+
+            <div className="flex flex-col w-full md:w-auto">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1"><Calendar className="size-3" /> Début</span>
               <input 
                 type="date" 
                 value={block.start_date} 
@@ -166,13 +186,13 @@ export default function ConfigPanel() {
             </div>
 
             <div className="flex flex-col w-full md:w-auto">
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Durée (Semaines)</span>
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Semaines</span>
               <div className="flex items-center gap-2 mt-1">
                 <input 
                   type="number" 
                   value={block.duration_weeks} 
                   onChange={(e) => updateBlock(block.id, 'duration_weeks', parseInt(e.target.value))}
-                  className="bg-slate-950 border border-slate-800 rounded-md p-2 text-sm text-slate-300 outline-none focus:border-blue-500 w-20 text-center"
+                  className="bg-slate-950 border border-slate-800 rounded-md p-2 text-sm text-slate-300 outline-none focus:border-blue-500 w-16 text-center"
                 />
               </div>
             </div>
@@ -182,7 +202,7 @@ export default function ConfigPanel() {
                 onClick={() => telechargerBloc(block)} 
                 disabled={downloadingId === block.id}
                 className="p-3 text-slate-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors disabled:opacity-50"
-                title="Télécharger l'historique du bloc (jusqu'à aujourd'hui)"
+                title="Télécharger l'historique du bloc"
               >
                 {downloadingId === block.id ? <RefreshCw className="size-5 animate-spin" /> : <Download className="size-5" />}
               </button>
