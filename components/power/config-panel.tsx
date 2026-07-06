@@ -74,7 +74,7 @@ export default function ConfigPanel() {
         .select('*')
         .gte('date', block.start_date)
         .lte('date', maxDate)
-        .order('date', { ascending: false })
+        .order('date', { ascending: false }) // Tri par date du plus récent au plus ancien
 
       if (error) throw error
       if (!data || data.length === 0) {
@@ -83,23 +83,42 @@ export default function ConfigPanel() {
         return
       }
 
+      // Inverser l'ordre du tableau pour afficher l'historique du plus ancien (début du bloc) au plus récent
+      const sortedData = data.reverse()
+
       let contenu = `=== HISTORIQUE DU BLOC ${block.block_number} ${block.name ? `(${block.name})` : ''} ===\n\n`
       
-      data.forEach((row) => {
+      sortedData.forEach((row) => {
+        // Ignorer les lignes de repos global si elles n'ont pas d'exercices
+        if (row.exercise_name === 'Jour de Repos' || row.exercise_name === 'Repos') {
+            contenu += `DATE: ${row.date} -> JOUR DE REPOS\n`
+            contenu += "--------------------------------------------------\n\n"
+            return
+        }
+
         contenu += `DATE: ${row.date}\n`
         contenu += `EXERCICE: ${row.exercise_name}\n`
         
-        if (row.tracking_data && Array.isArray(row.tracking_data)) {
-          contenu += `SÉRIES RÉALISÉES:\n`
-          row.tracking_data.forEach((set: any, index: number) => {
-            if (set.reps || set.weight) {
-              contenu += `  S${index + 1}: ${set.reps} reps @ ${set.weight} kg (RPE: ${set.rpe || '-'})\n`
+        const coachData = Array.isArray(row.coach_tracking_data) ? row.coach_tracking_data : []
+        const athleteData = Array.isArray(row.tracking_data) ? row.tracking_data : []
+        const maxSets = Math.max(coachData.length, athleteData.length)
+
+        if (maxSets > 0) {
+          contenu += `DÉTAIL DES SÉRIES (Coach vs Athlète) :\n`
+          for (let i = 0; i < maxSets; i++) {
+            const cSet = coachData[i] || {}
+            const aSet = athleteData[i] || {}
+
+            const cStr = (cSet.reps || cSet.weight) ? `${cSet.reps || '-'} reps @ ${cSet.weight || '-'} kg (RPE: ${cSet.rpe || '-'})` : 'Rien de prévu'
+            const aStr = (aSet.reps || aSet.weight) ? `${aSet.reps || '-'} reps @ ${aSet.weight || '-'} kg (RPE: ${aSet.rpe || '-'})` : 'Non renseigné'
+
+            if ((cSet.reps || cSet.weight) || (aSet.reps || aSet.weight)) {
+              contenu += `  S${i + 1} | COACH -> [ ${cStr} ]  ||  ATHLÈTE -> [ ${aStr} ]\n`
             }
-          })
+          }
         }
         
         if (row.comments) contenu += `NOTES: ${row.comments}\n`
-        contenu += `MÉTRIQUES -> Fatigue: ${row.fatigue_score}/10 | Sommeil: ${row.sleep_hours}h | Pas: ${row.steps_count}\n`
         contenu += "--------------------------------------------------\n\n"
       })
 
@@ -155,7 +174,6 @@ export default function ConfigPanel() {
               </div>
             </div>
 
-            {/* NOUVEAU CHAMP : NOM DU BLOC */}
             <div className="flex flex-col w-full md:w-auto">
               <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1"><Tag className="size-3" /> Nom du bloc</span>
               <input 
