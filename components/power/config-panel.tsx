@@ -74,33 +74,41 @@ export default function ConfigPanel() {
         .select('*')
         .gte('date', block.start_date)
         .lte('date', maxDate)
-        .order('date', { ascending: false }) // Tri par date du plus récent au plus ancien
+        .order('date', { ascending: false }) 
 
       if (error) throw error
       if (!data || data.length === 0) {
-        alert("Aucune séance n'a encore été validée pour ce bloc.")
+        alert("Aucune séance n'a encore été trouvée pour ce bloc.")
         setDownloadingId(null)
         return
       }
 
-      // Inverser l'ordre du tableau pour afficher l'historique du plus ancien (début du bloc) au plus récent
       const sortedData = data.reverse()
-
       let contenu = `=== HISTORIQUE DU BLOC ${block.block_number} ${block.name ? `(${block.name})` : ''} ===\n\n`
+      let aAuMoinsUneSeanceValidee = false;
       
       sortedData.forEach((row) => {
-        // Ignorer les lignes de repos global si elles n'ont pas d'exercices
+        // Garder les jours de repos
         if (row.exercise_name === 'Jour de Repos' || row.exercise_name === 'Repos') {
             contenu += `DATE: ${row.date} -> JOUR DE REPOS\n`
             contenu += "--------------------------------------------------\n\n"
+            aAuMoinsUneSeanceValidee = true;
             return
         }
 
+        const coachData = Array.isArray(row.coach_tracking_data) ? row.coach_tracking_data : []
+        const athleteData = Array.isArray(row.tracking_data) ? row.tracking_data : []
+        
+        // FILTRE : Vérifier si l'athlète a vraiment rempli des données pour cet exercice
+        const aFaitQuelqueChose = athleteData.some((set: any) => (set.reps && set.reps.toString().trim() !== '') || (set.weight && set.weight.toString().trim() !== ''))
+
+        // Si c'est un exercice propagé mais que l'athlète n'a rien rempli, on l'ignore de l'export
+        if (!aFaitQuelqueChose) return;
+
+        aAuMoinsUneSeanceValidee = true;
         contenu += `DATE: ${row.date}\n`
         contenu += `EXERCICE: ${row.exercise_name}\n`
         
-        const coachData = Array.isArray(row.coach_tracking_data) ? row.coach_tracking_data : []
-        const athleteData = Array.isArray(row.tracking_data) ? row.tracking_data : []
         const maxSets = Math.max(coachData.length, athleteData.length)
 
         if (maxSets > 0) {
@@ -121,6 +129,12 @@ export default function ConfigPanel() {
         if (row.comments) contenu += `NOTES: ${row.comments}\n`
         contenu += "--------------------------------------------------\n\n"
       })
+
+      if (!aAuMoinsUneSeanceValidee) {
+        alert("Aucune donnée d'athlète n'a été remplie dans ce bloc. (Les séances vides sont ignorées).")
+        setDownloadingId(null)
+        return;
+      }
 
       const blob = new Blob([contenu], { type: 'text/plain;charset=utf-8' })
       const url = URL.createObjectURL(blob)
