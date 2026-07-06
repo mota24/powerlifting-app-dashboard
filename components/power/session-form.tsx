@@ -41,6 +41,7 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [isValidating, setIsValidating] = useState(false)
   const [isPropagating, setIsPropagating] = useState(false)
+  const [isResetting, setIsResetting] = useState(false)
   const isInitialLoad = useRef(true)
 
   const [aiPrompt, setAiPrompt] = useState('')
@@ -298,6 +299,25 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
     } catch (err: any) { alert("Erreur : " + err.message); } finally { setIsPropagating(false); }
   };
 
+  const reinitialiserFutur = async () => {
+    if (!confirm("ATTENTION : Es-tu sûr de vouloir supprimer TOUTES les séances prévues après la date d'aujourd'hui ?")) return;
+    setIsResetting(true);
+    try {
+      const demain = new Date(dateActive);
+      demain.setDate(demain.getDate() + 1);
+      const demainStr = demain.toISOString().split('T')[0];
+      
+      const { error } = await supabase.from('workout_sets').delete().gte('date', demainStr);
+      if (error) throw error;
+      
+      alert("Toutes les séances futures ont été réinitialisées avec succès.");
+    } catch (err: any) {
+      alert("Erreur lors de la réinitialisation : " + err.message);
+    } finally {
+      setIsResetting(false);
+    }
+  };
+
   const creerExerciceVierge = (): ExerciceRow => ({ id: null, name: '', coachTracking: [{ reps: '', weight: '', rpe: '' }], tracking: [{ reps: '', weight: '', rpe: '' }], comments: '' })
   const ajouterExercice = () => setExercices([...exercices, creerExerciceVierge()])
   const supprimerExercice = async (index: number, dbId: string | null) => {
@@ -414,11 +434,9 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
                   {ex.coachTracking.map((set, setIndex) => (
                     <div key={setIndex} className="grid grid-cols-[auto_1fr_1fr_1fr_auto] gap-2 items-center">
                       <span className="w-6 text-xs font-bold text-slate-600 text-center">S{setIndex + 1}</span>
-                      {/* LIGNES MODIFIÉES : Suppression des bordures, design épuré */}
                       <input type="number" value={set.reps} onChange={(e) => updateSerieCoach(exIndex, setIndex, 'reps', e.target.value)} className="w-full p-2 bg-slate-900/50 rounded-md text-slate-300 text-center outline-none focus:bg-slate-800 transition-colors" />
                       <input type="number" value={set.weight} onChange={(e) => updateSerieCoach(exIndex, setIndex, 'weight', e.target.value)} className="w-full p-2 bg-slate-900/50 rounded-md text-slate-300 text-center outline-none focus:bg-slate-800 transition-colors" />
                       <input type="number" step="0.5" value={set.rpe} onChange={(e) => updateSerieCoach(exIndex, setIndex, 'rpe', e.target.value)} className="w-full p-2 bg-slate-900/50 rounded-md text-slate-300 text-center outline-none focus:bg-slate-800 transition-colors" />
-                      {/* CROIX MODIFIÉE : Plus visible (text-slate-500) et passe en rouge au survol */}
                       <button onClick={() => supprimerSerieCoach(exIndex, setIndex)} className="w-6 flex justify-center text-slate-500 hover:text-red-500 transition-colors"><X className="size-4" /></button>
                     </div>
                   ))}
@@ -435,11 +453,9 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
                   {ex.tracking.map((set, setIndex) => (
                     <div key={setIndex} className="grid grid-cols-[auto_1fr_1fr_1fr_auto] gap-2 items-center">
                       <span className="w-6 text-xs font-bold text-slate-500 text-center">S{setIndex + 1}</span>
-                      {/* LIGNES MODIFIÉES : Suppression des bordures bleues, design très discret (bg-blue-950/20) */}
                       <input type="number" value={set.reps} onChange={(e) => updateSerieAthlete(exIndex, setIndex, 'reps', e.target.value)} className="w-full p-2 bg-blue-950/20 rounded-md text-blue-100 text-center outline-none focus:bg-blue-900/40 transition-colors" />
                       <input type="number" value={set.weight} onChange={(e) => updateSerieAthlete(exIndex, setIndex, 'weight', e.target.value)} className="w-full p-2 bg-blue-950/20 rounded-md text-blue-100 text-center outline-none focus:bg-blue-900/40 transition-colors" />
                       <input type="number" step="0.5" value={set.rpe} onChange={(e) => updateSerieAthlete(exIndex, setIndex, 'rpe', e.target.value)} className="w-full p-2 bg-blue-950/20 rounded-md text-blue-100 text-center outline-none focus:bg-blue-900/40 transition-colors" />
-                      {/* CROIX MODIFIÉE */}
                       <button onClick={() => supprimerSerieAthlete(exIndex, setIndex)} className="w-6 flex justify-center text-slate-500 hover:text-red-500 transition-colors"><X className="size-4" /></button>
                     </div>
                   ))}
@@ -472,9 +488,23 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
             {lastSaved && `Sécurisé à ${lastSaved.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`}
           </div>
 
-          <button onClick={propagerSemaine1VersBloc} disabled={isPropagating} className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-bold flex items-center justify-center gap-2 border border-slate-700 transition-colors">
-            {isPropagating ? <><RefreshCw className="size-5 animate-spin" /> Copie en cours...</> : <><Copy className="size-5" /> Propager la séance sur le Bloc</>}
-          </button>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <button 
+              onClick={propagerSemaine1VersBloc} 
+              disabled={isPropagating} 
+              className="py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl font-bold flex items-center justify-center gap-2 border border-slate-700 transition-colors text-sm"
+            >
+              {isPropagating ? <RefreshCw className="size-4 animate-spin" /> : <Copy className="size-4" />} Propager sur le Bloc
+            </button>
+
+            <button 
+              onClick={reinitialiserFutur} 
+              disabled={isResetting}
+              className="py-3 bg-red-900/20 hover:bg-red-900/40 text-red-400 rounded-xl font-bold flex items-center justify-center gap-2 border border-red-900/30 transition-colors text-sm"
+            >
+              {isResetting ? <RefreshCw className="size-4 animate-spin" /> : <Trash2 className="size-4" />} Réinitialiser le futur
+            </button>
+          </div>
 
           <button onClick={validerMission} disabled={isValidating} className="w-full p-5 rounded-xl font-black text-lg bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white shadow-[0_0_20px_rgba(59,130,246,0.3)] transition-all flex justify-center items-center gap-2">
             {isValidating ? <><RefreshCw className="size-5 animate-spin" /> VALIDATION...</> : <><Award className="size-6" /> FIN DE SÉANCE - VALIDER LA MISSION</>}
