@@ -10,8 +10,9 @@ import SessionForm from '@/components/power/session-form'
 import { PlateVisualizer } from '@/components/power/plate-visualizer'
 import { WarmupGenerator } from '@/components/power/warmup-generator'
 import { Card, CardTitle } from '@/components/power/card'
-import { LineChart, Menu, X, Home, BarChart2, Wrench, Settings, Calculator, Lock, LogOut, RefreshCw, User, History, KeyRound } from 'lucide-react'
+import { LineChart, Menu, X, Home, BarChart2, Wrench, Settings, Calculator, Lock, LogOut, RefreshCw, User, History, KeyRound, Timer } from 'lucide-react'
 import ChangePasswordModal from '@/components/power/change-password-modal'
+import CircuitTimer from '@/components/power/circuit-timer'
 import { toast } from '@/components/power/toaster'
 import { cn } from '@/lib/utils'
 import { toLocalDateStr } from '@/lib/powerlifting'
@@ -49,6 +50,7 @@ export default function Page() {
   const [dateActive, setDateActive] = useState<Date>(new Date())
   const [menuOuvert, setMenuOuvert] = useState(false)
   const [showPasswordModal, setShowPasswordModal] = useState(false)
+  const [showCircuitTimer, setShowCircuitTimer] = useState(false)
   const [blockInfo, setBlockInfo] = useState('Chargement...')
   
   const [vueActive, setVueActive] = useState(() => {
@@ -325,6 +327,7 @@ export default function Page() {
   return (
     <div className="min-h-dvh bg-background pb-16 relative">
       {showPasswordModal && <ChangePasswordModal onClose={() => setShowPasswordModal(false)} />}
+      {showCircuitTimer && <CircuitTimer onClose={() => setShowCircuitTimer(false)} />}
       <Header />
 
       <div className="mx-auto max-w-5xl px-4 pt-4 flex justify-between items-center relative z-50">
@@ -373,6 +376,7 @@ export default function Page() {
                 <button onClick={() => changerVue('outils')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'outils' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Wrench className="size-4" /> Outils</button>
                 <button onClick={() => changerVue('calculatrice')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'calculatrice' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Calculator className="size-4" /> Calculatrice</button>
                 <button onClick={() => changerVue('historique')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'historique' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><History className="size-4" /> Historique</button>
+                <button onClick={() => { setShowCircuitTimer(true); setMenuOuvert(false) }} className="flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors hover:bg-secondary text-foreground"><Timer className="size-4" /> Chrono Circuit</button>
 
                 <div className="h-px bg-border my-1"></div>
                 
