@@ -7,7 +7,7 @@ import {
   LIFT_SQUAT, LIFT_BENCH, LIFT_DEADLIFT, ACCESSORIES, PAIN_LEVELS,
   type SetData,
 } from '@/lib/powerlifting'
-import { Target, Activity, Check, Moon, Footprints, Battery, Coffee, Plus, Trash2, MessageSquare, X, Copy, RefreshCw, Award, Zap, Flame, Sparkles, ChevronUp, ChevronDown, Dumbbell, HeartPulse } from 'lucide-react'
+import { Target, Activity, Check, Moon, Footprints, Battery, Coffee, Plus, Trash2, MessageSquare, X, Copy, RefreshCw, Award, Zap, Flame, Sparkles, ChevronUp, ChevronDown, Dumbbell, HeartPulse, Wand2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -96,6 +96,9 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
 
   const [aiPrompt, setAiPrompt] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
+  // Proposition IA en attente : affichée en aperçu, injectée dans le
+  // formulaire uniquement quand l'athlète clique sur « Appliquer la séance ».
+  const [aiPreview, setAiPreview] = useState<ExerciceRow[] | null>(null)
 
   const [showModal, setShowModal] = useState(false)
   const [xpGained, setXpGained] = useState(0)
@@ -309,7 +312,7 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
         throw new Error(body?.error ?? `Erreur serveur (${res.status})`)
       }
       const aiData = (await res.json()) as { name: string; comments: string; coachTracking: SetData[] }[]
-      const newExercices: ExerciceRow[] = aiData.map((ex) => {
+      const proposition: ExerciceRow[] = aiData.map((ex) => {
         const coachTracking = ex.coachTracking?.length ? ex.coachTracking : [videSet()]
         return {
           id: null, uid: crypto.randomUUID(),
@@ -318,15 +321,33 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
           painLevel: null,
         }
       })
-      setExercices((prev) =>
-        prev.length === 1 && prev[0].name === '' ? newExercices : [...prev, ...newExercices]
-      )
+      setAiPreview(proposition)
       setAiPrompt('')
     } catch (e) {
       alert('Génération impossible : ' + errMessage(e))
     } finally {
       setIsGenerating(false)
     }
+  }
+
+  /**
+   * Injecte la proposition IA dans le formulaire :
+   * - crée les blocs d'exercices et les lignes de séries correspondantes ;
+   * - pré-remplit la colonne « Validé » avec la prescription (simple point de
+   *   départ : chaque poids/reps reste modifiable dans les inputs avant validation).
+   */
+  const appliquerSeanceIA = () => {
+    if (!aiPreview) return
+    const rows: ExerciceRow[] = aiPreview.map((ex) => ({
+      ...ex,
+      uid: crypto.randomUUID(),
+      coachTracking: ex.coachTracking.map((s) => ({ ...s })),
+      tracking: ex.coachTracking.map((s) => ({ ...s })),
+    }))
+    setExercices((prev) =>
+      prev.length === 1 && prev[0].name === '' ? rows : [...prev, ...rows]
+    )
+    setAiPreview(null)
   }
 
   // ————— Validation de mission (XP / Streak) —————
@@ -565,6 +586,47 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
             {isGenerating ? <RefreshCw className="size-4 animate-spin" /> : 'Générer avec l\'IA'}
           </button>
         </div>
+
+        {/* Proposition du Coach IA : aperçu avant injection dans le formulaire */}
+        {aiPreview && (
+          <div className="p-4 rounded-xl border border-blue-500/40 bg-blue-500/5 space-y-3 animate-in fade-in zoom-in-95 duration-300">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-blue-400 flex items-center gap-2 uppercase tracking-wider">
+                <Sparkles className="size-4" /> Proposition du Coach IA
+              </h3>
+              <button onClick={() => setAiPreview(null)} title="Ignorer cette proposition" className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-md transition-colors">
+                <X className="size-4" />
+              </button>
+            </div>
+
+            <ul className="space-y-2">
+              {aiPreview.map((ex, i) => (
+                <li key={ex.uid} className="p-3 rounded-lg bg-slate-950/60 border border-slate-800">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-500">{i + 1}.</span>
+                    <span className="text-sm font-bold text-white">{ex.name}</span>
+                  </div>
+                  <div className="font-mono text-xs text-blue-200 mt-1">
+                    {ex.coachTracking
+                      .map((s) => `${s.reps || '?'}×${s.weight || '?'} kg${s.rpe ? ` @${s.rpe}` : ''}`)
+                      .join(' · ')}
+                  </div>
+                  {ex.comments && <p className="text-xs text-slate-500 italic mt-1">{ex.comments}</p>}
+                </li>
+              ))}
+            </ul>
+
+            <button
+              onClick={appliquerSeanceIA}
+              className="w-full py-3 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(59,130,246,0.25)]"
+            >
+              <Wand2 className="size-5" /> Appliquer la séance
+            </button>
+            <p className="text-[10px] text-slate-500 text-center">
+              Pré-remplit la prescription ET la colonne Validé — chaque valeur reste modifiable.
+            </p>
+          </div>
+        )}
 
         <datalist id={listId}>{suggestionsDuJour.map((nomExo) => <option key={nomExo} value={nomExo} />)}</datalist>
 
