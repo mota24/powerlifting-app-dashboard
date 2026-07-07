@@ -9,6 +9,7 @@ import {
 } from '@/lib/powerlifting'
 import { Target, Activity, Check, Moon, Footprints, Battery, Coffee, Plus, Trash2, MessageSquare, X, Copy, RefreshCw, Award, Zap, Flame, Sparkles, ChevronUp, ChevronDown, Dumbbell, HeartPulse } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { ExerciseHistory } from './exercise-history'
 
 interface Props {
   dateActive: Date;
@@ -302,7 +303,12 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
         },
         body: JSON.stringify({ prompt: aiPrompt }),
       })
-      if (!res.ok) throw new Error("Erreur de l'API")
+      if (!res.ok) {
+        // On remonte le message précis du serveur (session expirée, prompt trop
+        // long, quota Gemini…) au lieu d'une erreur générique inutilisable.
+        const body = (await res.json().catch(() => null)) as { error?: string } | null
+        throw new Error(body?.error ?? `Erreur serveur (${res.status})`)
+      }
       const aiData = (await res.json()) as { name: string; comments: string; coachTracking: SetData[] }[]
       const newExercices: ExerciceRow[] = aiData.map((ex) => {
         const coachTracking = ex.coachTracking?.length ? ex.coachTracking : [videSet()]
@@ -317,8 +323,8 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
         prev.length === 1 && prev[0].name === '' ? newExercices : [...prev, ...newExercices]
       )
       setAiPrompt('')
-    } catch {
-      alert('Impossible de générer le programme. Vérifie ta connexion et ta clé API !')
+    } catch (e) {
+      alert('Génération impossible : ' + errMessage(e))
     } finally {
       setIsGenerating(false)
     }
@@ -554,7 +560,7 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
         <div className="flex flex-col sm:flex-row gap-3 p-4 bg-gradient-to-r from-blue-900/40 to-purple-900/40 border border-blue-500/30 rounded-xl shadow-inner">
           <div className="flex-1 flex items-center gap-3 bg-slate-950/80 px-4 py-2 rounded-lg border border-slate-800">
             <Sparkles className="size-5 text-blue-400 flex-shrink-0" />
-            <input type="text" placeholder="Ex: 3x3 squat 180, puis 4x10 tractions..." value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handleAIGeneration() }} className="w-full bg-transparent text-white outline-none placeholder:text-slate-500 text-sm" disabled={isGenerating} />
+            <input type="text" maxLength={1000} placeholder="Ex: 3x3 squat 180, puis 4x10 tractions..." value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handleAIGeneration() }} className="w-full bg-transparent text-white outline-none placeholder:text-slate-500 text-sm" disabled={isGenerating} />
           </div>
           <button onClick={handleAIGeneration} disabled={isGenerating || !aiPrompt.trim()} className="whitespace-nowrap px-6 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-bold rounded-lg transition-colors flex items-center justify-center gap-2">
             {isGenerating ? <RefreshCw className="size-4 animate-spin" /> : 'Générer avec l\'IA'}
@@ -570,6 +576,7 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
             exIndex={exIndex}
             isLast={exIndex === exercices.length - 1}
             listId={listId}
+            dateStr={dateFormatee}
             onPatch={patchExercice}
             onUpdateSerie={updateSerie}
             onAjouterSerie={ajouterSerie}
@@ -695,6 +702,7 @@ interface ExerciseCardProps {
   exIndex: number;
   isLast: boolean;
   listId: string;
+  dateStr: string;
   onPatch: (index: number, patch: Partial<ExerciceRow>) => void;
   onUpdateSerie: (exIndex: number, list: 'coachTracking' | 'tracking', setIndex: number, champ: keyof SetData, valeur: string) => void;
   onAjouterSerie: (exIndex: number, list: 'coachTracking' | 'tracking') => void;
@@ -704,7 +712,7 @@ interface ExerciseCardProps {
 }
 
 const ExerciseCard = memo(function ExerciseCard({
-  ex, exIndex, isLast, listId,
+  ex, exIndex, isLast, listId, dateStr,
   onPatch, onUpdateSerie, onAjouterSerie, onSupprimerSerie, onDeplacer, onSupprimer,
 }: ExerciseCardProps) {
   return (
@@ -721,6 +729,9 @@ const ExerciseCard = memo(function ExerciseCard({
 
         <button onClick={() => onSupprimer(exIndex, ex.id)} className="p-2 text-slate-500 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"><Trash2 className="size-5" /></button>
       </div>
+
+      {/* Dernières perfs sur cet exercice : quoi charger, sans quitter le formulaire */}
+      <ExerciseHistory name={ex.name} beforeDate={dateStr} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="p-3 rounded-xl border border-slate-800 bg-slate-900/30 flex flex-col h-full">
