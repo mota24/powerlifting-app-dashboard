@@ -10,7 +10,7 @@ import SessionForm from '@/components/power/session-form'
 import { PlateVisualizer } from '@/components/power/plate-visualizer'
 import { WarmupGenerator } from '@/components/power/warmup-generator'
 import { Card, CardTitle } from '@/components/power/card'
-import { LineChart, Menu, X, Home, BarChart2, Wrench, Settings, Calculator, Lock, LogOut, RefreshCw, User, History, KeyRound, Timer } from 'lucide-react'
+import { LineChart, Menu, X, Home, BarChart2, Wrench, Settings, Calculator, Lock, LogOut, RefreshCw, User, History, KeyRound, Timer, Download, Shield, Trash2 } from 'lucide-react'
 import ChangePasswordModal from '@/components/power/change-password-modal'
 import CircuitTimer from '@/components/power/circuit-timer'
 import { toast } from '@/components/power/toaster'
@@ -162,6 +162,19 @@ export default function Page() {
 
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {})
+    setSession(null)
+  }
+
+  // RGPD Art. 15/20 : téléchargement de toutes ses données (JSON)
+  const handleExportData = () => {
+    setMenuOuvert(false)
+    window.location.href = '/api/account/export'
+  }
+
+  // RGPD Art. 17 : effacement du compte (irréversible)
+  const handleDeleteAccount = async () => {
+    if (!confirm("Supprimer définitivement ton compte ? Tes pas synchronisés seront effacés et tu seras déconnecté. Cette action est irréversible.")) return
+    await fetch('/api/account/delete', { method: 'POST' }).catch(() => {})
     setSession(null)
   }
 
@@ -388,8 +401,17 @@ export default function Page() {
                 <button onClick={() => { setShowPasswordModal(true); setMenuOuvert(false) }} className="flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors hover:bg-secondary text-foreground">
                   <KeyRound className="size-4" /> Mot de passe
                 </button>
+                <button onClick={handleExportData} className="flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors hover:bg-secondary text-foreground">
+                  <Download className="size-4" /> Exporter mes données
+                </button>
+                <a href="/confidentialite" className="flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors hover:bg-secondary text-foreground">
+                  <Shield className="size-4" /> Confidentialité
+                </a>
                 <button onClick={handleLogout} className="flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors hover:bg-red-500/10 text-red-400 font-medium">
                   <LogOut className="size-4" /> Se déconnecter
+                </button>
+                <button onClick={handleDeleteAccount} className="flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors hover:bg-red-500/10 text-red-500 font-medium">
+                  <Trash2 className="size-4" /> Supprimer mon compte
                 </button>
               </div>
             )}

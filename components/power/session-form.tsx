@@ -350,13 +350,26 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
   // ————— Génération IA —————
   const handleAIGeneration = async () => {
     if (!aiPrompt.trim()) return
+    // Consentement RGPD (Art. 9/7) : le coach IA transmet l'historique — dont
+    // des données de santé (douleur, sommeil, fatigue) — à Google (Gemini).
+    // Demandé une fois, mémorisé localement ; l'en-tête est aussi vérifié serveur.
+    let aiConsent = false
+    try { aiConsent = localStorage.getItem('powerapp_ai_consent') === '1' } catch { /* stockage inaccessible */ }
+    if (!aiConsent) {
+      const ok = confirm(
+        "Le coach IA envoie ton historique d'entraînement — y compris tes données de santé (douleur lombaire, sommeil, fatigue) — à Google (Gemini) pour générer ta séance.\n\nAcceptes-tu ce traitement ?"
+      )
+      if (!ok) return
+      try { localStorage.setItem('powerapp_ai_consent', '1') } catch { /* navigation privée */ }
+    }
+
     setIsGenerating(true)
     try {
       // L'authentification passe par le cookie httpOnly envoyé automatiquement
       // (same-origin) : le JavaScript ne détient plus aucun jeton.
       const res = await fetch('/api/coach', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-ai-consent': '1' },
         body: JSON.stringify({ prompt: aiPrompt }),
       })
       if (!res.ok) {

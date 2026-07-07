@@ -85,6 +85,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Session expirée : recharge la page et reconnecte-toi' }, { status: 401 })
     }
 
+    // RGPD Art. 9 / Art. 7 : le contexte transmis à Google inclut des données
+    // de santé (douleur lombaire, sommeil, fatigue). Envoi conditionné à un
+    // consentement explicite, transmis par le client une fois la notice acceptée.
+    // Vérifié CÔTÉ SERVEUR : aucune donnée ne part sans cet en-tête.
+    if (req.headers.get('x-ai-consent') !== '1') {
+      return NextResponse.json(
+        { error: 'Consentement requis : le coach IA transmet ton historique (dont données de santé) à Google. Accepte la notice pour l’utiliser.', code: 'consent_required' },
+        { status: 403 }
+      )
+    }
+
     const body = (await req.json()) as { prompt?: unknown }
     const prompt = typeof body.prompt === 'string' ? body.prompt.trim() : ''
     if (!prompt) return NextResponse.json({ error: 'Prompt vide' }, { status: 400 })
