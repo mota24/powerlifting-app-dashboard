@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import type { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { Header } from '@/components/power/header'
 import { StatsCards } from '@/components/power/stats-cards'
@@ -11,13 +10,21 @@ import SessionForm from '@/components/power/session-form'
 import { PlateVisualizer } from '@/components/power/plate-visualizer'
 import { WarmupGenerator } from '@/components/power/warmup-generator'
 import { Card, CardTitle } from '@/components/power/card'
-import { LineChart, Menu, X, Home, BarChart2, Wrench, Settings, Calculator, Lock, LogOut, RefreshCw, User, History } from 'lucide-react'
+import { LineChart, Menu, X, Home, BarChart2, Wrench, Settings, Calculator, Lock, LogOut, RefreshCw, User, History, KeyRound } from 'lucide-react'
+import ChangePasswordModal from '@/components/power/change-password-modal'
 import { cn } from '@/lib/utils'
 import { toLocalDateStr } from '@/lib/powerlifting'
 import ConfigPanel from '@/components/power/config-panel'
 import CalculatorPanel from '@/components/power/calculator-panel'
 import HistoryPanel from '@/components/power/history-panel'
 import GLCalculator from '@/components/power/GLCalculator';
+
+// Utilisateur connecté tel que renvoyé par /api/auth/session.
+// Les jetons, eux, restent dans des cookies httpOnly : jamais côté JS.
+interface AuthUser {
+  id: string;
+  email: string | null;
+}
 
 interface TrainingBlockRow {
   id: string;
@@ -28,7 +35,7 @@ interface TrainingBlockRow {
 }
 
 export default function Page() {
-  const [session, setSession] = useState<Session | null>(null)
+  const [session, setSession] = useState<AuthUser | null>(null)
   const [loadingAuth, setLoadingAuth] = useState(true)
   const [identifiant, setIdentifiant] = useState('')
   const [password, setPassword] = useState('')
@@ -40,6 +47,7 @@ export default function Page() {
   
   const [dateActive, setDateActive] = useState<Date>(new Date())
   const [menuOuvert, setMenuOuvert] = useState(false)
+  const [showPasswordModal, setShowPasswordModal] = useState(false)
   const [blockInfo, setBlockInfo] = useState('Chargement...')
   
   const [vueActive, setVueActive] = useState(() => {
@@ -75,7 +83,7 @@ export default function Page() {
     // Identifiant de sync : celui que le raccourci iPhone envoie en `userId`.
     // Configurable via NEXT_PUBLIC_SYNC_USER_ID, sinon dérivé de l'identifiant
     // de connexion (partie locale de l'email fantôme).
-    const syncUserId = process.env.NEXT_PUBLIC_SYNC_USER_ID || session.user.email?.split('@')[0]
+    const syncUserId = process.env.NEXT_PUBLIC_SYNC_USER_ID || session.email?.split('@')[0]
     if (!syncUserId) return;
 
     // Reset immédiat : pendant la navigation entre jours, on n'affiche jamais
@@ -106,40 +114,52 @@ export default function Page() {
   }, [session, dateActive]);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-      setLoadingAuth(false)
-    })
+    // Purge des sessions héritées de l'ancien stockage localStorage : plus
+    // aucun jeton ne doit rester lisible par le JavaScript de la page.
+    try {
+      for (const key of Object.keys(window.localStorage)) {
+        if (key.startsWith('sb-')) window.localStorage.removeItem(key)
+      }
+    } catch { /* stockage inaccessible (navigation privée) : rien à purger */ }
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session)
-    })
-
-    return () => subscription.unsubscribe()
+    fetch('/api/auth/session')
+      .then(async (res) => (res.ok ? ((await res.json()) as { user: AuthUser | null }).user : null))
+      .catch(() => null)
+      .then((user) => {
+        setSession(user)
+        setLoadingAuth(false)
+      })
   }, [])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoggingIn(true)
     setAuthError('')
-    
-    const emailFantome = `${identifiant.trim().toLowerCase()}@power.app`
-    
-    const { error } = await supabase.auth.signInWithPassword({
-      email: emailFantome,
-      password,
-    })
-    
-    if (error) {
-      setAuthError("Identifiant ou mot de passe incorrect.")
+
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifiant, password }),
+      })
+      if (!res.ok) {
+        // Message précis du serveur (ex. blocage temporaire après trop d'échecs)
+        const body = (await res.json().catch(() => null)) as { error?: string } | null
+        throw new Error(body?.error ?? '')
+      }
+      const { user } = (await res.json()) as { user: AuthUser }
+      setSession(user)
+      setPassword('')
+    } catch (err) {
+      const message = err instanceof Error && err.message ? err.message : ''
+      setAuthError(message || "Identifiant ou mot de passe incorrect.")
     }
     setIsLoggingIn(false)
   }
 
   const handleLogout = async () => {
-    await supabase.auth.signOut()
+    await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {})
+    setSession(null)
   }
 
   const changerVue = (vue: string) => {
@@ -303,6 +323,7 @@ export default function Page() {
 
   return (
     <div className="min-h-dvh bg-background pb-16 relative">
+      {showPasswordModal && <ChangePasswordModal onClose={() => setShowPasswordModal(false)} />}
       <Header />
 
       <div className="mx-auto max-w-5xl px-4 pt-4 flex justify-between items-center relative z-50">
@@ -357,7 +378,10 @@ export default function Page() {
                 <button onClick={() => changerVue('configuration')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'configuration' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Settings className="size-4" /> Mes Blocs</button>
                 
                 <div className="h-px bg-border my-1"></div>
-                
+
+                <button onClick={() => { setShowPasswordModal(true); setMenuOuvert(false) }} className="flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors hover:bg-secondary text-foreground">
+                  <KeyRound className="size-4" /> Mot de passe
+                </button>
                 <button onClick={handleLogout} className="flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors hover:bg-red-500/10 text-red-400 font-medium">
                   <LogOut className="size-4" /> Se déconnecter
                 </button>

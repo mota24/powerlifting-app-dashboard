@@ -293,13 +293,11 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
     if (!aiPrompt.trim()) return
     setIsGenerating(true)
     try {
-      const { data: { session } } = await supabase.auth.getSession()
+      // L'authentification passe par le cookie httpOnly envoyé automatiquement
+      // (same-origin) : le JavaScript ne détient plus aucun jeton.
       const res = await fetch('/api/coach', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session?.access_token ?? ''}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: aiPrompt }),
       })
       if (!res.ok) {
@@ -394,6 +392,10 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
       await supabase.from('user_progress').update({
         level: newLevel, current_xp: newCurrentXP, total_xp: newTotalXP, streak_days: newStreak, last_completed_date: dateFormatee,
       }).eq('id', progress.id)
+
+      // Prévient le header (barre XP) : remplace l'ancien canal Realtime,
+      // devenu impossible sans jeton accessible au JavaScript.
+      window.dispatchEvent(new Event('user-progress-updated'))
 
       setXpGained(finalXP); setNewStreakState(newStreak); setLeveledUp(aLevelUp); setShowModal(true)
     } catch (e) {

@@ -1,6 +1,7 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { getSupabaseAdmin } from '@/lib/supabase-admin'
+import { applySessionCookies, fetchUser, getAccessToken, type SessionTokens } from '@/lib/server/auth-session'
 
 type AiSet = { reps: string; weight: string; rpe: string }
 type AiExercise = { name: string; comments: string; coachTracking: AiSet[] }
@@ -66,16 +67,21 @@ function buildHistoryContext(rows: HistoryRow[]): string {
   return out.slice(0, 4000)
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  // Jetons éventuellement rafraîchis pendant la requête : à ré-appliquer à la réponse
+  let refreshed: SessionTokens | null = null
   try {
     const apiKey = process.env.GEMINI_API_KEY
     if (!apiKey) return NextResponse.json({ error: 'Clé API Gemini absente côté serveur' }, { status: 500 })
 
-    // Authentification : seul un utilisateur connecté peut consommer du quota Gemini
-    const token = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '')
-    if (!token) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
-    const { data: userData, error: authError } = await getSupabaseAdmin().auth.getUser(token)
-    if (authError || !userData.user) {
+    // Authentification : jeton lu depuis le cookie httpOnly (le navigateur ne
+    // détient plus le jeton, donc plus d'en-tête Authorization côté client).
+    // Seul un utilisateur connecté peut consommer du quota Gemini.
+    const auth = await getAccessToken(req)
+    if (!auth) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
+    refreshed = auth.refreshed
+    const user = await fetchUser(auth.accessToken)
+    if (!user) {
       return NextResponse.json({ error: 'Session expirée : recharge la page et reconnecte-toi' }, { status: 401 })
     }
 
@@ -160,7 +166,9 @@ DEMANDE DE L'ATHLÈTE : ${prompt}`
     if (data.length === 0) {
       return NextResponse.json({ error: "L'IA n'a généré aucun exercice — reformule ta demande" }, { status: 502 })
     }
-    return NextResponse.json(data)
+    const res = NextResponse.json(data)
+    if (refreshed) applySessionCookies(res, refreshed)
+    return res
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Erreur inconnue'
     console.error('ERREUR /api/coach :', message)

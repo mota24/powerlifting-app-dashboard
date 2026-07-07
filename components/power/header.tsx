@@ -28,16 +28,12 @@ export function Header() {
     }
     fetchProgress()
 
-    // 2. Écoute des mises à jour en temps réel (la barre bougera toute seule)
-    const channel = supabase
-      .channel('progress_changes')
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'user_progress' }, (payload) => {
-        setProgress(payload.new as HeaderProgress)
-      })
-      .subscribe()
-
+    // 2. Écoute des validations de mission (événement émis par session-form).
+    // Remplace l'ancien canal Realtime : le jeton vit désormais dans un cookie
+    // httpOnly, donc plus de WebSocket authentifié côté navigateur.
+    window.addEventListener('user-progress-updated', fetchProgress)
     return () => {
-      supabase.removeChannel(channel)
+      window.removeEventListener('user-progress-updated', fetchProgress)
     }
   }, [])
 
