@@ -7,7 +7,7 @@ import {
   LIFT_SQUAT, LIFT_BENCH, LIFT_DEADLIFT, ACCESSORIES, PAIN_LEVELS,
   type SetData,
 } from '@/lib/powerlifting'
-import { Target, Activity, Check, Moon, Footprints, Battery, Coffee, Plus, Trash2, MessageSquare, X, Copy, RefreshCw, Award, Zap, Flame, Sparkles, ChevronUp, ChevronDown, Dumbbell, HeartPulse, Wand2 } from 'lucide-react'
+import { Target, Activity, Check, Moon, Footprints, Battery, Coffee, Plus, Trash2, MessageSquare, X, Copy, RefreshCw, Award, Zap, Flame, Sparkles, ChevronUp, ChevronDown, Dumbbell, HeartPulse } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -96,9 +96,6 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
 
   const [aiPrompt, setAiPrompt] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
-  // Proposition IA en attente : affichée en aperçu, injectée dans le
-  // formulaire uniquement quand l'athlète clique sur « Appliquer la séance ».
-  const [aiPreview, setAiPreview] = useState<ExerciceRow[] | null>(null)
 
   const [showModal, setShowModal] = useState(false)
   const [xpGained, setXpGained] = useState(0)
@@ -312,7 +309,7 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
         throw new Error(body?.error ?? `Erreur serveur (${res.status})`)
       }
       const aiData = (await res.json()) as { name: string; comments: string; coachTracking: SetData[] }[]
-      const proposition: ExerciceRow[] = aiData.map((ex) => {
+      const newExercices: ExerciceRow[] = aiData.map((ex) => {
         const coachTracking = ex.coachTracking?.length ? ex.coachTracking : [videSet()]
         return {
           id: null, uid: crypto.randomUUID(),
@@ -321,33 +318,15 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
           painLevel: null,
         }
       })
-      setAiPreview(proposition)
+      setExercices((prev) =>
+        prev.length === 1 && prev[0].name === '' ? newExercices : [...prev, ...newExercices]
+      )
       setAiPrompt('')
     } catch (e) {
       alert('Génération impossible : ' + errMessage(e))
     } finally {
       setIsGenerating(false)
     }
-  }
-
-  /**
-   * Injecte la proposition IA dans le formulaire :
-   * - crée les blocs d'exercices et les lignes de séries correspondantes ;
-   * - pré-remplit la colonne « Validé » avec la prescription (simple point de
-   *   départ : chaque poids/reps reste modifiable dans les inputs avant validation).
-   */
-  const appliquerSeanceIA = () => {
-    if (!aiPreview) return
-    const rows: ExerciceRow[] = aiPreview.map((ex) => ({
-      ...ex,
-      uid: crypto.randomUUID(),
-      coachTracking: ex.coachTracking.map((s) => ({ ...s })),
-      tracking: ex.coachTracking.map((s) => ({ ...s })),
-    }))
-    setExercices((prev) =>
-      prev.length === 1 && prev[0].name === '' ? rows : [...prev, ...rows]
-    )
-    setAiPreview(null)
   }
 
   // ————— Validation de mission (XP / Streak) —————
@@ -526,6 +505,27 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
     }))
   }, [])
 
+  /**
+   * Copie la prescription Coach dans la colonne Validé de CET exercice :
+   * reps + poids uniquement. Le RPE athlète (et le drapeau douleur) restent
+   * intacts pour être renseignés après l'effort. Les séries extra ajoutées
+   * par l'athlète au-delà de la prescription sont conservées.
+   */
+  const copierCoach = useCallback((exIndex: number) => {
+    setExercices((prev) => prev.map((ex, i) => {
+      if (i !== exIndex) return ex
+      const tracking: SetData[] = ex.coachTracking.map((cSet, j) => ({
+        reps: cSet.reps,
+        weight: cSet.weight,
+        rpe: ex.tracking[j]?.rpe ?? '',
+      }))
+      if (ex.tracking.length > ex.coachTracking.length) {
+        tracking.push(...ex.tracking.slice(ex.coachTracking.length))
+      }
+      return { ...ex, tracking }
+    }))
+  }, [])
+
   const tonnageJour = useMemo(() => sessionTonnage(exercices), [exercices])
   const deltaTonnage = tonnageSemainePrec
     ? Math.round(((tonnageJour - tonnageSemainePrec) / tonnageSemainePrec) * 100)
@@ -587,47 +587,6 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
           </button>
         </div>
 
-        {/* Proposition du Coach IA : aperçu avant injection dans le formulaire */}
-        {aiPreview && (
-          <div className="p-4 rounded-xl border border-blue-500/40 bg-blue-500/5 space-y-3 animate-in fade-in zoom-in-95 duration-300">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-blue-400 flex items-center gap-2 uppercase tracking-wider">
-                <Sparkles className="size-4" /> Proposition du Coach IA
-              </h3>
-              <button onClick={() => setAiPreview(null)} title="Ignorer cette proposition" className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-md transition-colors">
-                <X className="size-4" />
-              </button>
-            </div>
-
-            <ul className="space-y-2">
-              {aiPreview.map((ex, i) => (
-                <li key={ex.uid} className="p-3 rounded-lg bg-slate-950/60 border border-slate-800">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-slate-500">{i + 1}.</span>
-                    <span className="text-sm font-bold text-white">{ex.name}</span>
-                  </div>
-                  <div className="font-mono text-xs text-blue-200 mt-1">
-                    {ex.coachTracking
-                      .map((s) => `${s.reps || '?'}×${s.weight || '?'} kg${s.rpe ? ` @${s.rpe}` : ''}`)
-                      .join(' · ')}
-                  </div>
-                  {ex.comments && <p className="text-xs text-slate-500 italic mt-1">{ex.comments}</p>}
-                </li>
-              ))}
-            </ul>
-
-            <button
-              onClick={appliquerSeanceIA}
-              className="w-full py-3 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(59,130,246,0.25)]"
-            >
-              <Wand2 className="size-5" /> Appliquer la séance
-            </button>
-            <p className="text-[10px] text-slate-500 text-center">
-              Pré-remplit la prescription ET la colonne Validé — chaque valeur reste modifiable.
-            </p>
-          </div>
-        )}
-
         <datalist id={listId}>{suggestionsDuJour.map((nomExo) => <option key={nomExo} value={nomExo} />)}</datalist>
 
         {exercices.map((ex, exIndex) => (
@@ -643,6 +602,7 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
             onSupprimerSerie={supprimerSerie}
             onDeplacer={deplacerExercice}
             onSupprimer={supprimerExercice}
+            onCopierCoach={copierCoach}
           />
         ))}
 
@@ -768,11 +728,12 @@ interface ExerciseCardProps {
   onSupprimerSerie: (exIndex: number, list: 'coachTracking' | 'tracking', setIndex: number) => void;
   onDeplacer: (index: number, direction: 'up' | 'down') => void;
   onSupprimer: (index: number, dbId: string | null) => void;
+  onCopierCoach: (exIndex: number) => void;
 }
 
 const ExerciseCard = memo(function ExerciseCard({
   ex, exIndex, isLast, listId,
-  onPatch, onUpdateSerie, onAjouterSerie, onSupprimerSerie, onDeplacer, onSupprimer,
+  onPatch, onUpdateSerie, onAjouterSerie, onSupprimerSerie, onDeplacer, onSupprimer, onCopierCoach,
 }: ExerciseCardProps) {
   return (
     <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/50 space-y-4 relative group shadow-sm">
@@ -826,7 +787,16 @@ const ExerciseCard = memo(function ExerciseCard({
               </div>
             ))}
           </div>
-          <button onClick={() => onAjouterSerie(exIndex, 'tracking')} className="mt-3 w-full py-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 text-xs font-bold rounded-lg flex items-center justify-center gap-2 transition-colors"><Plus className="size-3" /> Série extra (Athlète)</button>
+          <div className="mt-3 flex gap-2">
+            <button
+              onClick={() => onCopierCoach(exIndex)}
+              title="Recopie reps + poids de la prescription Coach (RPE et douleur restent à remplir)"
+              className="flex-1 py-2 bg-slate-800/50 hover:bg-slate-800 text-slate-400 hover:text-blue-400 text-xs font-bold rounded-lg flex items-center justify-center gap-2 transition-colors"
+            >
+              <Copy className="size-3" /> Copier le Coach
+            </button>
+            <button onClick={() => onAjouterSerie(exIndex, 'tracking')} className="flex-1 py-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 text-xs font-bold rounded-lg flex items-center justify-center gap-2 transition-colors"><Plus className="size-3" /> Série extra (Athlète)</button>
+          </div>
         </div>
       </div>
 
