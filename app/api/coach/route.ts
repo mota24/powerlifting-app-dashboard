@@ -102,11 +102,6 @@ export async function POST(req: Request) {
     const historique = buildHistoryContext((historyData ?? []) as HistoryRow[])
 
     const genAI = new GoogleGenerativeAI(apiKey)
-    const model = genAI.getGenerativeModel({
-      model: 'gemini-2.5-flash-lite',
-      // Force une sortie JSON pure : élimine la principale cause d'échec de parsing
-      generationConfig: { responseMimeType: 'application/json' },
-    })
 
     const fullPrompt = `Tu es un coach expert en powerlifting. L'athlète est un pratiquant de force de haut niveau EN RÉÉDUCATION LOMBAIRE (suite de lumbago) : sois progressif et prudent sur Squat et Deadlift, surtout si l'historique montre des douleurs récentes ([douleur lombaire x/3]).
 
@@ -119,8 +114,36 @@ Appuie-toi sur l'historique pour choisir des charges cohérentes avec le niveau 
 
 DEMANDE DE L'ATHLÈTE : ${prompt}`
 
-    const result = await model.generateContent(fullPrompt)
-    const responseText = result.response.text()
+    // Chaque modèle a son PROPRE quota gratuit (requêtes/minute et /jour).
+    // Si flash-lite est saturé (429), on bascule immédiatement sur flash :
+    // pas d'attente, quota séparé, l'utilisateur ne voit rien.
+    const MODEL_CHAIN = ['gemini-2.5-flash-lite', 'gemini-2.5-flash']
+    const isQuotaError = (msg: string) =>
+      /429|quota|rate.?limit|resource.?exhausted|overloaded|503/i.test(msg)
+
+    let responseText: string | null = null
+    for (const modelName of MODEL_CHAIN) {
+      try {
+        const model = genAI.getGenerativeModel({
+          model: modelName,
+          // Force une sortie JSON pure : élimine la principale cause d'échec de parsing
+          generationConfig: { responseMimeType: 'application/json' },
+        })
+        const result = await model.generateContent(fullPrompt)
+        responseText = result.response.text()
+        break
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        if (!isQuotaError(msg)) throw e
+        console.warn(`/api/coach : quota atteint sur ${modelName}, bascule sur le modèle suivant`)
+      }
+    }
+
+    if (responseText === null) {
+      return NextResponse.json({
+        error: "Quota Gemini atteint sur tous les modèles. Réessaie dans 1-2 minutes ; si ça persiste, le quota journalier gratuit est épuisé (remise à zéro vers 9h, heure française).",
+      }, { status: 429 })
+    }
 
     // Parse direct (mode JSON) avec repli sur extraction de crochets
     let parsed: unknown
