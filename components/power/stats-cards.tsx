@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-import { classifyLift, averageE1RM, parseNumericReps, toLocalDateStr, type SetData } from '@/lib/powerlifting'
+import { classifyLift, setE1RM, toLocalDateStr, type SetData } from '@/lib/powerlifting'
 import { Trophy, Edit2, Check, X, Flame } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -43,10 +43,7 @@ export function StatsCards({ pasDuJour }: { pasDuJour: number | null }) {
         if (!category || !row.tracking_data) continue
 
         for (const set of row.tracking_data) {
-          const weight = parseFloat(set.weight)
-          const reps = parseNumericReps(set.reps)
-          const rpe = parseFloat(set.rpe)
-          const e1rm = averageE1RM(weight, reps, Number.isFinite(rpe) ? rpe : 10)
+          const e1rm = setE1RM(set)
           if (e1rm > maxes[category]) maxes[category] = e1rm
         }
       }

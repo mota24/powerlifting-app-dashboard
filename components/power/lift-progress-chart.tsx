@@ -7,7 +7,7 @@ import {
 } from 'recharts'
 import { supabase } from '@/lib/supabase'
 import {
-  classifyLift, setsTonnage, toLocalDateStr,
+  classifyLift, setsTonnage, setE1RM, toLocalDateStr,
   type LiftCategory, type SetData,
 } from '@/lib/powerlifting'
 import { cn } from '@/lib/utils'
@@ -24,6 +24,7 @@ interface WeekPoint {
   semaine: string;      // libellé "23/06"
   tonnage: number;      // kg soulevés (athlète) sur la semaine
   topSet: number;       // charge max manipulée
+  e1rm: number;         // meilleur 1RM estimé de la semaine (force réelle)
   douleur: number | null; // douleur moyenne 0-3 (si renseignée)
 }
 
@@ -68,17 +69,19 @@ export function LiftProgressChart() {
   }, [])
 
   const points: WeekPoint[] = useMemo(() => {
-    const parSemaine = new Map<string, { tonnage: number; topSet: number; pains: number[] }>()
+    const parSemaine = new Map<string, { tonnage: number; topSet: number; e1rm: number; pains: number[] }>()
 
     for (const row of rows) {
       if (classifyLift(row.exercise_name) !== lift) continue
       const semaine = mondayOf(row.date)
-      const agg = parSemaine.get(semaine) ?? { tonnage: 0, topSet: 0, pains: [] }
+      const agg = parSemaine.get(semaine) ?? { tonnage: 0, topSet: 0, e1rm: 0, pains: [] }
 
       agg.tonnage += setsTonnage(row.tracking_data)
       for (const set of row.tracking_data ?? []) {
         const w = parseFloat(set?.weight)
         if (w > agg.topSet) agg.topSet = w
+        const e1rm = setE1RM(set)
+        if (e1rm > agg.e1rm) agg.e1rm = e1rm
       }
       if (typeof row.pain_level === 'number') agg.pains.push(row.pain_level)
 
@@ -93,6 +96,7 @@ export function LiftProgressChart() {
           semaine: `${d}/${m}`,
           tonnage: Math.round(agg.tonnage),
           topSet: agg.topSet,
+          e1rm: Math.round(agg.e1rm),
           douleur: agg.pains.length
             ? Math.round((agg.pains.reduce((s, p) => s + p, 0) / agg.pains.length) * 10) / 10
             : null,
@@ -155,12 +159,16 @@ export function LiftProgressChart() {
                 <Bar yAxisId="tonnage" dataKey="tonnage" name="Tonnage" fill={color} fillOpacity={0.25} radius={[4, 4, 0, 0]} />
                 <Line yAxisId="topset" type="monotone" dataKey="topSet" name="Top set" stroke={color} strokeWidth={3}
                   dot={{ r: 4, fill: color, strokeWidth: 0 }} activeDot={{ r: 6 }} connectNulls />
+                {/* Force estimée : meilleur e1RM de la semaine (auto-calculé reps × poids × RPE) */}
+                <Line yAxisId="topset" type="monotone" dataKey="e1rm" name="e1RM estimé" stroke="#facc15" strokeWidth={2}
+                  strokeDasharray="6 3" dot={{ r: 3, fill: '#facc15', strokeWidth: 0 }} activeDot={{ r: 5 }} connectNulls />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
-          <div className="flex justify-center gap-6 text-xs font-medium text-slate-400">
+          <div className="flex flex-wrap justify-center gap-x-6 gap-y-1 text-xs font-medium text-slate-400">
             <span className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: color, opacity: 0.4 }} /> Tonnage hebdo (barres)</span>
             <span className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full" style={{ background: color }} /> Top set (ligne)</span>
+            <span className="flex items-center gap-2"><span className="h-0.5 w-4 rounded-full" style={{ background: '#facc15' }} /> e1RM estimé (pointillés)</span>
           </div>
 
           {/* Courbe de désensibilisation : douleur moyenne par semaine (rééducation) */}

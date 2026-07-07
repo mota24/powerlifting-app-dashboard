@@ -133,6 +133,32 @@ export function averageE1RM(weight: number, reps: number, rpe = 10): number {
   return (epley + brzycki) / 2
 }
 
+/**
+ * 1RM estimé d'UNE série saisie (poids + reps requis, RPE optionnel → 10).
+ * Pour la notation libre "3/4/5" (plusieurs passages sur une ligne), on prend
+ * le MEILLEUR passage : sommer les reps (correct pour le tonnage) gonflerait
+ * artificiellement l'estimation.
+ */
+export function setE1RM(set: SetData | null | undefined): number {
+  if (!set) return 0
+  const weight = parseFloat(set.weight)
+  if (!(weight > 0)) return 0
+  const passages = (set.reps ?? '')
+    .split(/[\/+]/)
+    .map((part) => parseInt(part.trim(), 10))
+    .filter((n) => Number.isFinite(n) && n > 0)
+  if (passages.length === 0) return 0
+  const reps = Math.max(...passages)
+  const rpe = parseFloat(set.rpe)
+  return averageE1RM(weight, reps, Number.isFinite(rpe) ? rpe : 10)
+}
+
+/** Meilleur 1RM estimé d'une liste de séries (0 si aucune série exploitable) */
+export function bestE1RM(sets: SetData[] | null | undefined): number {
+  if (!Array.isArray(sets)) return 0
+  return sets.reduce((best, set) => Math.max(best, setE1RM(set)), 0)
+}
+
 // ————————————————————————————————————————————————
 // Catalogue d'exercices — SOURCE UNIQUE pour toute l'app
 // ————————————————————————————————————————————————

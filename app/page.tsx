@@ -12,6 +12,7 @@ import { WarmupGenerator } from '@/components/power/warmup-generator'
 import { Card, CardTitle } from '@/components/power/card'
 import { LineChart, Menu, X, Home, BarChart2, Wrench, Settings, Calculator, Lock, LogOut, RefreshCw, User, History, KeyRound } from 'lucide-react'
 import ChangePasswordModal from '@/components/power/change-password-modal'
+import { toast } from '@/components/power/toaster'
 import { cn } from '@/lib/utils'
 import { toLocalDateStr } from '@/lib/powerlifting'
 import ConfigPanel from '@/components/power/config-panel'
@@ -69,9 +70,9 @@ export default function Page() {
       if (stepsEnregistres) {
         const nombreDePas = parseInt(stepsEnregistres, 10);
         setPasDuJour(nombreDePas);
-        
-        alert("Succès ! L'iPhone a envoyé : " + nombreDePas + " pas.");
-        
+
+        toast(`Pas synchronisés depuis l'iPhone : ${nombreDePas.toLocaleString('fr-FR')} pas`, 'success');
+
         window.history.replaceState({}, '', window.location.pathname);
       }
     }

@@ -3,12 +3,13 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import {
-  toLocalDateStr, sessionTonnage, setsTonnage,
+  toLocalDateStr, sessionTonnage, setsTonnage, bestE1RM, classifyLift,
   LIFT_SQUAT, LIFT_BENCH, LIFT_DEADLIFT, ACCESSORIES, PAIN_LEVELS,
-  type SetData,
+  type SetData, type LiftCategory,
 } from '@/lib/powerlifting'
-import { Target, Activity, Check, Moon, Footprints, Battery, Coffee, Plus, Trash2, MessageSquare, X, Copy, RefreshCw, Award, Zap, Flame, Sparkles, ChevronUp, ChevronDown, Dumbbell, HeartPulse } from 'lucide-react'
+import { Target, Activity, Check, Moon, Footprints, Battery, Coffee, Plus, Trash2, MessageSquare, X, Copy, RefreshCw, Award, Zap, Flame, Sparkles, ChevronUp, ChevronDown, Dumbbell, HeartPulse, WifiOff } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { toast } from '@/components/power/toaster'
 
 interface Props {
   dateActive: Date;
@@ -83,6 +84,12 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
   const [pas, setPas] = useState(0)
 
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
+  // Hors-ligne : quand la 4G coupe, l'état local fait foi ; un bandeau signale
+  // les modifications en attente, rejouées automatiquement au retour du réseau.
+  const [savePending, setSavePending] = useState(false)
+  const savePendingRef = useRef(false)
+  const [isOnline, setIsOnline] = useState(true)
+  const marquerPending = (v: boolean) => { savePendingRef.current = v; setSavePending(v) }
   const [isValidating, setIsValidating] = useState(false)
   const [isPropagating, setIsPropagating] = useState(false)
   const [isResetting, setIsResetting] = useState(false)
@@ -133,12 +140,19 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
     loadedDateRef.current = null
 
     const chargerSeance = async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('workout_sets').select('*')
         .eq('date', dateFormatee)
         .order('order_index', { ascending: true })
 
       if (cancelled) return
+      if (error) {
+        // Chargement raté (hors ligne ?) : loadedDateRef reste null, donc
+        // l'auto-save reste verrouillé — on n'écrase JAMAIS la base avec
+        // l'état vide par défaut.
+        toast('Chargement de la séance impossible — vérifie ta connexion', 'error')
+        return
+      }
       const rows = (data ?? []) as WorkoutSetRow[]
 
       if (rows.length > 0) {
@@ -215,17 +229,28 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
   }
 
   // ————— Sauvegarde —————
-  const executerSauvegarde = async (dateStr: string) => {
+  /** Renvoie true si TOUT est écrit en base — false = échec (réseau…), à rejouer. */
+  const executerSauvegarde = async (dateStr: string): Promise<boolean> => {
+    // Coupure réseau connue : inutile d'essayer, l'état local fait foi et
+    // sera rejoué automatiquement au retour de la connexion.
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return false
+
     if (isRestDayMode) {
       const payload = { date: dateStr, exercise_name: 'Jour de Repos', fatigue_score: fatigue, sleep_hours: sommeil, steps_count: pas }
-      await supabase.from('workout_sets').delete().eq('date', dateStr).neq('exercise_name', 'Jour de Repos')
-      const { data } = await supabase.from('workout_sets').select('id').eq('date', dateStr).limit(1)
-      if (data && data.length > 0) await supabase.from('workout_sets').update(payload).eq('id', data[0].id)
-      else await supabase.from('workout_sets').insert([payload])
-      return
+      const del = await supabase.from('workout_sets').delete().eq('date', dateStr).neq('exercise_name', 'Jour de Repos')
+      if (del.error) return false
+      const { data, error: selError } = await supabase.from('workout_sets').select('id').eq('date', dateStr).limit(1)
+      if (selError) return false
+      if (data && data.length > 0) {
+        const { error } = await supabase.from('workout_sets').update(payload).eq('id', data[0].id)
+        return !error
+      }
+      const { error } = await supabase.from('workout_sets').insert([payload])
+      return !error
     }
 
-    await supabase.from('workout_sets').delete().eq('date', dateStr).in('exercise_name', REST_NAMES)
+    const delRest = await supabase.from('workout_sets').delete().eq('date', dateStr).in('exercise_name', REST_NAMES)
+    if (delRest.error) return false
 
     const snapshot = exercices
     type SaveResult = { data: { id: string } | null; error: { message: string } | null }
@@ -274,6 +299,7 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
         return newId ? { ...ex, id: newId } : ex
       }))
     }
+    return results.every((r) => !r.error)
   }
 
   // ————— Auto-save (verrouillé par date) —————
@@ -281,12 +307,45 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
     if (loadedDateRef.current !== dateFormatee) return
     if (!isRestDayMode && exercices.length === 0) return
     const timeoutId = setTimeout(async () => {
-      await executerSauvegarde(dateFormatee)
-      setLastSaved(new Date())
+      const ok = await executerSauvegarde(dateFormatee)
+      if (ok) {
+        setLastSaved(new Date())
+        if (savePendingRef.current) marquerPending(false)
+      } else {
+        marquerPending(true)
+      }
     }, 1500)
     return () => clearTimeout(timeoutId)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [exercices, fatigue, sommeil, pas, isRestDayMode, dateFormatee])
+
+  // ————— Retour du réseau : resynchronisation automatique —————
+  // Ref vers la dernière version de la sauvegarde : le listener 'online'
+  // (attaché une seule fois) rejoue toujours l'état le plus récent.
+  const sauvegardeRef = useRef(executerSauvegarde)
+  useEffect(() => { sauvegardeRef.current = executerSauvegarde })
+
+  useEffect(() => {
+    setIsOnline(navigator.onLine)
+    const onOnline = async () => {
+      setIsOnline(true)
+      if (!savePendingRef.current || loadedDateRef.current === null) return
+      const ok = await sauvegardeRef.current(loadedDateRef.current)
+      if (ok) {
+        marquerPending(false)
+        setLastSaved(new Date())
+        toast('Connexion rétablie — séance synchronisée', 'success')
+      }
+    }
+    const onOffline = () => setIsOnline(false)
+    window.addEventListener('online', onOnline)
+    window.addEventListener('offline', onOffline)
+    return () => {
+      window.removeEventListener('online', onOnline)
+      window.removeEventListener('offline', onOffline)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // ————— Génération IA —————
   const handleAIGeneration = async () => {
@@ -321,7 +380,7 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
       )
       setAiPrompt('')
     } catch (e) {
-      alert('Génération impossible : ' + errMessage(e))
+      toast('Génération impossible : ' + errMessage(e), 'error')
     } finally {
       setIsGenerating(false)
     }
@@ -330,13 +389,19 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
   // ————— Validation de mission (XP / Streak) —————
   const validerMission = async () => {
     setIsValidating(true)
-    await executerSauvegarde(dateFormatee)
+    const savedOk = await executerSauvegarde(dateFormatee)
+    if (!savedOk) {
+      marquerPending(true)
+      toast('Sauvegarde impossible — vérifie ta connexion avant de valider', 'error')
+      setIsValidating(false)
+      return
+    }
     try {
       const { data } = await supabase.from('user_progress').select('*').limit(1).single()
       const progress = data as UserProgress | null
       if (!progress) throw new Error('Profil joueur introuvable')
       if (progress.last_completed_date === dateFormatee) {
-        alert('Tu as déjà validé ta mission pour cette journée !')
+        toast('Tu as déjà validé ta mission pour cette journée !', 'info')
         return
       }
       const currentStreak = progress.streak_days ?? 0
@@ -399,7 +464,7 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
 
       setXpGained(finalXP); setNewStreakState(newStreak); setLeveledUp(aLevelUp); setShowModal(true)
     } catch (e) {
-      alert('Erreur lors de la validation : ' + errMessage(e))
+      toast('Erreur lors de la validation : ' + errMessage(e), 'error')
     } finally {
       setIsValidating(false)
     }
@@ -410,7 +475,8 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
     if (!confirm('Voulez-vous sauvegarder cette séance ET la copier sur les 4 prochaines semaines du bloc ?')) return
     setIsPropagating(true)
     try {
-      await executerSauvegarde(dateFormatee)
+      const savedOk = await executerSauvegarde(dateFormatee)
+      if (!savedOk) throw new Error('Sauvegarde impossible — vérifie ta connexion')
       const { data: semaine1Data, error: fetchError } = await supabase.from('workout_sets').select('*').eq('date', dateFormatee)
       if (fetchError) throw fetchError
       if (!semaine1Data || semaine1Data.length === 0) throw new Error('Aucune donnée enregistrée.')
@@ -429,9 +495,9 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
       }
       const { error: insertError } = await supabase.from('workout_sets').insert(insertions)
       if (insertError) throw insertError
-      alert('Succès ! La séance a été propagée.')
+      toast('Séance propagée sur les 4 prochaines semaines', 'success')
     } catch (e) {
-      alert('Erreur : ' + errMessage(e))
+      toast('Propagation impossible : ' + errMessage(e), 'error')
     } finally {
       setIsPropagating(false)
     }
@@ -445,9 +511,9 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
       demain.setDate(demain.getDate() + 1)
       const { error } = await supabase.from('workout_sets').delete().gte('date', toLocalDateStr(demain))
       if (error) throw error
-      alert('Toutes les séances futures ont été réinitialisées avec succès.')
+      toast('Toutes les séances futures ont été réinitialisées', 'success')
     } catch (e) {
-      alert('Erreur lors de la réinitialisation : ' + errMessage(e))
+      toast('Réinitialisation impossible : ' + errMessage(e), 'error')
     } finally {
       setIsResetting(false)
     }
@@ -528,6 +594,75 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
     }))
   }, [])
 
+  /**
+   * Validation « 1 clic » d'UNE série : recopie reps + poids prescrits par le
+   * coach sur cette ligne, RPE laissé intact pour saisie après l'effort.
+   */
+  const validerSerieCoach = useCallback((exIndex: number, setIndex: number) => {
+    setExercices((prev) => prev.map((ex, i) => {
+      if (i !== exIndex) return ex
+      const coach = ex.coachTracking[setIndex]
+      if (!coach) return ex
+      const tracking = ex.tracking.map((s, j) =>
+        j === setIndex ? { ...s, reps: coach.reps, weight: coach.weight } : s
+      )
+      return { ...ex, tracking }
+    }))
+    // Retour haptique (Android — Safari iOS ne supporte pas vibrate)
+    if (typeof navigator !== 'undefined') navigator.vibrate?.(50)
+  }, [])
+
+  // ————— Détection automatique de PR (e1RM) —————
+  // Plafond historique par lift SBD (6 derniers mois). Quand une série saisie
+  // le dépasse, on célèbre puis on relève le plafond : pas de re-toast à
+  // chaque frappe. Chargé une fois par montage.
+  const e1rmBaseline = useRef<Record<LiftCategory, number> | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    const chargerBaseline = async () => {
+      const since = new Date()
+      since.setMonth(since.getMonth() - 6)
+      const { data, error } = await supabase
+        .from('workout_sets')
+        .select('exercise_name, tracking_data')
+        .gte('date', toLocalDateStr(since))
+        .not('tracking_data', 'is', null)
+      if (cancelled || error) return
+      const maxes: Record<LiftCategory, number> = { squat: 0, bench: 0, deadlift: 0 }
+      for (const row of (data ?? []) as { exercise_name: string | null; tracking_data: SetData[] | null }[]) {
+        const cat = classifyLift(row.exercise_name)
+        if (!cat) continue
+        const best = bestE1RM(row.tracking_data)
+        if (best > maxes[cat]) maxes[cat] = best
+      }
+      e1rmBaseline.current = maxes
+    }
+    chargerBaseline()
+    return () => { cancelled = true }
+  }, [])
+
+  useEffect(() => {
+    if (isRestDayMode) return
+    // Débounce : on attend la fin de frappe pour ne pas célébrer "18" en route vers "180"
+    const timeoutId = setTimeout(() => {
+      const baseline = e1rmBaseline.current
+      if (!baseline) return
+      for (const ex of exercices) {
+        const cat = classifyLift(ex.name)
+        if (!cat) continue
+        const e1rm = bestE1RM(ex.tracking)
+        if (e1rm <= baseline[cat]) continue
+        const ancien = Math.round(baseline[cat])
+        baseline[cat] = e1rm
+        if (ancien > 0) {
+          toast(`PR estimé sur ${ex.name} ! e1RM ≈ ${Math.round(e1rm)} kg (ancien ${ancien} kg)`, 'pr')
+          if (typeof navigator !== 'undefined') navigator.vibrate?.([80, 60, 80])
+        }
+      }
+    }, 1200)
+    return () => clearTimeout(timeoutId)
+  }, [exercices, isRestDayMode])
+
   const tonnageJour = useMemo(() => sessionTonnage(exercices), [exercices])
   const deltaTonnage = tonnageSemainePrec
     ? Math.round(((tonnageJour - tonnageSemainePrec) / tonnageSemainePrec) * 100)
@@ -605,6 +740,7 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
             onDeplacer={deplacerExercice}
             onSupprimer={supprimerExercice}
             onCopierCoach={copierCoach}
+            onValiderSerie={validerSerieCoach}
           />
         ))}
 
@@ -630,8 +766,16 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
         </div>
 
         <div className="space-y-4 pt-4 border-t border-slate-800">
-          <div className="h-4 flex items-center justify-center text-xs font-medium text-slate-600">
-            {lastSaved && `Sécurisé à ${lastSaved.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
+          <div className="h-4 flex items-center justify-center text-xs font-medium">
+            {savePending ? (
+              <span className="flex items-center gap-1.5 text-amber-400">
+                <WifiOff className="size-3.5" /> Modifications en attente de synchronisation
+              </span>
+            ) : (
+              <span className="text-slate-600">
+                {lastSaved && `Sécurisé à ${lastSaved.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
+              </span>
+            )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -657,6 +801,14 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
           </button>
         </div>
       </div>
+      )}
+
+      {/* Bandeau non intrusif : réseau coupé ou sauvegarde en attente */}
+      {(!isOnline || savePending) && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-4 py-2.5 rounded-full border border-amber-500/30 bg-amber-950/95 text-amber-300 text-xs font-bold shadow-xl backdrop-blur-md whitespace-nowrap">
+          <WifiOff className="size-4 shrink-0" />
+          {isOnline ? 'Sauvegarde en attente — nouvelle tentative…' : 'Hors ligne — modifications en attente'}
+        </div>
       )}
 
       {showModal && (
@@ -731,12 +883,15 @@ interface ExerciseCardProps {
   onDeplacer: (index: number, direction: 'up' | 'down') => void;
   onSupprimer: (index: number, dbId: string | null) => void;
   onCopierCoach: (exIndex: number) => void;
+  onValiderSerie: (exIndex: number, setIndex: number) => void;
 }
 
 const ExerciseCard = memo(function ExerciseCard({
   ex, exIndex, isLast, listId,
-  onPatch, onUpdateSerie, onAjouterSerie, onSupprimerSerie, onDeplacer, onSupprimer, onCopierCoach,
+  onPatch, onUpdateSerie, onAjouterSerie, onSupprimerSerie, onDeplacer, onSupprimer, onCopierCoach, onValiderSerie,
 }: ExerciseCardProps) {
+  // e1RM du jour (meilleure série validée) — affiché pour les lifts SBD
+  const e1rmJour = classifyLift(ex.name) ? bestE1RM(ex.tracking) : 0
   return (
     <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/50 space-y-4 relative group shadow-sm">
 
@@ -756,48 +911,74 @@ const ExerciseCard = memo(function ExerciseCard({
         <div className="p-3 rounded-xl border border-slate-800 bg-slate-900/30 flex flex-col h-full">
           <h3 className="text-xs font-bold text-slate-400 mb-3 flex items-center gap-2 uppercase tracking-wider"><Target className="size-3" /> Prescription Coach</h3>
           <div className="grid grid-cols-[auto_1fr_1fr_1fr_auto] gap-2 mb-2 px-1">
-            <div className="w-6"></div><div className="text-[10px] text-slate-500 uppercase text-center">Reps</div><div className="text-[10px] text-slate-500 uppercase text-center">Poids</div><div className="text-[10px] text-slate-500 uppercase text-center">RPE</div><div className="w-6"></div>
+            <div className="w-6"></div><div className="text-[10px] text-slate-500 uppercase text-center">Reps</div><div className="text-[10px] text-slate-500 uppercase text-center">Poids</div><div className="text-[10px] text-slate-500 uppercase text-center">RPE</div><div className="w-9"></div>
           </div>
           <div className="space-y-2 flex-1">
             {ex.coachTracking.map((set, setIndex) => (
               <div key={setIndex} className="grid grid-cols-[auto_1fr_1fr_1fr_auto] gap-2 items-center">
                 <span className="w-6 text-xs font-bold text-slate-600 text-center">S{setIndex + 1}</span>
                 {/* type="text" pour permettre les notations libres "3/4/5" */}
-                <input type="text" value={set.reps} onChange={(e) => onUpdateSerie(exIndex, 'coachTracking', setIndex, 'reps', e.target.value)} className="w-full p-2 bg-slate-900/50 rounded-md text-slate-300 text-center outline-none focus:bg-slate-800 transition-colors" />
-                <input type="text" value={set.weight} onChange={(e) => onUpdateSerie(exIndex, 'coachTracking', setIndex, 'weight', e.target.value)} className="w-full p-2 bg-slate-900/50 rounded-md text-slate-300 text-center outline-none focus:bg-slate-800 transition-colors" />
-                <input type="text" value={set.rpe} onChange={(e) => onUpdateSerie(exIndex, 'coachTracking', setIndex, 'rpe', e.target.value)} className="w-full p-2 bg-slate-900/50 rounded-md text-slate-300 text-center outline-none focus:bg-slate-800 transition-colors" />
-                <button onClick={() => onSupprimerSerie(exIndex, 'coachTracking', setIndex)} className="w-6 flex justify-center text-slate-500 hover:text-red-500 transition-colors"><X className="size-4" /></button>
+                <input type="text" value={set.reps} onChange={(e) => onUpdateSerie(exIndex, 'coachTracking', setIndex, 'reps', e.target.value)} className="w-full p-2.5 bg-slate-900/50 rounded-md text-slate-100 text-base font-semibold text-center outline-none focus:bg-slate-800 transition-colors" />
+                <input type="text" value={set.weight} onChange={(e) => onUpdateSerie(exIndex, 'coachTracking', setIndex, 'weight', e.target.value)} className="w-full p-2.5 bg-slate-900/50 rounded-md text-white text-base font-black text-center outline-none focus:bg-slate-800 transition-colors" />
+                <input type="text" value={set.rpe} onChange={(e) => onUpdateSerie(exIndex, 'coachTracking', setIndex, 'rpe', e.target.value)} className="w-full p-2.5 bg-slate-900/50 rounded-md text-slate-100 text-base font-semibold text-center outline-none focus:bg-slate-800 transition-colors" />
+                <button onClick={() => onSupprimerSerie(exIndex, 'coachTracking', setIndex)} className="h-11 w-9 flex items-center justify-center rounded-lg text-slate-500 hover:text-red-500 hover:bg-red-500/10 transition-colors"><X className="size-5" /></button>
               </div>
             ))}
           </div>
-          <button onClick={() => onAjouterSerie(exIndex, 'coachTracking')} className="mt-3 w-full py-2 bg-slate-800/50 hover:bg-slate-800 text-slate-400 text-xs font-bold rounded-lg flex items-center justify-center gap-2 transition-colors"><Plus className="size-3" /> Ajouter une série prévue</button>
+          <button onClick={() => onAjouterSerie(exIndex, 'coachTracking')} className="mt-3 w-full py-3 bg-slate-800/50 hover:bg-slate-800 text-slate-400 text-xs font-bold rounded-lg flex items-center justify-center gap-2 transition-colors"><Plus className="size-4" /> Ajouter une série prévue</button>
         </div>
 
         <div className="p-3 rounded-xl border border-blue-500/30 bg-blue-500/5 flex flex-col h-full">
-          <h3 className="text-xs font-bold text-blue-400 mb-3 flex items-center gap-2 uppercase tracking-wider"><Check className="size-3" /> Validé</h3>
-          <div className="grid grid-cols-[auto_1fr_1fr_1fr_auto] gap-2 mb-2 px-1">
-            <div className="w-6"></div><div className="text-[10px] text-blue-500/70 uppercase text-center">Reps</div><div className="text-[10px] text-blue-500/70 uppercase text-center">Poids</div><div className="text-[10px] text-blue-500/70 uppercase text-center">RPE</div><div className="w-6"></div>
+          <h3 className="text-xs font-bold text-blue-400 mb-3 flex items-center justify-between uppercase tracking-wider">
+            <span className="flex items-center gap-2"><Check className="size-3" /> Validé</span>
+            {e1rmJour > 0 && (
+              <span className="text-[10px] font-black text-yellow-400 normal-case tracking-normal">
+                e1RM ≈ {Math.round(e1rmJour)} kg
+              </span>
+            )}
+          </h3>
+          <div className="grid grid-cols-[auto_1fr_1fr_1fr_auto_auto] gap-1.5 mb-2 px-1">
+            <div className="w-5"></div><div className="text-[10px] text-blue-500/70 uppercase text-center">Reps</div><div className="text-[10px] text-blue-500/70 uppercase text-center">Poids</div><div className="text-[10px] text-blue-500/70 uppercase text-center">RPE</div><div className="w-9"></div><div className="w-9"></div>
           </div>
           <div className="space-y-2 flex-1">
-            {ex.tracking.map((set, setIndex) => (
-              <div key={setIndex} className="grid grid-cols-[auto_1fr_1fr_1fr_auto] gap-2 items-center">
-                <span className="w-6 text-xs font-bold text-slate-500 text-center">S{setIndex + 1}</span>
-                <input type="text" value={set.reps} onChange={(e) => onUpdateSerie(exIndex, 'tracking', setIndex, 'reps', e.target.value)} className="w-full p-2 bg-blue-950/20 rounded-md text-blue-100 text-center outline-none focus:bg-blue-900/40 transition-colors" />
-                <input type="text" value={set.weight} onChange={(e) => onUpdateSerie(exIndex, 'tracking', setIndex, 'weight', e.target.value)} className="w-full p-2 bg-blue-950/20 rounded-md text-blue-100 text-center outline-none focus:bg-blue-900/40 transition-colors" />
-                <input type="text" value={set.rpe} onChange={(e) => onUpdateSerie(exIndex, 'tracking', setIndex, 'rpe', e.target.value)} className="w-full p-2 bg-blue-950/20 rounded-md text-blue-100 text-center outline-none focus:bg-blue-900/40 transition-colors" />
-                <button onClick={() => onSupprimerSerie(exIndex, 'tracking', setIndex)} className="w-6 flex justify-center text-slate-500 hover:text-red-500 transition-colors"><X className="size-4" /></button>
-              </div>
-            ))}
+            {ex.tracking.map((set, setIndex) => {
+              const coach = ex.coachTracking[setIndex]
+              const coachRemplie = !!coach && (coach.reps !== '' || coach.weight !== '')
+              const serieFaite = coachRemplie && set.reps === coach.reps && set.weight === coach.weight
+              return (
+                <div key={setIndex} className="grid grid-cols-[auto_1fr_1fr_1fr_auto_auto] gap-1.5 items-center">
+                  <span className="w-5 text-xs font-bold text-slate-500 text-center">S{setIndex + 1}</span>
+                  {/* inputMode="decimal" : pavé numérique sur mobile, saisie express */}
+                  <input type="text" inputMode="decimal" enterKeyHint="next" value={set.reps} onChange={(e) => onUpdateSerie(exIndex, 'tracking', setIndex, 'reps', e.target.value)} className="w-full p-2.5 bg-blue-950/20 rounded-md text-white text-base font-bold text-center outline-none focus:bg-blue-900/40 transition-colors" />
+                  <input type="text" inputMode="decimal" enterKeyHint="next" value={set.weight} onChange={(e) => onUpdateSerie(exIndex, 'tracking', setIndex, 'weight', e.target.value)} className="w-full p-2.5 bg-blue-950/20 rounded-md text-white text-base font-black text-center outline-none focus:bg-blue-900/40 transition-colors" />
+                  <input type="text" inputMode="decimal" enterKeyHint="done" value={set.rpe} onChange={(e) => onUpdateSerie(exIndex, 'tracking', setIndex, 'rpe', e.target.value)} className="w-full p-2.5 bg-blue-950/20 rounded-md text-white text-base font-bold text-center outline-none focus:bg-blue-900/40 transition-colors" />
+                  <button
+                    onClick={() => onValiderSerie(exIndex, setIndex)}
+                    disabled={!coachRemplie}
+                    title="Valider la série : recopie reps + poids du coach (RPE à saisir)"
+                    className={cn(
+                      'h-11 w-9 flex items-center justify-center rounded-lg transition-colors disabled:opacity-25',
+                      serieFaite
+                        ? 'bg-emerald-500/25 text-emerald-400'
+                        : 'bg-slate-800/60 text-slate-400 hover:text-emerald-400 hover:bg-emerald-500/15'
+                    )}
+                  >
+                    <Check className="size-5" />
+                  </button>
+                  <button onClick={() => onSupprimerSerie(exIndex, 'tracking', setIndex)} className="h-11 w-9 flex items-center justify-center rounded-lg text-slate-500 hover:text-red-500 hover:bg-red-500/10 transition-colors"><X className="size-5" /></button>
+                </div>
+              )
+            })}
           </div>
           <div className="mt-3 flex gap-2">
             <button
               onClick={() => onCopierCoach(exIndex)}
               title="Recopie reps + poids de la prescription Coach (RPE et douleur restent à remplir)"
-              className="flex-1 py-2 bg-slate-800/50 hover:bg-slate-800 text-slate-400 hover:text-blue-400 text-xs font-bold rounded-lg flex items-center justify-center gap-2 transition-colors"
+              className="flex-1 py-3 bg-slate-800/50 hover:bg-slate-800 text-slate-400 hover:text-blue-400 text-xs font-bold rounded-lg flex items-center justify-center gap-2 transition-colors"
             >
-              <Copy className="size-3" /> Copier le Coach
+              <Copy className="size-4" /> Copier le Coach
             </button>
-            <button onClick={() => onAjouterSerie(exIndex, 'tracking')} className="flex-1 py-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 text-xs font-bold rounded-lg flex items-center justify-center gap-2 transition-colors"><Plus className="size-3" /> Série extra (Athlète)</button>
+            <button onClick={() => onAjouterSerie(exIndex, 'tracking')} className="flex-1 py-3 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 text-xs font-bold rounded-lg flex items-center justify-center gap-2 transition-colors"><Plus className="size-4" /> Série extra (Athlète)</button>
           </div>
         </div>
       </div>
