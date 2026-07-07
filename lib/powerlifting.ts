@@ -1,15 +1,12 @@
 // Logique métier Powerlifting
 
-/** Formule d'Epley : 1RM = poids * (1 + reps / 30) */
-export function epley1RM(weight: number, reps: number): number {
-  if (weight <= 0 || reps <= 0) return 0
-  if (reps === 1) return weight
-  return weight * (1 + reps / 30)
-}
-
-/** Arrondi au demi-kilo le plus proche */
-export function roundToHalf(n: number): number {
-  return Math.round(n * 2) / 2
+/**
+ * Date locale au format YYYY-MM-DD.
+ * À utiliser à la place de toISOString().split('T')[0] qui bascule
+ * sur le jour précédent entre minuit et 1h/2h du matin (UTC+1/+2).
+ */
+export function toLocalDateStr(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
 // Disques disponibles (kg) avec couleurs normes IPF
@@ -24,6 +21,15 @@ export const PLATES: { weight: number; color: string; label: string }[] = [
 ]
 
 export const BAR_WEIGHT = 20
+
+/**
+ * Arrondit à la charge réellement chargeable la plus proche.
+ * La plus petite paire de disques étant 2×1.25 kg, le pas réel d'une barre est 2.5 kg.
+ */
+export function roundToLoadable(target: number, increment = 2.5, bar = BAR_WEIGHT): number {
+  if (target <= bar) return bar
+  return bar + Math.round((target - bar) / increment) * increment
+}
 
 /**
  * Calcule les disques à charger de CHAQUE côté de la barre.
@@ -52,6 +58,7 @@ export function computePlates(target: number, bar = BAR_WEIGHT) {
 /**
  * Génère les paliers d'échauffement progressifs vers un top set.
  * Pourcentages classiques : barre, 40, 55, 70, 80, 90%.
+ * Chaque palier est arrondi à une charge réellement chargeable (pas de 2.5 kg).
  */
 export function generateWarmup(topSet: number) {
   const steps = [
@@ -66,7 +73,7 @@ export function generateWarmup(topSet: number) {
     const raw = s.pct === 0 ? BAR_WEIGHT : topSet * s.pct
     return {
       id: i,
-      weight: roundToHalf(Math.max(BAR_WEIGHT, raw)),
+      weight: roundToLoadable(Math.max(BAR_WEIGHT, raw)),
       reps: s.reps,
       pct: Math.round(s.pct * 100),
       label: s.label,
@@ -74,16 +81,91 @@ export function generateWarmup(topSet: number) {
   })
 }
 
-export type Exercise = {
-  id: string
-  name: string
-  variant: string
-  variantFactor: number // multiplicateur de charge cible
+// ————————————————————————————————————————————————
+// Séries, tonnage et estimation de 1RM
+// ————————————————————————————————————————————————
+
+/** Une série saisie dans le formulaire (champs texte libres) */
+export type SetData = { reps: string; weight: string; rpe: string }
+
+/**
+ * Additionne les reps même saisies en format libre "3/4/5" ou "3+2"
+ * (notation d'un trait autorisée par les champs texte du formulaire).
+ */
+export function parseNumericReps(input: string): number {
+  if (!input) return 0
+  return input.split(/[\/+]/).reduce((sum, part) => {
+    const n = parseInt(part.trim(), 10)
+    return Number.isFinite(n) ? sum + n : sum
+  }, 0)
 }
 
-export const EXERCISES: Record<string, { base: string; variant: string }> = {
-  squat: { base: 'Back Squat', variant: 'Front Squat' },
-  bench: { base: 'Bench Press', variant: 'Larsen Press' },
-  deadlift: { base: 'Deadlift', variant: 'Deficit Deadlift' },
-  ohp: { base: 'Overhead Press', variant: 'Push Press' },
+/** Tonnage d'une liste de séries (Σ poids × reps), en kg */
+export function setsTonnage(sets: SetData[] | null | undefined): number {
+  if (!Array.isArray(sets)) return 0
+  let total = 0
+  for (const set of sets) {
+    const w = parseFloat(set?.weight)
+    const r = parseNumericReps(set?.reps ?? '')
+    if (w > 0 && r > 0) total += w * r
+  }
+  return total
+}
+
+/** Tonnage total d'une séance (toutes les séries validées par l'athlète) */
+export function sessionTonnage(exercices: { tracking: SetData[] }[]): number {
+  return Math.round(exercices.reduce((sum, ex) => sum + setsTonnage(ex.tracking), 0))
+}
+
+/**
+ * 1RM estimé : moyenne Epley/Brzycki avec correction RPE (RIR).
+ * RPE absent ou invalide → 10 (échec total).
+ */
+export function averageE1RM(weight: number, reps: number, rpe = 10): number {
+  if (!(weight > 0) || !(reps > 0)) return 0
+  const rpeVal = Number.isFinite(rpe) ? Math.min(10, Math.max(4, rpe)) : 10
+  const effectiveReps = reps + (10 - rpeVal)
+  if (effectiveReps <= 1) return weight
+  // Brzycki diverge quand effectiveReps approche 37 : on borne
+  if (effectiveReps >= 30) return weight * 2
+  const epley = weight * (1 + effectiveReps / 30)
+  const brzycki = weight * (36 / (37 - effectiveReps))
+  return (epley + brzycki) / 2
+}
+
+// ————————————————————————————————————————————————
+// Catalogue d'exercices — SOURCE UNIQUE pour toute l'app
+// ————————————————————————————————————————————————
+
+export const LIFT_SQUAT = ['Back Squat', 'Paused Squat', 'Front Squat', 'Tempo Squat', 'Pin Squat']
+export const LIFT_BENCH = ['Bench Press', 'Paused Bench', 'Close Grip Bench', 'Incline Bench', 'Spoto Press', 'Larsen Press']
+export const LIFT_DEADLIFT = ['Deadlift', 'Sumo Deadlift', 'Deficit Deadlift', 'Paused Deadlift', 'RDL', 'Block Pulls']
+export const ACCESSORIES = ['Pull-ups', 'Barbell Row', 'Lat Pulldown', 'Leg Press', 'Bulgarian Split Squat', 'Leg Extensions', 'Leg Curls', 'Bicep Curls', 'Tricep Extensions', 'Gainage (Planche)', 'Ab Rollout']
+
+export type LiftCategory = 'squat' | 'bench' | 'deadlift'
+
+/** Classe un nom d'exercice libre dans une catégorie SBD (ou null si accessoire) */
+export function classifyLift(name: string | null | undefined): LiftCategory | null {
+  if (!name) return null
+  const n = name.toLowerCase()
+  if (n.includes('squat') && !n.includes('split')) return 'squat'
+  if (['bench', 'spoto', 'larsen'].some((k) => n.includes(k))) return 'bench'
+  if (['deadlift', 'rdl', 'block pull'].some((k) => n.includes(k))) return 'deadlift'
+  return null
+}
+
+// ————————————————————————————————————————————————
+// Drapeau douleur (suivi de désensibilisation — rééducation)
+// ————————————————————————————————————————————————
+
+export const PAIN_LEVELS = [
+  { value: 0, label: 'OK', emoji: '🟢' },
+  { value: 1, label: 'Gêne', emoji: '🟡' },
+  { value: 2, label: 'Douleur', emoji: '🟠' },
+  { value: 3, label: 'Stop', emoji: '🔴' },
+] as const
+
+export function painLabel(level: number | null | undefined): string | null {
+  const p = PAIN_LEVELS.find((l) => l.value === level)
+  return p ? `${p.emoji} ${p.label}` : null
 }

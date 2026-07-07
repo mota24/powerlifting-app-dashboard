@@ -5,8 +5,14 @@ import { supabase } from '@/lib/supabase'
 import { Flame, Shield, Trophy, Medal, Star, Crown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
+interface HeaderProgress {
+  level: number;
+  current_xp: number;
+  streak_days: number;
+}
+
 export function Header() {
-  const [progress, setProgress] = useState({
+  const [progress, setProgress] = useState<HeaderProgress>({
     level: 1,
     current_xp: 0,
     streak_days: 0
@@ -26,7 +32,7 @@ export function Header() {
     const channel = supabase
       .channel('progress_changes')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'user_progress' }, (payload) => {
-        setProgress(payload.new as any)
+        setProgress(payload.new as HeaderProgress)
       })
       .subscribe()
 

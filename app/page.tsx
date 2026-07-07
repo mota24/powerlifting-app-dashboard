@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { supabase } from '@/lib/supabase' 
+import type { Session } from '@supabase/supabase-js'
+import { supabase } from '@/lib/supabase'
 import { Header } from '@/components/power/header'
 import { StatsCards } from '@/components/power/stats-cards'
-import { AnalyticsChart } from '@/components/power/analytics-chart'
+import { LiftProgressChart } from '@/components/power/lift-progress-chart'
 import { WeekCalendar } from '@/components/power/week-calendar'
 import SessionForm from '@/components/power/session-form'
 import { PlateVisualizer } from '@/components/power/plate-visualizer'
@@ -12,12 +13,21 @@ import { WarmupGenerator } from '@/components/power/warmup-generator'
 import { Card, CardTitle } from '@/components/power/card'
 import { LineChart, Menu, X, Home, BarChart2, Wrench, Settings, Calculator, Lock, LogOut, RefreshCw, User } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { toLocalDateStr } from '@/lib/powerlifting'
 import ConfigPanel from '@/components/power/config-panel'
 import CalculatorPanel from '@/components/power/calculator-panel'
 import GLCalculator from '@/components/power/GLCalculator';
 
+interface TrainingBlockRow {
+  id: string;
+  block_number: number;
+  start_date: string;
+  duration_weeks: number | null;
+  name?: string | null;
+}
+
 export default function Page() {
-  const [session, setSession] = useState<any>(null)
+  const [session, setSession] = useState<Session | null>(null)
   const [loadingAuth, setLoadingAuth] = useState(true)
   const [identifiant, setIdentifiant] = useState('')
   const [password, setPassword] = useState('')
@@ -61,22 +71,25 @@ export default function Page() {
   useEffect(() => {
     if (!session) return;
 
+    // L'identifiant de sync = l'identifiant de connexion (partie locale de l'email fantôme).
+    // C'est ce même identifiant que le raccourci iPhone doit envoyer en `userId`.
+    const syncUserId = session.user.email?.split('@')[0]
+    if (!syncUserId) return;
+
     const fetchStepsForSelectedDate = async () => {
-      const dateStr = new Date(dateActive.getTime() - (dateActive.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
-      
+      const dateStr = toLocalDateStr(dateActive);
+
       const { data, error } = await supabase
         .from('seances_pas')
         .select('pas')
-        .eq('user_id', 'mota24')
-        .eq('date', dateStr) 
-        .limit(1);
+        .eq('user_id', syncUserId)
+        .eq('date', dateStr)
+        .maybeSingle();
 
       if (error) {
         console.error("Erreur de récupération :", error);
-      } else if (data && data.length > 0) {
-        setPasDuJour(data[0].pas); 
       } else {
-        setPasDuJour(null); 
+        setPasDuJour(data?.pas ?? null);
       }
     };
 
@@ -149,59 +162,66 @@ export default function Page() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
+  // Les blocs sont chargés à la connexion et au retour de la vue Configuration
+  // (plus de re-fetch réseau à chaque changement de jour dans le calendrier).
+  const [blocks, setBlocks] = useState<TrainingBlockRow[] | null>(null)
+
   useEffect(() => {
     if (!session) return;
-    
-    const calculateCurrentWeek = async () => {
+    let cancelled = false
+    const fetchBlocks = async () => {
       const { data } = await supabase
         .from('training_blocks')
         .select('*')
-        .order('block_number', { ascending: true })
+        .order('start_date', { ascending: true })
+      if (!cancelled) setBlocks((data ?? []) as TrainingBlockRow[])
+    }
+    fetchBlocks()
+    return () => { cancelled = true }
+  }, [session, vueActive])
 
-      if (!data || data.length === 0) {
-        setBlockInfo('Aucun bloc planifié')
-        return
-      }
+  useEffect(() => {
+    if (!session || blocks === null) return;
 
-      const targetDate = new Date(dateActive)
-      targetDate.setHours(0, 0, 0, 0)
+    if (blocks.length === 0) {
+      setBlockInfo('Aucun bloc planifié')
+      return
+    }
 
-      const sortedBlocks = data.sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime())
-      
-      let activeBlock = null;
-      for (let i = sortedBlocks.length - 1; i >= 0; i--) {
-        const blockDate = new Date(sortedBlocks[i].start_date)
-        blockDate.setHours(0, 0, 0, 0)
-        if (targetDate >= blockDate) {
-          activeBlock = sortedBlocks[i];
-          break;
-        }
-      }
+    const targetDate = new Date(dateActive)
+    targetDate.setHours(0, 0, 0, 0)
 
-      if (activeBlock) {
-        const startDate = new Date(activeBlock.start_date)
-        startDate.setHours(0, 0, 0, 0)
-        
-        const duration = activeBlock.duration_weeks || 5
-        
-        const diffTime = Math.abs(targetDate.getTime() - startDate.getTime())
-        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
-        const currentWeek = Math.floor(diffDays / 7) + 1
-
-        if (currentWeek > duration) {
-          setBlockInfo(`Bloc ${activeBlock.block_number} terminé (S${currentWeek})`)
-        } else if (currentWeek === duration) {
-          setBlockInfo(`🔥 Bloc ${activeBlock.block_number} | Semaine ${currentWeek} / ${duration} (MAX)`)
-        } else {
-          setBlockInfo(`Bloc ${activeBlock.block_number} | Semaine ${currentWeek} / ${duration}`)
-        }
-      } else {
-        setBlockInfo('En attente du Bloc 1')
+    let activeBlock: TrainingBlockRow | null = null;
+    for (let i = blocks.length - 1; i >= 0; i--) {
+      const blockDate = new Date(blocks[i].start_date)
+      blockDate.setHours(0, 0, 0, 0)
+      if (targetDate >= blockDate) {
+        activeBlock = blocks[i];
+        break;
       }
     }
 
-    calculateCurrentWeek()
-  }, [dateActive, vueActive, session])
+    if (activeBlock) {
+      const startDate = new Date(activeBlock.start_date)
+      startDate.setHours(0, 0, 0, 0)
+
+      const duration = activeBlock.duration_weeks || 5
+
+      const diffTime = Math.abs(targetDate.getTime() - startDate.getTime())
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+      const currentWeek = Math.floor(diffDays / 7) + 1
+
+      if (currentWeek > duration) {
+        setBlockInfo(`Bloc ${activeBlock.block_number} terminé (S${currentWeek})`)
+      } else if (currentWeek === duration) {
+        setBlockInfo(`🔥 Bloc ${activeBlock.block_number} | Semaine ${currentWeek} / ${duration} (MAX)`)
+      } else {
+        setBlockInfo(`Bloc ${activeBlock.block_number} | Semaine ${currentWeek} / ${duration}`)
+      }
+    } else {
+      setBlockInfo('En attente du Bloc 1')
+    }
+  }, [dateActive, blocks, session])
 
   if (loadingAuth) {
     return (
@@ -371,8 +391,8 @@ export default function Page() {
           <section className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <StatsCards pasDuJour={pasDuJour} />
             <Card>
-              <CardTitle icon={LineChart} title="Dashboard analytique" hint="RPE · Fatigue · Sommeil" />
-              <AnalyticsChart />
+              <CardTitle icon={LineChart} title="Progression des lifts" hint="Tonnage hebdo · Top set · Douleur" />
+              <LiftProgressChart />
             </Card>
           </section>
         )}

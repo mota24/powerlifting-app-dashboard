@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
+import { toLocalDateStr, setsTonnage, painLabel, type SetData } from '../../lib/powerlifting'
 import { Plus, Trash2, Calendar, Settings, RefreshCw, Download, Tag } from 'lucide-react'
 
 interface TrainingBlock {
@@ -10,6 +11,20 @@ interface TrainingBlock {
   start_date: string;
   duration_weeks: number;
   name?: string;
+}
+
+/** Parse "YYYY-MM-DD" en Date locale (new Date("YYYY-MM-DD") serait interprété en UTC) */
+const parseLocalDate = (dateStr: string): Date => {
+  const [annee, mois, jour] = dateStr.split('-').map(Number)
+  return new Date(annee, mois - 1, jour)
+}
+
+/** Numéro de semaine (1-indexé) d'une date au sein d'un bloc */
+const numeroSemaineDansBloc = (debutBloc: string, date: string): number => {
+  const diffJours = Math.round(
+    (parseLocalDate(date).getTime() - parseLocalDate(debutBloc).getTime()) / 86_400_000
+  )
+  return Math.floor(diffJours / 7) + 1
 }
 
 export default function ConfigPanel() {
@@ -48,92 +63,145 @@ export default function ConfigPanel() {
   const supprimerBloc = async (id: string) => {
     if (!confirm("Es-tu sûr de vouloir supprimer ce bloc ?")) return
 
-    await supabase.from('training_blocks').delete().eq('id', id)
-    setBlocks(blocks.filter(b => b.id !== id))
+    const { error } = await supabase.from('training_blocks').delete().eq('id', id)
+    if (error) {
+      alert('Erreur lors de la suppression : ' + error.message)
+      return
+    }
+    setBlocks((prev) => prev.filter(b => b.id !== id))
   }
 
-  const updateBlock = async (id: string, field: string, value: string | number) => {
-    setBlocks(blocks.map(b => b.id === id ? { ...b, [field]: value } : b))
-    await supabase.from('training_blocks').update({ [field]: value }).eq('id', id)
+  // Écriture différée : l'UI répond instantanément, la base n'est touchée
+  // qu'après 800 ms sans frappe (au lieu d'un UPDATE par caractère).
+  const debounceRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+  useEffect(() => {
+    const timers = debounceRef.current
+    return () => { Object.values(timers).forEach(clearTimeout) }
+  }, [])
+
+  const updateBlock = (id: string, field: keyof TrainingBlock, value: string | number) => {
+    setBlocks((prev) => prev.map(b => b.id === id ? { ...b, [field]: value } : b))
+    const key = `${id}:${field}`
+    clearTimeout(debounceRef.current[key])
+    debounceRef.current[key] = setTimeout(async () => {
+      const { error } = await supabase.from('training_blocks').update({ [field]: value }).eq('id', id)
+      if (error) alert('Erreur de sauvegarde du bloc : ' + error.message)
+    }, 800)
   }
 
   const telechargerBloc = async (block: TrainingBlock) => {
     setDownloadingId(block.id)
-    
-    const today = new Date().toISOString().split('T')[0];
-    const startDate = new Date(block.start_date);
-    const endDate = new Date(startDate);
-    endDate.setDate(startDate.getDate() + (block.duration_weeks * 7) - 1);
-    const blockEndDateStr = endDate.toISOString().split('T')[0];
-    
-    const maxDate = today < blockEndDateStr ? today : blockEndDateStr;
 
     try {
+      const aujourdhuiStr = toLocalDateStr(new Date())
+
+      // Bornes du bloc en heure locale (toISOString basculerait d'un jour entre minuit et 2h)
+      const debutBloc = parseLocalDate(block.start_date)
+      const finBloc = new Date(debutBloc)
+      finBloc.setDate(debutBloc.getDate() + block.duration_weeks * 7 - 1)
+      const finBlocStr = toLocalDateStr(finBloc)
+
+      // RÈGLE STRICTE : l'export s'arrête au jour actuel. Les semaines futures n'apparaissent jamais.
+      const dateLimite = aujourdhuiStr < finBlocStr ? aujourdhuiStr : finBlocStr
+
+      if (block.start_date > dateLimite) {
+        alert("Ce bloc n'a pas encore commencé : rien à exporter.")
+        return
+      }
+
       const { data, error } = await supabase
         .from('workout_sets')
         .select('*')
         .gte('date', block.start_date)
-        .lte('date', maxDate)
-        .order('date', { ascending: false }) 
+        .lte('date', dateLimite)
+        .order('date', { ascending: true })
+        .order('order_index', { ascending: true })
 
       if (error) throw error
       if (!data || data.length === 0) {
-        alert("Aucune séance n'a encore été trouvée pour ce bloc.")
-        setDownloadingId(null)
+        alert("Aucune séance enregistrée entre le début du bloc et aujourd'hui.")
         return
       }
 
-      const sortedData = data.reverse()
-      let contenu = `=== HISTORIQUE DU BLOC ${block.block_number} ${block.name ? `(${block.name})` : ''} ===\n\n`
-      let aAuMoinsUneSeanceValidee = false;
-      
-      sortedData.forEach((row) => {
-        // Garder les jours de repos
-        if (row.exercise_name === 'Jour de Repos' || row.exercise_name === 'Repos') {
-            contenu += `DATE: ${row.date} -> JOUR DE REPOS\n`
-            contenu += "--------------------------------------------------\n\n"
-            aAuMoinsUneSeanceValidee = true;
-            return
+      // Regroupement chronologique par journée
+      const parJour = new Map<string, any[]>()
+      for (const row of data) {
+        const lignes = parJour.get(row.date) ?? []
+        lignes.push(row)
+        parJour.set(row.date, lignes)
+      }
+
+      const formatCote = (set: any, texteSiVide: string) =>
+        (set.reps || set.weight)
+          ? `${set.reps || '-'} reps @ ${set.weight || '-'} kg (RPE ${set.rpe || '-'})`
+          : texteSiVide
+
+      let contenu = `=== HISTORIQUE DU BLOC ${block.block_number}${block.name ? ` (${block.name})` : ''} ===\n`
+      contenu += `Période exportée : ${block.start_date} → ${dateLimite} (export généré le ${aujourdhuiStr})\n`
+
+      let semaineAffichee = 0
+
+      for (const [date, lignes] of parJour) {
+        const numSemaine = numeroSemaineDansBloc(block.start_date, date)
+        if (numSemaine !== semaineAffichee) {
+          semaineAffichee = numSemaine
+          contenu += `\n━━━━━━━━━━ SEMAINE ${numSemaine} / ${block.duration_weeks} ━━━━━━━━━━\n\n`
         }
 
-        const coachData = Array.isArray(row.coach_tracking_data) ? row.coach_tracking_data : []
-        const athleteData = Array.isArray(row.tracking_data) ? row.tracking_data : []
-        
-        // FILTRE : Vérifier si l'athlète a vraiment rempli des données pour cet exercice
-        const aFaitQuelqueChose = athleteData.some((set: any) => (set.reps && set.reps.toString().trim() !== '') || (set.weight && set.weight.toString().trim() !== ''))
+        const nomJour = parseLocalDate(date)
+          .toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+          .toUpperCase()
 
-        // Si c'est un exercice propagé mais que l'athlète n'a rien rempli, on l'ignore de l'export
-        if (!aFaitQuelqueChose) return;
+        // Les métriques quotidiennes sont dupliquées sur chaque ligne du jour : on lit la dernière
+        const ref = lignes[lignes.length - 1]
+        const metriques = `Fatigue ${ref.fatigue_score ?? '-'}/10 · Sommeil ${ref.sleep_hours ?? '-'} h · ${ref.steps_count ?? '-'} pas`
 
-        aAuMoinsUneSeanceValidee = true;
-        contenu += `DATE: ${row.date}\n`
-        contenu += `EXERCICE: ${row.exercise_name}\n`
-        
-        const maxSets = Math.max(coachData.length, athleteData.length)
+        const exercicesDuJour = lignes.filter(
+          (r) => r.exercise_name !== 'Jour de Repos' && r.exercise_name !== 'Repos'
+        )
 
-        if (maxSets > 0) {
-          contenu += `DÉTAIL DES SÉRIES (Coach vs Athlète) :\n`
+        if (exercicesDuJour.length === 0) {
+          contenu += `📅 ${nomJour} (${date}) — JOUR DE REPOS\n   ${metriques}\n\n`
+          continue
+        }
+
+        const tonnageDuJour = Math.round(
+          exercicesDuJour.reduce((sum, r) => sum + setsTonnage(r.tracking_data as SetData[] | null), 0)
+        )
+
+        contenu += `📅 ${nomJour} (${date})\n   ${metriques}${tonnageDuJour > 0 ? ` · Tonnage ${tonnageDuJour.toLocaleString('fr-FR')} kg` : ''}\n`
+
+        const rienRempli = exercicesDuJour.every((r) => {
+          const athlete = Array.isArray(r.tracking_data) ? r.tracking_data : []
+          return !athlete.some(
+            (s: any) =>
+              (s.reps && s.reps.toString().trim() !== '') ||
+              (s.weight && s.weight.toString().trim() !== '')
+          )
+        })
+        if (rienRempli) {
+          contenu += `   ⚠ SÉANCE NON RENSEIGNÉE PAR L'ATHLÈTE (prescription coach ci-dessous)\n`
+        }
+
+        exercicesDuJour.forEach((row, idx) => {
+          const douleur = painLabel(row.pain_level)
+          contenu += `\n   ${idx + 1}. ${row.exercise_name || 'Exercice sans nom'}${douleur ? `   [Douleur : ${douleur}]` : ''}\n`
+
+          const coachData = Array.isArray(row.coach_tracking_data) ? row.coach_tracking_data : []
+          const athleteData = Array.isArray(row.tracking_data) ? row.tracking_data : []
+          const maxSets = Math.max(coachData.length, athleteData.length)
+
           for (let i = 0; i < maxSets; i++) {
             const cSet = coachData[i] || {}
             const aSet = athleteData[i] || {}
-
-            const cStr = (cSet.reps || cSet.weight) ? `${cSet.reps || '-'} reps @ ${cSet.weight || '-'} kg (RPE: ${cSet.rpe || '-'})` : 'Rien de prévu'
-            const aStr = (aSet.reps || aSet.weight) ? `${aSet.reps || '-'} reps @ ${aSet.weight || '-'} kg (RPE: ${aSet.rpe || '-'})` : 'Non renseigné'
-
-            if ((cSet.reps || cSet.weight) || (aSet.reps || aSet.weight)) {
-              contenu += `  S${i + 1} | COACH -> [ ${cStr} ]  ||  ATHLÈTE -> [ ${aStr} ]\n`
-            }
+            if (!(cSet.reps || cSet.weight || aSet.reps || aSet.weight)) continue
+            contenu += `      S${i + 1} | COACH → [ ${formatCote(cSet, 'Rien de prévu')} ]  ||  ATHLÈTE → [ ${formatCote(aSet, 'Non renseigné')} ]\n`
           }
-        }
-        
-        if (row.comments) contenu += `NOTES: ${row.comments}\n`
-        contenu += "--------------------------------------------------\n\n"
-      })
 
-      if (!aAuMoinsUneSeanceValidee) {
-        alert("Aucune donnée d'athlète n'a été remplie dans ce bloc. (Les séances vides sont ignorées).")
-        setDownloadingId(null)
-        return;
+          if (row.comments) contenu += `      NOTES : ${row.comments}\n`
+        })
+
+        contenu += `\n${'-'.repeat(60)}\n\n`
       }
 
       const blob = new Blob([contenu], { type: 'text/plain;charset=utf-8' })
@@ -141,12 +209,12 @@ export default function ConfigPanel() {
       const lien = document.createElement('a')
       lien.href = url
       const safeName = block.name ? `_${block.name.replace(/[^a-z0-9]/gi, '_')}` : ''
-      lien.download = `Bloc_${block.block_number}${safeName}_export_${today}.txt`
+      lien.download = `Bloc_${block.block_number}${safeName}_export_${aujourdhuiStr}.txt`
       document.body.appendChild(lien)
       lien.click()
       document.body.removeChild(lien)
       URL.revokeObjectURL(url)
-      
+
     } catch (err: any) {
       alert("Erreur lors du téléchargement : " + err.message)
     } finally {
@@ -182,7 +250,7 @@ export default function ConfigPanel() {
                 <input 
                   type="number" 
                   value={block.block_number} 
-                  onChange={(e) => updateBlock(block.id, 'block_number', parseInt(e.target.value))}
+                  onChange={(e) => { const n = parseInt(e.target.value, 10); if (Number.isFinite(n)) updateBlock(block.id, 'block_number', n) }}
                   className="bg-transparent text-white font-bold outline-none border-b border-transparent focus:border-slate-700 w-12"
                 />
               </div>
@@ -223,7 +291,7 @@ export default function ConfigPanel() {
                 <input 
                   type="number" 
                   value={block.duration_weeks} 
-                  onChange={(e) => updateBlock(block.id, 'duration_weeks', parseInt(e.target.value))}
+                  onChange={(e) => { const n = parseInt(e.target.value, 10); if (Number.isFinite(n) && n > 0) updateBlock(block.id, 'duration_weeks', n) }}
                   className="bg-slate-950 border border-slate-800 rounded-md p-2 text-sm text-slate-300 outline-none focus:border-blue-500 w-16 text-center"
                 />
               </div>

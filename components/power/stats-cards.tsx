@@ -2,12 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import { classifyLift, averageE1RM, parseNumericReps, toLocalDateStr, type SetData } from '@/lib/powerlifting'
 import { Trophy, Edit2, Check, X, Flame } from 'lucide-react'
 import { cn } from '@/lib/utils'
-
-const LIFT_SQUAT = ['squat']
-const LIFT_BENCH = ['bench press', 'paused bench', 'close grip bench', 'incline bench', 'spoto press', 'larsen press']
-const LIFT_DEADLIFT = ['deadlift', 'rdl', 'block pulls']
 
 export function StatsCards({ pasDuJour }: { pasDuJour: number | null }) {
   const [isEditing, setIsEditing] = useState(false)
@@ -25,54 +22,44 @@ export function StatsCards({ pasDuJour }: { pasDuJour: number | null }) {
   }, [])
 
   useEffect(() => {
+    let cancelled = false
     const calculateTheo1RM = async () => {
-      const { data } = await supabase.from('workout_sets').select('exercise_name, tracking_data')
-      if (!data) return
+      // Fenêtre de 6 mois : suffisant pour un 1RM théorique récent, évite le scan complet de la table
+      const since = new Date()
+      since.setMonth(since.getMonth() - 6)
 
-      let maxS = 0, maxB = 0, maxD = 0
+      const { data } = await supabase
+        .from('workout_sets')
+        .select('exercise_name, tracking_data')
+        .gte('date', toLocalDateStr(since))
+        .not('tracking_data', 'is', null)
 
-      data.forEach(row => {
-        if (!row.tracking_data || !row.exercise_name) return
+      if (cancelled || !data) return
 
-        const name = row.exercise_name.toLowerCase()
-        const isSquat = LIFT_SQUAT.some(l => name.includes(l)) && !name.includes('split')
-        const isBench = LIFT_BENCH.some(l => name.includes(l))
-        const isDeadlift = LIFT_DEADLIFT.some(l => name.includes(l))
+      const maxes = { squat: 0, bench: 0, deadlift: 0 }
 
-        row.tracking_data.forEach((set: any) => {
+      for (const row of data as { exercise_name: string | null; tracking_data: SetData[] | null }[]) {
+        const category = classifyLift(row.exercise_name)
+        if (!category || !row.tracking_data) continue
+
+        for (const set of row.tracking_data) {
           const weight = parseFloat(set.weight)
-          const reps = parseInt(set.reps)
-          const rpe = parseFloat(set.rpe) || 10 
+          const reps = parseNumericReps(set.reps)
+          const rpe = parseFloat(set.rpe)
+          const e1rm = averageE1RM(weight, reps, Number.isFinite(rpe) ? rpe : 10)
+          if (e1rm > maxes[category]) maxes[category] = e1rm
+        }
+      }
 
-          if (weight > 0 && reps > 0) {
-            const rir = 10 - rpe
-            const effectiveReps = reps + rir
-            
-            let e1rm = weight
-
-            // Calcul Moyenne (Epley + Brzycki)
-            if (effectiveReps > 1) {
-              const epley = weight * (1 + (effectiveReps / 30))
-              const brzycki = weight * (36 / (37 - effectiveReps))
-              e1rm = (epley + brzycki) / 2
-            }
-
-            if (isSquat && e1rm > maxS) maxS = e1rm
-            if (isBench && e1rm > maxB) maxB = e1rm
-            if (isDeadlift && e1rm > maxD) maxD = e1rm
-          }
-        })
-      })
-
-      // Math.round pour un affichage propre sans virgules sur le Dashboard
-      setTheoPrs({ 
-        squat: Math.round(maxS), 
-        bench: Math.round(maxB), 
-        deadlift: Math.round(maxD) 
+      setTheoPrs({
+        squat: Math.round(maxes.squat),
+        bench: Math.round(maxes.bench),
+        deadlift: Math.round(maxes.deadlift),
       })
     }
 
     calculateTheo1RM()
+    return () => { cancelled = true }
   }, [])
 
   const handleSaveRealPrs = () => {

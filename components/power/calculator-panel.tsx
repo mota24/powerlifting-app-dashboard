@@ -1,40 +1,23 @@
 'use client'
 
 import { useState } from 'react'
-import { Calculator, Scale, Hash, Battery } from 'lucide-react'
+import { Calculator, Scale, Hash, Battery, Dumbbell } from 'lucide-react'
+import { averageE1RM, roundToLoadable } from '@/lib/powerlifting'
+
+const WORK_PERCENTAGES = [0.9, 0.85, 0.8] as const
 
 export default function CalculatorPanel() {
   const [weight, setWeight] = useState('')
   const [reps, setReps] = useState('')
   const [rpe, setRpe] = useState('') // Vide par défaut
 
-  const calculateAverage1RM = () => {
-    const w = parseFloat(weight)
-    const r = parseInt(reps)
-    
-    // Si la case RPE est vide, ça prend 10 par défaut (échec total)
-    const rpeVal = parseFloat(rpe) || 10
+  const w = parseFloat(weight)
+  const r = parseInt(reps, 10)
+  // Si la case RPE est vide, on prend 10 par défaut (échec total)
+  const rpeVal = parseFloat(rpe)
 
-    if (!w || !r || w <= 0 || r <= 0) return 0
-
-    // Calcul des répétitions effectives grâce au RPE
-    const rir = 10 - rpeVal
-    const effectiveReps = r + rir
-    
-    if (effectiveReps === 1) return w.toFixed(1)
-
-    // Formules Epley et Brzycki
-    const epley = w * (1 + (effectiveReps / 30))
-    const brzycki = w * (36 / (37 - effectiveReps))
-    
-    // On calcule la moyenne des deux
-    const avg = (epley + brzycki) / 2
-    
-    // On renvoie avec 1 chiffre après la virgule (ex: 343.8)
-    return avg.toFixed(1)
-  }
-
-  const result1RM = calculateAverage1RM()
+  const e1rm = averageE1RM(w, r, Number.isFinite(rpeVal) ? rpeVal : 10)
+  const result1RM = e1rm > 0 ? e1rm.toFixed(1) : null
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -106,13 +89,25 @@ export default function CalculatorPanel() {
           </span>
           
           <div className="text-5xl font-black text-white relative z-10 tracking-tight">
-            {parseFloat(result1RM as string) > 0 ? `${result1RM}` : '—'}{' '}
+            {result1RM ?? '—'}{' '}
             <span className="text-xl font-medium text-slate-500">kg</span>
           </div>
 
           <p className="text-xs text-slate-500 mt-3 max-w-[240px] relative z-10">
             Calcul basé sur la moyenne Epley/Brzycki.
           </p>
+
+          {/* Charges de travail réellement chargeables (pas de 2.5 kg) */}
+          {e1rm > 0 && (
+            <div className="flex flex-wrap justify-center gap-2 mt-4 relative z-10">
+              {WORK_PERCENTAGES.map((pct) => (
+                <span key={pct} className="flex items-center gap-1.5 rounded-md bg-slate-950/80 border border-slate-800 px-2.5 py-1 text-xs font-bold text-slate-300">
+                  <Dumbbell className="size-3 text-blue-500" />
+                  {Math.round(pct * 100)}% → {roundToLoadable(e1rm * pct)} kg
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
