@@ -17,16 +17,36 @@ interface Props {
 }
 
 interface CircuitConfig {
-  prep: number;       // temps de préparation avant le 1er exercice (s)
-  exercices: number;  // exercices par tour
-  work: number;       // temps de travail (s)
-  rest: number;       // repos entre exercices d'un même tour (s)
-  tours: number;      // nombre de tours
-  longRest: number;   // repos entre les tours (s)
+  prep: number;         // temps de préparation avant le 1er exercice (s)
+  exercices: number;    // exercices par tour
+  workTimes: number[];  // temps de travail PAR exercice (index 0 = exo 1) — circuit asymétrique
+  rest: number;         // repos entre exercices d'un même tour (s)
+  tours: number;        // nombre de tours
+  longRest: number;     // repos entre les tours (s)
 }
 
-const DEFAULT_CONFIG: CircuitConfig = { prep: 5, exercices: 3, work: 40, rest: 15, tours: 3, longRest: 40 }
+// Bornes partagées entre le clamp et les sélecteurs d'UI (source unique)
+const WORK_MIN = 5
+const WORK_MAX = 600
+const DEFAULT_WORK = 40
+
+const DEFAULT_CONFIG: CircuitConfig = { prep: 5, exercices: 3, workTimes: [40, 40, 40], rest: 15, tours: 3, longRest: 40 }
 const CONFIG_KEY = 'circuit_timer_config'
+
+/**
+ * Aligne le tableau des durées sur le nombre d'exercices :
+ *  - extension : le nouvel exercice HÉRITE de la durée du précédent (ou DEFAULT_WORK si vide) ;
+ *  - réduction : le tableau est tronqué ;
+ *  - garde-fou : un tableau vide/mal indexé retombe toujours sur des durées valides.
+ */
+function normalizeWorkTimes(workTimes: number[] | undefined, exercices: number): number[] {
+  const source = Array.isArray(workTimes) ? workTimes : []
+  const out = source.slice(0, exercices)
+  while (out.length < exercices) {
+    out.push(out.length > 0 ? out[out.length - 1] : DEFAULT_WORK)
+  }
+  return out
+}
 
 type PhaseKind = 'prep' | 'work' | 'rest' | 'longRest'
 
@@ -42,10 +62,13 @@ type Status = 'config' | 'running' | 'paused' | 'finished'
 /** Déroule la configuration en séquence plate de phases. */
 function buildSequence(cfg: CircuitConfig): Phase[] {
   const phases: Phase[] = []
+  // Durées par exercice, toujours de longueur cfg.exercices (jamais mal indexé)
+  const workTimes = normalizeWorkTimes(cfg.workTimes, cfg.exercices)
   if (cfg.prep > 0) phases.push({ kind: 'prep', duration: cfg.prep, exercice: 1, tour: 1 })
   for (let tour = 1; tour <= cfg.tours; tour++) {
     for (let ex = 1; ex <= cfg.exercices; ex++) {
-      phases.push({ kind: 'work', duration: cfg.work, exercice: ex, tour })
+      // Phase TRAVAIL : durée propre à l'exercice courant (index ex-1)
+      phases.push({ kind: 'work', duration: workTimes[ex - 1] ?? DEFAULT_WORK, exercice: ex, tour })
       if (ex < cfg.exercices && cfg.rest > 0) {
         phases.push({ kind: 'rest', duration: cfg.rest, exercice: ex + 1, tour })
       }
@@ -57,16 +80,26 @@ function buildSequence(cfg: CircuitConfig): Phase[] {
   return phases
 }
 
-function clampConfig(raw: Partial<CircuitConfig>): Partial<CircuitConfig> {
+function clampConfig(raw: Partial<CircuitConfig> & { work?: unknown }): Partial<CircuitConfig> {
   const clamp = (v: unknown, min: number, max: number) =>
     typeof v === 'number' && Number.isFinite(v) ? Math.min(max, Math.max(min, Math.round(v))) : undefined
   const out: Partial<CircuitConfig> = {}
   const prep = clamp(raw.prep, 0, 60); if (prep !== undefined) out.prep = prep
   const exercices = clamp(raw.exercices, 1, 20); if (exercices !== undefined) out.exercices = exercices
-  const work = clamp(raw.work, 5, 600); if (work !== undefined) out.work = work
   const rest = clamp(raw.rest, 0, 300); if (rest !== undefined) out.rest = rest
   const tours = clamp(raw.tours, 1, 20); if (tours !== undefined) out.tours = tours
   const longRest = clamp(raw.longRest, 0, 600); if (longRest !== undefined) out.longRest = longRest
+  // Durées de travail : tableau prioritaire ; sinon migration de l'ancien
+  // champ `work` unique (configs sauvegardées avant le circuit asymétrique).
+  if (Array.isArray(raw.workTimes)) {
+    const arr = raw.workTimes
+      .map((w) => clamp(w, WORK_MIN, WORK_MAX))
+      .filter((w): w is number => w !== undefined)
+    if (arr.length > 0) out.workTimes = arr
+  } else {
+    const legacy = clamp(raw.work, WORK_MIN, WORK_MAX)
+    if (legacy !== undefined) out.workTimes = [legacy]
+  }
   return out
 }
 
@@ -102,19 +135,41 @@ export default function CircuitTimer({ onClose }: Props) {
   const pauseResteRef = useRef(0)   // ms restants figés à la mise en pause
   const lastBeepRef = useRef(-1)    // dernière seconde "bipée" (3-2-1)
 
+  const persist = (cfg: CircuitConfig): CircuitConfig => {
+    try { localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg)) } catch { /* stockage plein/privé */ }
+    return cfg
+  }
+
   // ————— Config persistée entre les séances d'abdos —————
   useEffect(() => {
     try {
       const saved = localStorage.getItem(CONFIG_KEY)
-      if (saved) setConfig((prev) => ({ ...prev, ...clampConfig(JSON.parse(saved) as Partial<CircuitConfig>) }))
+      if (saved) {
+        setConfig((prev) => {
+          const merged = { ...prev, ...clampConfig(JSON.parse(saved)) }
+          // Le tableau des durées doit toujours coller au nombre d'exercices
+          return { ...merged, workTimes: normalizeWorkTimes(merged.workTimes, merged.exercices) }
+        })
+      }
     } catch { /* config corrompue : on repart des défauts */ }
   }, [])
 
   const patchConfig = (patch: Partial<CircuitConfig>) => {
     setConfig((prev) => {
       const next = { ...prev, ...patch }
-      try { localStorage.setItem(CONFIG_KEY, JSON.stringify(next)) } catch { /* stockage plein/privé */ }
-      return next
+      // Une modif du nombre d'exercices resynchronise les durées :
+      // extension → hérite de la dernière ; réduction → tronque.
+      next.workTimes = normalizeWorkTimes(next.workTimes, next.exercices)
+      return persist(next)
+    })
+  }
+
+  // Modifie la durée de travail d'UN exercice (index 0 = exo 1)
+  const setWorkTime = (index: number, value: number) => {
+    setConfig((prev) => {
+      const workTimes = normalizeWorkTimes(prev.workTimes, prev.exercices)
+      workTimes[index] = value
+      return persist({ ...prev, workTimes })
     })
   }
 
@@ -272,7 +327,15 @@ export default function CircuitTimer({ onClose }: Props) {
           <div className="mx-auto w-full max-w-md space-y-3">
             <Stepper label="Temps de préparation" unit="s" value={config.prep} min={0} max={60} step={5} onChange={(v) => patchConfig({ prep: v })} />
             <Stepper label="Exercices par tour" value={config.exercices} min={1} max={20} step={1} onChange={(v) => patchConfig({ exercices: v })} />
-            <Stepper label="Temps de travail" unit="s" value={config.work} min={5} max={600} step={5} onChange={(v) => patchConfig({ work: v })} />
+
+            {/* Durée de travail par exercice : un sélecteur par exo (circuit asymétrique) */}
+            <div className="space-y-3 rounded-xl border border-emerald-500/20 bg-emerald-950/20 p-3">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-400">Durée de travail par exercice</h3>
+              {normalizeWorkTimes(config.workTimes, config.exercices).map((duree, i) => (
+                <Stepper key={i} label={`Durée Exo ${i + 1}`} unit="s" value={duree} min={WORK_MIN} max={WORK_MAX} step={5} onChange={(v) => setWorkTime(i, v)} />
+              ))}
+            </div>
+
             <Stepper label="Repos entre exercices" unit="s" value={config.rest} min={0} max={300} step={5} onChange={(v) => patchConfig({ rest: v })} />
             <Stepper label="Nombre de tours" value={config.tours} min={1} max={20} step={1} onChange={(v) => patchConfig({ tours: v })} />
             <Stepper label="Repos entre les tours" unit="s" value={config.longRest} min={0} max={600} step={5} onChange={(v) => patchConfig({ longRest: v })} />

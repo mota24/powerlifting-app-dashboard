@@ -23,6 +23,21 @@ const WEEK_PROGRAM = [
 
 export function WeekCalendar({ dateActive, setDateActive, blockTitle, isRestDayMode = false }: WeekCalendarProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const dateInputRef = useRef<HTMLInputElement>(null);
+
+  // Ouverture EXPLICITE du sélecteur natif au premier tap. L'ancien pattern
+  // (input date invisible étiré au-dessus du bouton) était capricieux sur
+  // mobile : le tap focusait l'input sans ouvrir le calendrier.
+  const ouvrirCalendrier = () => {
+    const input = dateInputRef.current
+    if (!input) return
+    try {
+      input.showPicker()
+    } catch {
+      // Navigateurs sans showPicker() : le clic direct sur l'input fait office de repli
+      input.click()
+    }
+  }
 
   // Auto-scroll vers le jour sélectionné
   useEffect(() => {
@@ -61,11 +76,27 @@ export function WeekCalendar({ dateActive, setDateActive, blockTitle, isRestDayM
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <div className="relative flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity">
-          <input type="date" value={localDateFormatee} onChange={(e) => { if (e.target.value) setDateActive(new Date(e.target.value)) }} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
-          <Calendar className="size-5 text-blue-500" />
-          <h2 className="text-lg font-bold text-slate-200">{blockTitle || "Calendrier"}</h2>
-        </div>
+        {/* Toute la surface du bouton est cliquable ; le onClick vit sur le
+            parent et les enfants (icône SVG + texte) sont neutralisés en
+            pointer-events-none pour ne jamais intercepter le tap. */}
+        <button
+          type="button"
+          onClick={ouvrirCalendrier}
+          className="relative flex items-center gap-2 p-2 -ml-2 rounded-lg hover:bg-slate-800/60 active:bg-slate-800 transition-colors text-left min-h-11"
+        >
+          {/* Input natif : simple ancre du sélecteur, plus jamais une cible de clic */}
+          <input
+            ref={dateInputRef}
+            type="date"
+            value={localDateFormatee}
+            onChange={(e) => { if (e.target.value) setDateActive(new Date(e.target.value)) }}
+            className="absolute inset-0 h-full w-full opacity-0 pointer-events-none"
+            tabIndex={-1}
+            aria-hidden="true"
+          />
+          <Calendar className="size-5 text-blue-500 pointer-events-none shrink-0" />
+          <span className="text-lg font-bold text-slate-200 pointer-events-none">{blockTitle || "Calendrier"}</span>
+        </button>
 
         <div className="flex items-center gap-2">
           <button onClick={() => changerSemaine(-7)} className="p-1 hover:bg-slate-800 rounded text-slate-400 transition-colors"><ChevronLeft className="size-5"/></button>

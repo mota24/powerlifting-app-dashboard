@@ -334,7 +334,8 @@ export default function Page() {
         
         <div className="flex flex-col">
           <h2 className="text-sm font-medium text-muted-foreground capitalize">
-            {vueActive === 'accueil' && (isRestDayMode ? "Jour de Repos" : "Séance & Calendrier")}
+            {/* Vue accueil : pas de sous-titre — le calendrier et le formulaire
+                se suffisent (l'ancien "Séance & Calendrier" faisait doublon). */}
             {vueActive === 'analytique' && "Tableau de bord"}
             {vueActive === 'outils' && "Outils & Échauffement"}
             {vueActive === 'calculatrice' && "Calculateur de force"}

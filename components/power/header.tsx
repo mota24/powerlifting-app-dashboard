@@ -72,20 +72,12 @@ export function Header() {
     <header className="sticky top-0 z-40 w-full border-b border-slate-800 bg-slate-950/80 backdrop-blur-md">
       <div className="mx-auto max-w-5xl px-4 h-16 flex items-center justify-between">
         
-        {/* Identité visuelle & Grade actuel */}
-        <div className="flex items-center gap-3">
-          <div className="flex flex-col">
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-black text-white tracking-tight">Mota</h1>
-              <span className="text-[10px] font-black bg-blue-600 text-white px-1.5 py-0.5 rounded uppercase tracking-wider">Perf</span>
-            </div>
-            <div className="flex items-center gap-1 mt-0.5">
-              <GradeIcon className={cn("size-3.5", gradeColor)} />
-              <span className={cn("text-[10px] font-bold uppercase tracking-wider", gradeColor)}>
-                {gradeName}
-              </span>
-            </div>
-          </div>
+        {/* Grade actuel — en-tête minimaliste : bouclier + nom du grade */}
+        <div className="flex items-center gap-2">
+          <GradeIcon className={cn("size-5", gradeColor)} />
+          <span className={cn("text-sm font-bold uppercase tracking-wider", gradeColor)}>
+            {gradeName}
+          </span>
         </div>
 
         {/* HUD (Heads Up Display) : Niveau, XP et Streak */}
