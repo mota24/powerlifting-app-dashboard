@@ -9,7 +9,6 @@ import {
 } from '@/lib/powerlifting'
 import { Target, Activity, Check, Moon, Footprints, Battery, Coffee, Plus, Trash2, MessageSquare, X, Copy, RefreshCw, Award, Zap, Flame, Sparkles, ChevronUp, ChevronDown, Dumbbell, HeartPulse } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { ExerciseHistory } from './exercise-history'
 
 interface Props {
   dateActive: Date;
@@ -576,7 +575,6 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
             exIndex={exIndex}
             isLast={exIndex === exercices.length - 1}
             listId={listId}
-            dateStr={dateFormatee}
             onPatch={patchExercice}
             onUpdateSerie={updateSerie}
             onAjouterSerie={ajouterSerie}
@@ -702,7 +700,6 @@ interface ExerciseCardProps {
   exIndex: number;
   isLast: boolean;
   listId: string;
-  dateStr: string;
   onPatch: (index: number, patch: Partial<ExerciceRow>) => void;
   onUpdateSerie: (exIndex: number, list: 'coachTracking' | 'tracking', setIndex: number, champ: keyof SetData, valeur: string) => void;
   onAjouterSerie: (exIndex: number, list: 'coachTracking' | 'tracking') => void;
@@ -712,7 +709,7 @@ interface ExerciseCardProps {
 }
 
 const ExerciseCard = memo(function ExerciseCard({
-  ex, exIndex, isLast, listId, dateStr,
+  ex, exIndex, isLast, listId,
   onPatch, onUpdateSerie, onAjouterSerie, onSupprimerSerie, onDeplacer, onSupprimer,
 }: ExerciseCardProps) {
   return (
@@ -729,9 +726,6 @@ const ExerciseCard = memo(function ExerciseCard({
 
         <button onClick={() => onSupprimer(exIndex, ex.id)} className="p-2 text-slate-500 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"><Trash2 className="size-5" /></button>
       </div>
-
-      {/* Dernières perfs sur cet exercice : quoi charger, sans quitter le formulaire */}
-      <ExerciseHistory name={ex.name} beforeDate={dateStr} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="p-3 rounded-xl border border-slate-800 bg-slate-900/30 flex flex-col h-full">
