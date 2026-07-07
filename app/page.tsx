@@ -71,10 +71,16 @@ export default function Page() {
   useEffect(() => {
     if (!session) return;
 
-    // L'identifiant de sync = l'identifiant de connexion (partie locale de l'email fantôme).
-    // C'est ce même identifiant que le raccourci iPhone doit envoyer en `userId`.
-    const syncUserId = session.user.email?.split('@')[0]
+    // Identifiant de sync : celui que le raccourci iPhone envoie en `userId`.
+    // Configurable via NEXT_PUBLIC_SYNC_USER_ID, sinon dérivé de l'identifiant
+    // de connexion (partie locale de l'email fantôme).
+    const syncUserId = process.env.NEXT_PUBLIC_SYNC_USER_ID || session.user.email?.split('@')[0]
     if (!syncUserId) return;
+
+    // Reset immédiat : pendant la navigation entre jours, on n'affiche jamais
+    // les pas d'une autre journée en attendant la réponse réseau.
+    setPasDuJour(null);
+    let cancelled = false;
 
     const fetchStepsForSelectedDate = async () => {
       const dateStr = toLocalDateStr(dateActive);
@@ -86,14 +92,16 @@ export default function Page() {
         .eq('date', dateStr)
         .maybeSingle();
 
+      if (cancelled) return;
       if (error) {
-        console.error("Erreur de récupération :", error);
+        console.error("Erreur de récupération des pas (seances_pas) :", error);
       } else {
         setPasDuJour(data?.pas ?? null);
       }
     };
 
     fetchStepsForSelectedDate();
+    return () => { cancelled = true };
   }, [session, dateActive]);
 
   useEffect(() => {

@@ -118,7 +118,12 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
     }
   }, [jourSemaine])
 
+  // Priorité des pas : seances_pas (sync iPhone) > steps_count de workout_sets.
+  // Le ref permet à chargerSeance (qui résout souvent APRÈS) de ne pas écraser
+  // la valeur synchronisée avec le 0 stocké dans workout_sets.
+  const pasDuJourRef = useRef(pasDuJour)
   useEffect(() => {
+    pasDuJourRef.current = pasDuJour
     if (pasDuJour !== null) setPas(pasDuJour)
   }, [pasDuJour])
 
@@ -168,11 +173,11 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
         const derniereLigne = rows[rows.length - 1]
         setFatigue(derniereLigne.fatigue_score ?? 5)
         setSommeil(derniereLigne.sleep_hours ?? 8)
-        setPas(derniereLigne.steps_count ?? 0)
+        setPas(pasDuJourRef.current ?? derniereLigne.steps_count ?? 0)
       } else {
         setIsRestDayMode(jourSemaine === 0 || jourSemaine === 5)
         setExercices([creerExerciceVierge()])
-        setFatigue(5); setSommeil(8); setPas(0)
+        setFatigue(5); setSommeil(8); setPas(pasDuJourRef.current ?? 0)
       }
 
       loadedDateRef.current = dateFormatee
