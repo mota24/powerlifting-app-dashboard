@@ -11,15 +11,13 @@ export const metadata: Metadata = {
   title: 'PowerApp ',
   description: 'PWA de Powerlifting de haut niveau : suivi RPE, 1RM estimé, plate math, échauffement et alertes de sécurité.',
   generator: 'v0.app',
-  icons: {
-    icon: [
-      { url: '/icon.png', media: '(prefers-color-scheme: light)' },
-      { url: '/icon.png', media: '(prefers-color-scheme: dark)' },
-      { url: '/icon.svg', type: 'image/svg+xml' },
-    ],
-    apple: '/icon.png',
+  
+    icons: {
+    icon: '/icon.PNG',
+    apple: '/icon.PNG',
   },
-}
+  }
+
 
 export default function RootLayout({
   children,
