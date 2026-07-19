@@ -10,7 +10,7 @@ export function Card({
   return (
     <div
       className={cn(
-        'rounded-2xl border border-border bg-card p-5 shadow-sm',
+        'rounded-2xl border border-zinc-900 bg-zinc-950 p-6 sm:p-8',
         className,
       )}
     >
@@ -29,18 +29,14 @@ export function CardTitle({
   hint?: string
 }) {
   return (
-    <div className="mb-4 flex items-center gap-2">
-      {Icon ? (
-        <span className="flex size-8 items-center justify-center rounded-lg bg-primary/15 text-primary">
-          <Icon className="size-4" />
-        </span>
-      ) : null}
+    <div className="mb-8 flex items-center gap-3">
+      {Icon ? <Icon className="size-5 text-white shrink-0" /> : null}
       <div>
-        <h2 className="text-sm font-semibold tracking-wide text-foreground uppercase">
+        <h2 className="text-sm font-bold tracking-widest text-white uppercase">
           {title}
         </h2>
         {hint ? (
-          <p className="text-xs text-muted-foreground">{hint}</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mt-1">{hint}</p>
         ) : null}
       </div>
     </div>

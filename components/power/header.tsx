@@ -19,101 +19,60 @@ export function Header() {
   })
 
   useEffect(() => {
-    // 1. Récupération initiale des données du joueur
     const fetchProgress = async () => {
       const { data } = await supabase.from('user_progress').select('*').limit(1).single()
-      if (data) {
-        setProgress(data)
-      }
+      if (data) setProgress(data)
     }
     fetchProgress()
-
-    // 2. Écoute des validations de mission (événement émis par session-form).
-    // Remplace l'ancien canal Realtime : le jeton vit désormais dans un cookie
-    // httpOnly, donc plus de WebSocket authentifié côté navigateur.
     window.addEventListener('user-progress-updated', fetchProgress)
-    return () => {
-      window.removeEventListener('user-progress-updated', fetchProgress)
-    }
+    return () => window.removeEventListener('user-progress-updated', fetchProgress)
   }, [])
 
-  // Formule d'XP : chaque niveau demande 1000 XP multiplié par le niveau actuel
   const xpNeeded = progress.level * 1000 
   const progressPercentage = Math.min(100, Math.max(0, (progress.current_xp / xpNeeded) * 100))
 
-  // Détermination du Grade et de la couleur
   let GradeIcon = Shield
-  let gradeName = "Débutant du Plateau"
-  let gradeColor = "text-amber-600" // Bronze
+  let gradeName = "DÉBUTANT"
+  let gradeColor = "text-zinc-500"
 
-  if (progress.level >= 11 && progress.level <= 20) {
-    GradeIcon = Medal
-    gradeName = "Compétiteur Déterminé"
-    gradeColor = "text-slate-300" // Argent
-  } else if (progress.level >= 21 && progress.level <= 30) {
-    GradeIcon = Trophy
-    gradeName = "Maître de la Surcharge"
-    gradeColor = "text-yellow-400" // Or
-  } else if (progress.level >= 31 && progress.level <= 45) {
-    GradeIcon = Star
-    gradeName = "Élite du SBD"
-    gradeColor = "text-cyan-300" // Platine
-  } else if (progress.level >= 46 && progress.level <= 50) {
-    GradeIcon = Crown
-    gradeName = "Légende"
-    gradeColor = "text-violet-400" // Diamant
-  } else if (progress.level > 50) {
-    GradeIcon = Crown
-    gradeName = "Prestige"
-    gradeColor = "text-rose-500" // Rouge feu
-  }
+  if (progress.level >= 11 && progress.level <= 20) { GradeIcon = Medal; gradeName = "COMPÉTITEUR"; gradeColor = "text-zinc-400" } 
+  else if (progress.level >= 21 && progress.level <= 30) { GradeIcon = Trophy; gradeName = "MAÎTRE"; gradeColor = "text-zinc-300" } 
+  else if (progress.level >= 31 && progress.level <= 45) { GradeIcon = Star; gradeName = "ÉLITE"; gradeColor = "text-zinc-100" } 
+  else if (progress.level > 45) { GradeIcon = Crown; gradeName = "LÉGENDE"; gradeColor = "text-white" }
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-slate-800 bg-slate-950/80 backdrop-blur-md">
-      <div className="mx-auto max-w-5xl px-4 h-16 flex items-center justify-between">
+    <header className="sticky top-0 z-40 w-full border-b border-zinc-900 bg-black/90 backdrop-blur-md">
+      <div className="mx-auto max-w-5xl px-6 h-16 flex items-center justify-between">
         
-        {/* Grade actuel — en-tête minimaliste : bouclier + nom du grade */}
-        <div className="flex items-center gap-2">
-          <GradeIcon className={cn("size-5", gradeColor)} />
-          <span className={cn("text-sm font-bold uppercase tracking-wider", gradeColor)}>
+        <div className="flex items-center gap-3">
+          <GradeIcon className={cn("size-4", gradeColor)} />
+          <span className={cn("text-[10px] font-bold uppercase tracking-widest", gradeColor)}>
             {gradeName}
           </span>
         </div>
 
-        {/* HUD (Heads Up Display) : Niveau, XP et Streak */}
-        <div className="flex items-center gap-4">
-          
-          {/* Barre XP (Cachée sur tout petit écran, visible sur moyen/grand) */}
-          <div className="hidden sm:flex flex-col items-end gap-1 w-32 md:w-48">
+        <div className="flex items-center gap-6">
+          <div className="hidden sm:flex flex-col items-end gap-1.5 w-32 md:w-48">
             <div className="flex justify-between w-full items-end">
-              <span className="text-[10px] font-black text-blue-400">NIV {progress.level}</span>
-              <span className="text-[10px] font-medium text-slate-500">{progress.current_xp} / {xpNeeded} XP</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-white">NIV {progress.level}</span>
+              <span className="text-[10px] font-medium text-zinc-500 tabular-nums">{progress.current_xp} / {xpNeeded}</span>
             </div>
-            <div className="h-1.5 w-full bg-slate-900 rounded-full overflow-hidden border border-slate-800">
-              <div 
-                className="h-full bg-blue-500 rounded-full transition-all duration-1000 ease-out"
-                style={{ width: `${progressPercentage}%` }}
-              />
+            <div className="h-1 w-full bg-zinc-900 rounded-full overflow-hidden">
+              <div className="h-full bg-white transition-all duration-1000 ease-out" style={{ width: `${progressPercentage}%` }} />
             </div>
           </div>
 
-          {/* Indicateur de Streak (Jours d'affilée) */}
-          <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 px-2.5 py-1.5 rounded-lg shadow-inner">
-            <Flame className={cn("size-4", progress.streak_days >= 3 ? "text-orange-500" : "text-slate-600")} />
-            <span className={cn("text-sm font-black", progress.streak_days >= 3 ? "text-orange-500" : "text-slate-500")}>
+          <div className="flex items-center gap-2 bg-zinc-900/50 px-3 py-1.5 rounded-lg border border-zinc-800">
+            <Flame className={cn("size-3.5", progress.streak_days >= 3 ? "text-white" : "text-zinc-600")} />
+            <span className={cn("text-xs font-black tabular-nums", progress.streak_days >= 3 ? "text-white" : "text-zinc-500")}>
               {progress.streak_days}
             </span>
           </div>
-          
         </div>
       </div>
       
-      {/* Barre XP fine collée en bas du Header pour les téléphones (Mobile UX) */}
-      <div className="sm:hidden h-1 w-full bg-slate-900">
-        <div 
-          className="h-full bg-blue-500 transition-all duration-1000 ease-out"
-          style={{ width: `${progressPercentage}%` }}
-        />
+      <div className="sm:hidden h-0.5 w-full bg-zinc-900">
+        <div className="h-full bg-white transition-all duration-1000 ease-out" style={{ width: `${progressPercentage}%` }} />
       </div>
     </header>
   )

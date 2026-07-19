@@ -3,12 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Analytics } from '@vercel/analytics/next'
 
-// RGPD / ePrivacy : la mesure d'audience (Vercel Analytics) traite l'adresse IP.
-// Elle n'est chargée qu'APRÈS un consentement explicite. Tant qu'aucun choix
-// n'est fait, un bandeau discret propose Accepter / Refuser ; le choix est
-// mémorisé localement et Analytics ne se charge jamais sans "accepted".
 const CONSENT_KEY = 'powerapp_analytics_consent'
-
 type Choice = 'accepted' | 'refused' | null
 
 export function ConsentBanner() {
@@ -19,17 +14,15 @@ export function ConsentBanner() {
     try {
       const saved = localStorage.getItem(CONSENT_KEY)
       setChoice(saved === 'accepted' ? 'accepted' : saved === 'refused' ? 'refused' : null)
-    } catch { /* stockage inaccessible : on reste en attente de choix */ }
+    } catch { }
     setMounted(true)
   }, [])
 
   const decide = (value: Exclude<Choice, null>) => {
-    try { localStorage.setItem(CONSENT_KEY, value) } catch { /* navigation privée */ }
+    try { localStorage.setItem(CONSENT_KEY, value) } catch { }
     setChoice(value)
   }
 
-  // Rien tant que le choix n'est pas lu côté client (évite tout chargement
-  // d'Analytics avant consentement et tout décalage d'hydratation).
   if (!mounted) return null
 
   return (
@@ -37,25 +30,18 @@ export function ConsentBanner() {
       {choice === 'accepted' && process.env.NODE_ENV === 'production' && <Analytics />}
 
       {choice === null && (
-        <div className="fixed bottom-0 inset-x-0 z-[120] p-3 sm:p-4">
-          <div className="mx-auto max-w-2xl rounded-xl border border-slate-700 bg-slate-900/95 backdrop-blur-md shadow-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3">
-            <p className="text-xs text-slate-300 flex-1 leading-relaxed">
-              On utilise une mesure d&apos;audience anonyme (qui traite ton adresse IP) pour améliorer l&apos;app.
-              Tu peux l&apos;accepter ou la refuser.{' '}
-              <a href="/confidentialite" className="text-blue-400 underline hover:text-blue-300">En savoir plus</a>.
+        <div className="fixed bottom-0 inset-x-0 z-[120] p-4 sm:p-6">
+          <div className="mx-auto max-w-3xl rounded-2xl border border-zinc-900 bg-black/95 backdrop-blur-md shadow-2xl p-6 flex flex-col sm:flex-row items-start sm:items-center gap-6">
+            <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest flex-1 leading-loose">
+              NOUS UTILISONS UNE MESURE D'AUDIENCE ANONYME POUR AMÉLIORER L'APP.{' '}
+              <a href="/confidentialite" className="text-white underline hover:text-zinc-300">DÉTAILS</a>.
             </p>
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                onClick={() => decide('refused')}
-                className="px-4 py-2 rounded-lg text-xs font-bold text-slate-300 bg-slate-800 hover:bg-slate-700 transition-colors"
-              >
-                Refuser
+            <div className="flex items-center gap-3 shrink-0 w-full sm:w-auto">
+              <button onClick={() => decide('refused')} className="flex-1 sm:flex-none px-6 py-3 rounded-xl text-[10px] font-black text-white uppercase tracking-widest bg-zinc-900 hover:bg-zinc-800 transition-colors">
+                REFUSER
               </button>
-              <button
-                onClick={() => decide('accepted')}
-                className="px-4 py-2 rounded-lg text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 transition-colors"
-              >
-                Accepter
+              <button onClick={() => decide('accepted')} className="flex-1 sm:flex-none px-6 py-3 rounded-xl text-[10px] font-black text-black uppercase tracking-widest bg-white hover:bg-zinc-200 transition-colors">
+                ACCEPTER
               </button>
             </div>
           </div>
