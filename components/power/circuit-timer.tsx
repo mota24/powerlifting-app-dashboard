@@ -1,15 +1,44 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Timer, Play, Pause, X, RotateCcw, Minus, Plus, Flag, Dumbbell, Coffee } from 'lucide-react'
+import { Timer, Play, Pause, X, RotateCcw, Minus, Plus, Flag, Dumbbell, Coffee, Volume2, VolumeX } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 // ————————————————————————————————————————————————
-// Chronomètre de Circuit (interval timer)
-// Moteur basé sur des HORODATAGES (fin de phase = timestamp) et non sur un
-// décompte par tick : aucune dérive de setInterval, et si l'onglet mobile est
-// gelé quelques secondes, le temps rattrape correctement (phases sautées
-// comprises). Le setInterval ne sert qu'à rafraîchir l'affichage.
+// Générateur de son (Web Audio API)
+// Permet de faire des bips sans avoir besoin de fichiers MP3
+// ————————————————————————————————————————————————
+let audioCtx: AudioContext | null = null;
+
+const playTone = (frequency: number, duration: number, type: OscillatorType = 'sine') => {
+  if (typeof window === 'undefined') return;
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+
+    const oscillator = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+
+    oscillator.type = type;
+    oscillator.frequency.setValueAtTime(frequency, audioCtx.currentTime);
+
+    // Enveloppe sonore pour un son clair sans "clic" désagréable
+    gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+    gainNode.gain.linearRampToValueAtTime(0.5, audioCtx.currentTime + 0.05);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+
+    oscillator.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+
+    oscillator.start(audioCtx.currentTime);
+    oscillator.stop(audioCtx.currentTime + duration);
+  } catch (e) {
+    console.error("Audio error", e);
+  }
+};
+
+// ————————————————————————————————————————————————
+// Chronomètre de Circuit
 // ————————————————————————————————————————————————
 
 interface Props {
@@ -17,28 +46,21 @@ interface Props {
 }
 
 interface CircuitConfig {
-  prep: number;         // temps de préparation avant le 1er exercice (s)
-  exercices: number;    // exercices par tour
-  workTimes: number[];  // temps de travail PAR exercice (index 0 = exo 1) — circuit asymétrique
-  rest: number;         // repos entre exercices d'un même tour (s)
-  tours: number;        // nombre de tours
-  longRest: number;     // repos entre les tours (s)
+  prep: number;
+  exercices: number;
+  workTimes: number[];
+  rest: number;
+  tours: number;
+  longRest: number;
 }
 
-// Bornes partagées entre le clamp et les sélecteurs d'UI (source unique)
 const WORK_MIN = 5
-const WORK_MAX = 600
+const WORK_MAX = 900 // Augmenté pour permettre de taper 15:00 (900 sec)
 const DEFAULT_WORK = 40
 
 const DEFAULT_CONFIG: CircuitConfig = { prep: 5, exercices: 3, workTimes: [40, 40, 40], rest: 15, tours: 3, longRest: 40 }
 const CONFIG_KEY = 'circuit_timer_config'
 
-/**
- * Aligne le tableau des durées sur le nombre d'exercices :
- *  - extension : le nouvel exercice HÉRITE de la durée du précédent (ou DEFAULT_WORK si vide) ;
- *  - réduction : le tableau est tronqué ;
- *  - garde-fou : un tableau vide/mal indexé retombe toujours sur des durées valides.
- */
 function normalizeWorkTimes(workTimes: number[] | undefined, exercices: number): number[] {
   const source = Array.isArray(workTimes) ? workTimes : []
   const out = source.slice(0, exercices)
@@ -52,22 +74,19 @@ type PhaseKind = 'prep' | 'work' | 'rest' | 'longRest'
 
 interface Phase {
   kind: PhaseKind;
-  duration: number;   // secondes
-  exercice: number;   // exercice concerné (pour un repos : le prochain)
+  duration: number;
+  exercice: number;
   tour: number;
 }
 
 type Status = 'config' | 'running' | 'paused' | 'finished'
 
-/** Déroule la configuration en séquence plate de phases. */
 function buildSequence(cfg: CircuitConfig): Phase[] {
   const phases: Phase[] = []
-  // Durées par exercice, toujours de longueur cfg.exercices (jamais mal indexé)
   const workTimes = normalizeWorkTimes(cfg.workTimes, cfg.exercices)
   if (cfg.prep > 0) phases.push({ kind: 'prep', duration: cfg.prep, exercice: 1, tour: 1 })
   for (let tour = 1; tour <= cfg.tours; tour++) {
     for (let ex = 1; ex <= cfg.exercices; ex++) {
-      // Phase TRAVAIL : durée propre à l'exercice courant (index ex-1)
       phases.push({ kind: 'work', duration: workTimes[ex - 1] ?? DEFAULT_WORK, exercice: ex, tour })
       if (ex < cfg.exercices && cfg.rest > 0) {
         phases.push({ kind: 'rest', duration: cfg.rest, exercice: ex + 1, tour })
@@ -89,8 +108,6 @@ function clampConfig(raw: Partial<CircuitConfig> & { work?: unknown }): Partial<
   const rest = clamp(raw.rest, 0, 300); if (rest !== undefined) out.rest = rest
   const tours = clamp(raw.tours, 1, 20); if (tours !== undefined) out.tours = tours
   const longRest = clamp(raw.longRest, 0, 600); if (longRest !== undefined) out.longRest = longRest
-  // Durées de travail : tableau prioritaire ; sinon migration de l'ancien
-  // champ `work` unique (configs sauvegardées avant le circuit asymétrique).
   if (Array.isArray(raw.workTimes)) {
     const arr = raw.workTimes
       .map((w) => clamp(w, WORK_MIN, WORK_MAX))
@@ -104,7 +121,6 @@ function clampConfig(raw: Partial<CircuitConfig> & { work?: unknown }): Partial<
 }
 
 const vibrer = (pattern: number | number[]) => {
-  // Android uniquement — Safari iOS ne supporte pas l'API vibrate
   if (typeof navigator !== 'undefined') navigator.vibrate?.(pattern)
 }
 
@@ -114,7 +130,6 @@ const formatDuree = (totalSec: number) => {
   return m > 0 ? `${m}:${String(s).padStart(2, '0')}` : `${s}`
 }
 
-// Couleurs par phase : fond calme + variante intense pour les 3 dernières secondes
 const PHASE_META: Record<PhaseKind, { label: string; calme: string; urgent: string; accent: string }> = {
   prep: { label: 'PRÉPARATION', calme: 'bg-blue-950', urgent: 'bg-blue-800', accent: 'text-blue-300' },
   work: { label: 'TRAVAIL', calme: 'bg-emerald-950', urgent: 'bg-emerald-700', accent: 'text-emerald-300' },
@@ -127,44 +142,47 @@ export default function CircuitTimer({ onClose }: Props) {
   const [status, setStatus] = useState<Status>('config')
   const [phaseIndex, setPhaseIndex] = useState(0)
   const [msRestants, setMsRestants] = useState(0)
+  
+  // État du son
+  const [isMuted, setIsMuted] = useState(false)
+  const isMutedRef = useRef(isMuted)
 
-  // Source de vérité du moteur : refs (le state ne sert qu'au rendu)
+  // Met à jour la ref du son pour qu'elle soit accessible dans le setInterval
+  useEffect(() => {
+    isMutedRef.current = isMuted
+  }, [isMuted])
+
   const phasesRef = useRef<Phase[]>([])
   const phaseIdxRef = useRef(0)
-  const finEtapeRef = useRef(0)     // timestamp (ms) de fin de la phase en cours
-  const pauseResteRef = useRef(0)   // ms restants figés à la mise en pause
-  const lastBeepRef = useRef(-1)    // dernière seconde "bipée" (3-2-1)
+  const finEtapeRef = useRef(0)
+  const pauseResteRef = useRef(0)
+  const lastBeepRef = useRef(-1)
 
   const persist = (cfg: CircuitConfig): CircuitConfig => {
-    try { localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg)) } catch { /* stockage plein/privé */ }
+    try { localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg)) } catch { }
     return cfg
   }
 
-  // ————— Config persistée entre les séances d'abdos —————
   useEffect(() => {
     try {
       const saved = localStorage.getItem(CONFIG_KEY)
       if (saved) {
         setConfig((prev) => {
           const merged = { ...prev, ...clampConfig(JSON.parse(saved)) }
-          // Le tableau des durées doit toujours coller au nombre d'exercices
           return { ...merged, workTimes: normalizeWorkTimes(merged.workTimes, merged.exercices) }
         })
       }
-    } catch { /* config corrompue : on repart des défauts */ }
+    } catch { }
   }, [])
 
   const patchConfig = (patch: Partial<CircuitConfig>) => {
     setConfig((prev) => {
       const next = { ...prev, ...patch }
-      // Une modif du nombre d'exercices resynchronise les durées :
-      // extension → hérite de la dernière ; réduction → tronque.
       next.workTimes = normalizeWorkTimes(next.workTimes, next.exercices)
       return persist(next)
     })
   }
 
-  // Modifie la durée de travail d'UN exercice (index 0 = exo 1)
   const setWorkTime = (index: number, value: number) => {
     setConfig((prev) => {
       const workTimes = normalizeWorkTimes(prev.workTimes, prev.exercices)
@@ -173,7 +191,7 @@ export default function CircuitTimer({ onClose }: Props) {
     })
   }
 
-  // ————— Moteur : rafraîchissement de l'affichage + avancement des phases —————
+  // Moteur d'horloge
   useEffect(() => {
     if (status !== 'running') return
     const tick = () => {
@@ -181,7 +199,6 @@ export default function CircuitTimer({ onClose }: Props) {
       let restant = finEtapeRef.current - now
 
       if (restant <= 0) {
-        // Phase terminée — on avance (plusieurs d'un coup si l'onglet a été gelé)
         let idx = phaseIdxRef.current
         let fin = finEtapeRef.current
         let termine = false
@@ -193,24 +210,30 @@ export default function CircuitTimer({ onClose }: Props) {
         if (termine) {
           setStatus('finished')
           vibrer([300, 120, 300, 120, 500])
+          // Bip grave et long pour la fin du circuit
+          if (!isMutedRef.current) playTone(500, 1, 'square')
           return
         }
         phaseIdxRef.current = idx
         finEtapeRef.current = fin
         setPhaseIndex(idx)
         lastBeepRef.current = -1
-        // Changement d'état : double pulsation à l'attaque du travail, simple sinon
+        
         vibrer(phasesRef.current[idx].kind === 'work' ? [120, 60, 120] : 180)
+        // Bip fort et aigu pour annoncer le début de la nouvelle phase
+        if (!isMutedRef.current) playTone(1200, 0.4, 'square')
+        
         restant = fin - now
       }
 
       setMsRestants(restant)
 
-      // Compte à rebours haptique sur les 3 dernières secondes
       const sec = Math.ceil(restant / 1000)
       if (sec <= 3 && sec >= 1 && sec !== lastBeepRef.current) {
         lastBeepRef.current = sec
         vibrer(60)
+        // Bips des 3 dernières secondes
+        if (!isMutedRef.current) playTone(800, 0.15)
       }
     }
     tick()
@@ -218,7 +241,6 @@ export default function CircuitTimer({ onClose }: Props) {
     return () => clearInterval(id)
   }, [status])
 
-  // ————— Wake Lock : l'écran reste allumé pendant le circuit —————
   useEffect(() => {
     if (status !== 'running' && status !== 'paused') return
     let sentinel: WakeLockSentinel | null = null
@@ -228,11 +250,9 @@ export default function CircuitTimer({ onClose }: Props) {
         if ('wakeLock' in navigator) {
           sentinel = await navigator.wakeLock.request('screen')
         }
-      } catch { /* refusé (batterie faible…) : le circuit fonctionne quand même */ }
+      } catch { }
     }
-    demander()
-    // Le lock est libéré par l'OS quand l'app passe en arrière-plan : on le
-    // redemande au retour au premier plan.
+    demarrer()
     const onVisible = () => {
       if (actif && document.visibilityState === 'visible') demander()
     }
@@ -240,19 +260,23 @@ export default function CircuitTimer({ onClose }: Props) {
     return () => {
       actif = false
       document.removeEventListener('visibilitychange', onVisible)
-      sentinel?.release().catch(() => { /* déjà libéré */ })
+      sentinel?.release().catch(() => { })
     }
   }, [status])
 
-  // Pas de scroll de la page derrière la modale plein écran
   useEffect(() => {
     const previous = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     return () => { document.body.style.overflow = previous }
   }, [])
 
-  // ————— Contrôles —————
   const demarrer = () => {
+    // Initialise le contexte audio au moment du clic utilisateur (requis par les navigateurs)
+    if (typeof window !== 'undefined') {
+      if (!audioCtx) audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    }
+
     const seq = buildSequence(config)
     if (seq.length === 0) return
     phasesRef.current = seq
@@ -283,17 +307,12 @@ export default function CircuitTimer({ onClose }: Props) {
     [config]
   )
 
-  // ————————————————————————————————————————————————
-  // Rendu
-  // ————————————————————————————————————————————————
-
   const phase = phasesRef.current[phaseIndex]
   const enCours = status === 'running' || status === 'paused'
   const secondes = Math.ceil(msRestants / 1000)
   const urgence = status === 'running' && secondes <= 3
   const meta = phase ? PHASE_META[phase.kind] : PHASE_META.prep
 
-  // Progression globale (barre fine en bas d'écran)
   const progression = enCours && phasesRef.current.length > 0
     ? Math.round(((phaseIndex + 1 - msRestants / 1000 / (phase?.duration || 1)) / phasesRef.current.length) * 100)
     : 0
@@ -312,23 +331,35 @@ export default function CircuitTimer({ onClose }: Props) {
         <h2 className="flex items-center gap-2 text-lg font-black text-white">
           <Timer className="size-5" /> Chrono Circuit
         </h2>
-        <button
-          onClick={onClose}
-          title="Quitter"
-          className="h-11 w-11 flex items-center justify-center rounded-xl bg-black/20 text-slate-300 hover:text-white hover:bg-black/40 transition-colors"
-        >
-          <X className="size-6" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsMuted(!isMuted)}
+            title={isMuted ? "Activer le son" : "Désactiver le son"}
+            className={cn(
+              "h-11 w-11 flex items-center justify-center rounded-xl transition-colors",
+              isMuted ? "bg-rose-500/20 text-rose-400 hover:bg-rose-500/40" : "bg-black/20 text-emerald-400 hover:bg-black/40"
+            )}
+          >
+            {isMuted ? <VolumeX className="size-6" /> : <Volume2 className="size-6" />}
+          </button>
+
+          <button
+            onClick={onClose}
+            title="Quitter"
+            className="h-11 w-11 flex items-center justify-center rounded-xl bg-black/20 text-slate-300 hover:text-white hover:bg-black/40 transition-colors"
+          >
+            <X className="size-6" />
+          </button>
+        </div>
       </div>
 
-      {/* ————— ÉCRAN CONFIGURATION ————— */}
+      {/* ÉCRAN CONFIGURATION */}
       {status === 'config' && (
         <div className="flex-1 overflow-y-auto px-4 pb-6">
           <div className="mx-auto w-full max-w-md space-y-3">
             <Stepper label="Temps de préparation" unit="s" value={config.prep} min={0} max={60} step={5} onChange={(v) => patchConfig({ prep: v })} />
             <Stepper label="Exercices par tour" value={config.exercices} min={1} max={20} step={1} onChange={(v) => patchConfig({ exercices: v })} />
 
-            {/* Durée de travail par exercice : un sélecteur par exo (circuit asymétrique) */}
             <div className="space-y-3 rounded-xl border border-emerald-500/20 bg-emerald-950/20 p-3">
               <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-400">Durée de travail par exercice</h3>
               {normalizeWorkTimes(config.workTimes, config.exercices).map((duree, i) => (
@@ -355,15 +386,13 @@ export default function CircuitTimer({ onClose }: Props) {
         </div>
       )}
 
-      {/* ————— ÉCRAN CHRONO ————— */}
+      {/* ÉCRAN CHRONO */}
       {enCours && phase && (
         <div className="flex-1 flex flex-col items-center justify-center px-4 pb-8 select-none">
-          {/* Phase en évidence */}
           <div className={cn('text-2xl sm:text-3xl font-black tracking-[0.3em] mb-2', meta.accent)}>
             {status === 'paused' ? 'PAUSE' : meta.label}
           </div>
 
-          {/* Temps restant massif, lisible de l'autre bout de la salle */}
           <div
             className={cn(
               'font-black text-white tabular-nums leading-none text-[38vw] sm:text-[13rem]',
@@ -374,7 +403,6 @@ export default function CircuitTimer({ onClose }: Props) {
             {formatDuree(secondes)}
           </div>
 
-          {/* Progression du circuit */}
           <div className="flex items-center gap-3 mt-4 text-white/90">
             <span className="flex items-center gap-2 px-4 py-2 rounded-full bg-black/25 text-sm font-black">
               <Dumbbell className="size-4" />
@@ -385,7 +413,6 @@ export default function CircuitTimer({ onClose }: Props) {
             </span>
           </div>
 
-          {/* Contrôles */}
           <div className="flex items-center gap-3 mt-10 w-full max-w-sm">
             <button
               onClick={status === 'paused' ? reprendre : mettreEnPause}
@@ -404,7 +431,7 @@ export default function CircuitTimer({ onClose }: Props) {
         </div>
       )}
 
-      {/* ————— ÉCRAN FIN DE CIRCUIT ————— */}
+      {/* ÉCRAN FIN DE CIRCUIT */}
       {status === 'finished' && (
         <div className="flex-1 flex flex-col items-center justify-center px-4 pb-8 text-center">
           <div className="p-5 bg-emerald-500/20 text-emerald-300 rounded-full mb-6 ring-1 ring-emerald-500/30">
@@ -445,7 +472,7 @@ export default function CircuitTimer({ onClose }: Props) {
 }
 
 // ————————————————————————————————————————————————
-// Stepper : réglage +/- avec grandes cibles tactiles (mains pleines de magnésie)
+// Stepper : réglage hybride +/- et clavier
 // ————————————————————————————————————————————————
 function Stepper({ label, value, onChange, min, max, step, unit }: {
   label: string;
@@ -456,6 +483,48 @@ function Stepper({ label, value, onChange, min, max, step, unit }: {
   step: number;
   unit?: string;
 }) {
+  const [inputValue, setInputValue] = useState(value.toString());
+  const [isEditing, setIsEditing] = useState(false);
+
+  useEffect(() => {
+    if (!isEditing) {
+      setInputValue(value.toString());
+    }
+  }, [value, isEditing]);
+
+  const handleBlur = () => {
+    setIsEditing(false);
+    let str = inputValue.trim();
+    let parsed = parseInt(str, 10);
+
+    if (unit === 's') {
+      if (str.includes(':')) {
+        const parts = str.split(':');
+        const m = parseInt(parts[0], 10) || 0;
+        const s = parseInt(parts[1], 10) || 0;
+        parsed = m * 60 + s;
+      } else if (str.length >= 3 && str.endsWith('00')) {
+        const m = parseInt(str.slice(0, -2), 10);
+        parsed = m * 60;
+      }
+    }
+
+    if (isNaN(parsed)) {
+      setInputValue(value.toString());
+      return;
+    }
+
+    const clamped = Math.max(min, Math.min(max, parsed));
+    onChange(clamped);
+    setInputValue(clamped.toString());
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.currentTarget.blur();
+    }
+  };
+
   return (
     <div className="flex items-center justify-between gap-3 p-3 rounded-xl border border-slate-800 bg-slate-900/60">
       <span className="text-sm font-bold text-slate-300">{label}</span>
@@ -467,9 +536,31 @@ function Stepper({ label, value, onChange, min, max, step, unit }: {
         >
           <Minus className="size-5" />
         </button>
-        <span className="w-16 text-center text-xl font-black text-white tabular-nums">
-          {value}{unit && <span className="text-xs font-bold text-slate-500"> {unit}</span>}
-        </span>
+
+        <div className="relative flex items-center justify-center w-20">
+          <input
+            type="text"
+            inputMode={unit === 's' ? 'decimal' : 'numeric'}
+            value={isEditing ? inputValue : value}
+            onFocus={(e) => {
+              setIsEditing(true);
+              e.target.select();
+            }}
+            onBlur={handleBlur}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={handleKeyDown}
+            className={cn(
+              "w-full bg-transparent text-center text-xl font-black text-white tabular-nums outline-none rounded-md py-1 transition-all",
+              isEditing && "bg-black/30 ring-2 ring-emerald-500/50"
+            )}
+          />
+          {unit && !isEditing && (
+            <span className="absolute right-1 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-500 pointer-events-none">
+              {unit}
+            </span>
+          )}
+        </div>
+
         <button
           onClick={() => onChange(Math.min(max, value + step))}
           disabled={value >= max}
