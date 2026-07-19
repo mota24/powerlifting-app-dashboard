@@ -55,7 +55,7 @@ interface CircuitConfig {
 }
 
 const WORK_MIN = 5
-const WORK_MAX = 900 // Augmenté pour permettre de taper 15:00 (900 sec)
+const WORK_MAX = 10000000000000000000 // Augmenté pour permettre de taper 15:00 (900 sec)
 const DEFAULT_WORK = 40
 
 const DEFAULT_CONFIG: CircuitConfig = { prep: 5, exercices: 3, workTimes: [40, 40, 40], rest: 15, tours: 3, longRest: 40 }
