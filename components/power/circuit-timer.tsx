@@ -1,12 +1,11 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Timer, Play, Pause, X, RotateCcw, Minus, Plus, Flag, Dumbbell, Coffee, Volume2, VolumeX } from 'lucide-react'
+import { Timer, Play, Pause, X, RotateCcw, Minus, Plus, Flag, Dumbbell, Settings2, Volume2, VolumeX } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 // ————————————————————————————————————————————————
 // Générateur de son (Web Audio API)
-// Permet de faire des bips sans avoir besoin de fichiers MP3
 // ————————————————————————————————————————————————
 let audioCtx: AudioContext | null = null;
 
@@ -22,7 +21,6 @@ const playTone = (frequency: number, duration: number, type: OscillatorType = 's
     oscillator.type = type;
     oscillator.frequency.setValueAtTime(frequency, audioCtx.currentTime);
 
-    // Enveloppe sonore pour un son clair sans "clic" désagréable
     gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
     gainNode.gain.linearRampToValueAtTime(0.5, audioCtx.currentTime + 0.05);
     gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
@@ -55,7 +53,7 @@ interface CircuitConfig {
 }
 
 const WORK_MIN = 5
-const WORK_MAX = 10000000000000000000 // Augmenté pour permettre de taper 15:00 (900 sec)
+const WORK_MAX = 3600 
 const DEFAULT_WORK = 40
 
 const DEFAULT_CONFIG: CircuitConfig = { prep: 5, exercices: 3, workTimes: [40, 40, 40], rest: 15, tours: 3, longRest: 40 }
@@ -105,9 +103,9 @@ function clampConfig(raw: Partial<CircuitConfig> & { work?: unknown }): Partial<
   const out: Partial<CircuitConfig> = {}
   const prep = clamp(raw.prep, 0, 60); if (prep !== undefined) out.prep = prep
   const exercices = clamp(raw.exercices, 1, 20); if (exercices !== undefined) out.exercices = exercices
-  const rest = clamp(raw.rest, 0, 300); if (rest !== undefined) out.rest = rest
+  const rest = clamp(raw.rest, 0, 3600); if (rest !== undefined) out.rest = rest
   const tours = clamp(raw.tours, 1, 20); if (tours !== undefined) out.tours = tours
-  const longRest = clamp(raw.longRest, 0, 600); if (longRest !== undefined) out.longRest = longRest
+  const longRest = clamp(raw.longRest, 0, 3600); if (longRest !== undefined) out.longRest = longRest
   if (Array.isArray(raw.workTimes)) {
     const arr = raw.workTimes
       .map((w) => clamp(w, WORK_MIN, WORK_MAX))
@@ -130,11 +128,12 @@ const formatDuree = (totalSec: number) => {
   return m > 0 ? `${m}:${String(s).padStart(2, '0')}` : `${s}`
 }
 
-const PHASE_META: Record<PhaseKind, { label: string; calme: string; urgent: string; accent: string }> = {
-  prep: { label: 'PRÉPARATION', calme: 'bg-blue-950', urgent: 'bg-blue-800', accent: 'text-blue-300' },
-  work: { label: 'TRAVAIL', calme: 'bg-emerald-950', urgent: 'bg-emerald-700', accent: 'text-emerald-300' },
-  rest: { label: 'REPOS', calme: 'bg-rose-950', urgent: 'bg-rose-800', accent: 'text-rose-300' },
-  longRest: { label: 'REPOS LONG', calme: 'bg-slate-900', urgent: 'bg-slate-700', accent: 'text-slate-300' },
+// Couleurs professionnelles, brutes et saturées (style app élite)
+const PHASE_META: Record<PhaseKind, { label: string; bg: string; text: string; urgentBg: string }> = {
+  prep: { label: 'PRÉPARATION', bg: 'bg-yellow-500', text: 'text-black', urgentBg: 'bg-yellow-400' },
+  work: { label: 'TRAVAIL', bg: 'bg-zinc-950', text: 'text-white', urgentBg: 'bg-zinc-900' },
+  rest: { label: 'REPOS', bg: 'bg-white', text: 'text-black', urgentBg: 'bg-zinc-200' },
+  longRest: { label: 'REPOS LONG', bg: 'bg-zinc-800', text: 'text-white', urgentBg: 'bg-zinc-700' },
 }
 
 export default function CircuitTimer({ onClose }: Props) {
@@ -143,11 +142,9 @@ export default function CircuitTimer({ onClose }: Props) {
   const [phaseIndex, setPhaseIndex] = useState(0)
   const [msRestants, setMsRestants] = useState(0)
   
-  // État du son
   const [isMuted, setIsMuted] = useState(false)
   const isMutedRef = useRef(isMuted)
 
-  // Met à jour la ref du son pour qu'elle soit accessible dans le setInterval
   useEffect(() => {
     isMutedRef.current = isMuted
   }, [isMuted])
@@ -191,7 +188,6 @@ export default function CircuitTimer({ onClose }: Props) {
     })
   }
 
-  // Moteur d'horloge
   useEffect(() => {
     if (status !== 'running') return
     const tick = () => {
@@ -210,7 +206,6 @@ export default function CircuitTimer({ onClose }: Props) {
         if (termine) {
           setStatus('finished')
           vibrer([300, 120, 300, 120, 500])
-          // Bip grave et long pour la fin du circuit
           if (!isMutedRef.current) playTone(500, 1, 'square')
           return
         }
@@ -220,7 +215,6 @@ export default function CircuitTimer({ onClose }: Props) {
         lastBeepRef.current = -1
         
         vibrer(phasesRef.current[idx].kind === 'work' ? [120, 60, 120] : 180)
-        // Bip fort et aigu pour annoncer le début de la nouvelle phase
         if (!isMutedRef.current) playTone(1200, 0.4, 'square')
         
         restant = fin - now
@@ -232,7 +226,6 @@ export default function CircuitTimer({ onClose }: Props) {
       if (sec <= 3 && sec >= 1 && sec !== lastBeepRef.current) {
         lastBeepRef.current = sec
         vibrer(60)
-        // Bips des 3 dernières secondes
         if (!isMutedRef.current) playTone(800, 0.15)
       }
     }
@@ -271,7 +264,6 @@ export default function CircuitTimer({ onClose }: Props) {
   }, [])
 
   const demarrer = () => {
-    // Initialise le contexte audio au moment du clic utilisateur (requis par les navigateurs)
     if (typeof window !== 'undefined') {
       if (!audioCtx) audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
       if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -320,34 +312,28 @@ export default function CircuitTimer({ onClose }: Props) {
   return (
     <div
       className={cn(
-        'fixed inset-0 z-[95] flex flex-col transition-colors duration-500',
-        status === 'config' && 'bg-slate-950',
-        status === 'finished' && 'bg-emerald-950',
-        enCours && (urgence ? meta.urgent : meta.calme)
+        'fixed inset-0 z-[95] flex flex-col transition-colors duration-200',
+        status === 'config' ? 'bg-black' : (urgence ? meta.urgentBg : meta.bg),
+        status === 'finished' && 'bg-black'
       )}
     >
-      {/* Barre supérieure */}
-      <div className="flex items-center justify-between p-4">
-        <h2 className="flex items-center gap-2 text-lg font-black text-white">
-          <Timer className="size-5" /> Chrono Circuit
+      {/* Barre supérieure minimaliste */}
+      <div className="flex items-center justify-between p-6">
+        <h2 className={cn("text-sm font-semibold tracking-widest uppercase", enCours ? meta.text : "text-white")}>
+          Timer
         </h2>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-4">
           <button
             onClick={() => setIsMuted(!isMuted)}
-            title={isMuted ? "Activer le son" : "Désactiver le son"}
             className={cn(
-              "h-11 w-11 flex items-center justify-center rounded-xl transition-colors",
-              isMuted ? "bg-rose-500/20 text-rose-400 hover:bg-rose-500/40" : "bg-black/20 text-emerald-400 hover:bg-black/40"
+              "transition-opacity hover:opacity-70",
+              enCours ? meta.text : "text-white",
+              isMuted && "opacity-40"
             )}
           >
-            {isMuted ? <VolumeX className="size-6" /> : <Volume2 className="size-6" />}
+            {isMuted ? <VolumeX className="size-5" /> : <Volume2 className="size-5" />}
           </button>
-
-          <button
-            onClick={onClose}
-            title="Quitter"
-            className="h-11 w-11 flex items-center justify-center rounded-xl bg-black/20 text-slate-300 hover:text-white hover:bg-black/40 transition-colors"
-          >
+          <button onClick={onClose} className={cn("transition-opacity hover:opacity-70", enCours ? meta.text : "text-white")}>
             <X className="size-6" />
           </button>
         </div>
@@ -355,32 +341,32 @@ export default function CircuitTimer({ onClose }: Props) {
 
       {/* ÉCRAN CONFIGURATION */}
       {status === 'config' && (
-        <div className="flex-1 overflow-y-auto px-4 pb-6">
-          <div className="mx-auto w-full max-w-md space-y-3">
-            <Stepper label="Temps de préparation" unit="s" value={config.prep} min={0} max={60} step={5} onChange={(v) => patchConfig({ prep: v })} />
-            <Stepper label="Exercices par tour" value={config.exercices} min={1} max={20} step={1} onChange={(v) => patchConfig({ exercices: v })} />
+        <div className="flex-1 overflow-y-auto px-6 pb-6">
+          <div className="mx-auto w-full max-w-md space-y-2">
+            <Stepper label="Préparation" unit="s" value={config.prep} min={0} max={60} step={5} onChange={(v) => patchConfig({ prep: v })} />
+            <Stepper label="Exercices" value={config.exercices} min={1} max={20} step={1} onChange={(v) => patchConfig({ exercices: v })} />
 
-            <div className="space-y-3 rounded-xl border border-emerald-500/20 bg-emerald-950/20 p-3">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-400">Durée de travail par exercice</h3>
+            <div className="space-y-2 py-2">
+              <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 pl-1">Durées de travail</h3>
               {normalizeWorkTimes(config.workTimes, config.exercices).map((duree, i) => (
-                <Stepper key={i} label={`Durée Exo ${i + 1}`} unit="s" value={duree} min={WORK_MIN} max={WORK_MAX} step={5} onChange={(v) => setWorkTime(i, v)} />
+                <Stepper key={i} label={`Exercice ${i + 1}`} unit="s" value={duree} min={WORK_MIN} max={WORK_MAX} step={5} onChange={(v) => setWorkTime(i, v)} />
               ))}
             </div>
 
-            <Stepper label="Repos entre exercices" unit="s" value={config.rest} min={0} max={300} step={5} onChange={(v) => patchConfig({ rest: v })} />
-            <Stepper label="Nombre de tours" value={config.tours} min={1} max={20} step={1} onChange={(v) => patchConfig({ tours: v })} />
-            <Stepper label="Repos entre les tours" unit="s" value={config.longRest} min={0} max={600} step={5} onChange={(v) => patchConfig({ longRest: v })} />
+            <Stepper label="Repos (Inter-exercice)" unit="s" value={config.rest} min={0} max={3600} step={5} onChange={(v) => patchConfig({ rest: v })} />
+            <Stepper label="Tours" value={config.tours} min={1} max={20} step={1} onChange={(v) => patchConfig({ tours: v })} />
+            <Stepper label="Repos (Inter-tour)" unit="s" value={config.longRest} min={0} max={3600} step={5} onChange={(v) => patchConfig({ longRest: v })} />
 
-            <div className="flex items-center justify-between p-3 rounded-xl border border-slate-800 bg-slate-900/60 text-sm">
-              <span className="font-bold text-slate-400">Durée totale du circuit</span>
-              <span className="text-lg font-black text-white tabular-nums">{formatDuree(dureeTotale)} min</span>
+            <div className="flex items-center justify-between py-6 px-2 mt-4 border-t border-zinc-900">
+              <span className="text-sm font-medium text-zinc-400">Durée totale</span>
+              <span className="text-xl font-bold text-white">{formatDuree(dureeTotale)}</span>
             </div>
 
             <button
               onClick={demarrer}
-              className="w-full mt-2 p-5 rounded-2xl font-black text-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white shadow-[0_0_25px_rgba(16,185,129,0.35)] transition-all flex items-center justify-center gap-3"
+              className="w-full mt-4 p-5 rounded-full font-bold text-sm tracking-widest uppercase bg-white text-black hover:bg-zinc-200 transition-colors"
             >
-              <Play className="size-7" /> DÉMARRER
+              Démarrer le circuit
             </button>
           </div>
         </div>
@@ -388,42 +374,40 @@ export default function CircuitTimer({ onClose }: Props) {
 
       {/* ÉCRAN CHRONO */}
       {enCours && phase && (
-        <div className="flex-1 flex flex-col items-center justify-center px-4 pb-8 select-none">
-          <div className={cn('text-2xl sm:text-3xl font-black tracking-[0.3em] mb-2', meta.accent)}>
+        <div className="flex-1 flex flex-col items-center justify-center px-4 pb-12 select-none">
+          <div className={cn('text-sm font-bold uppercase tracking-[0.4em] mb-4', meta.text)}>
             {status === 'paused' ? 'PAUSE' : meta.label}
           </div>
 
           <div
             className={cn(
-              'font-black text-white tabular-nums leading-none text-[38vw] sm:text-[13rem]',
-              status === 'paused' && 'opacity-40',
-              urgence && 'animate-pulse'
+              'font-black tabular-nums leading-none text-[35vw] sm:text-[15rem] tracking-tighter',
+              meta.text,
+              status === 'paused' && 'opacity-30'
             )}
           >
             {formatDuree(secondes)}
           </div>
 
-          <div className="flex items-center gap-3 mt-4 text-white/90">
-            <span className="flex items-center gap-2 px-4 py-2 rounded-full bg-black/25 text-sm font-black">
-              <Dumbbell className="size-4" />
-              {phase.kind === 'rest' || phase.kind === 'longRest' ? 'Prochain : ' : ''}Exercice {phase.exercice}/{config.exercices}
-            </span>
-            <span className="flex items-center gap-2 px-4 py-2 rounded-full bg-black/25 text-sm font-black">
-              <Flag className="size-4" /> Tour {phase.tour}/{config.tours}
-            </span>
+          <div className={cn("flex items-center gap-6 mt-8 text-sm font-medium tracking-wide", meta.text, "opacity-80")}>
+            <span>Exercice {phase.exercice}/{config.exercices}</span>
+            <span className="w-1 h-1 rounded-full bg-current opacity-50"></span>
+            <span>Tour {phase.tour}/{config.tours}</span>
           </div>
 
-          <div className="flex items-center gap-3 mt-10 w-full max-w-sm">
+          <div className="flex items-center gap-4 mt-16">
             <button
               onClick={status === 'paused' ? reprendre : mettreEnPause}
-              className="flex-1 p-5 rounded-2xl font-black text-lg bg-white/15 hover:bg-white/25 text-white backdrop-blur-sm transition-colors flex items-center justify-center gap-2"
+              className={cn(
+                "h-16 w-16 rounded-full flex items-center justify-center transition-transform hover:scale-105 active:scale-95",
+                meta.text === 'text-black' ? 'bg-black text-white' : 'bg-white text-black'
+              )}
             >
-              {status === 'paused' ? <><Play className="size-6" /> REPRENDRE</> : <><Pause className="size-6" /> PAUSE</>}
+              {status === 'paused' ? <Play className="size-6 ml-1" /> : <Pause className="size-6" />}
             </button>
             <button
               onClick={reinitialiser}
-              title="Réinitialiser"
-              className="p-5 rounded-2xl bg-black/25 hover:bg-black/40 text-slate-200 transition-colors"
+              className={cn("h-16 w-16 rounded-full flex items-center justify-center opacity-60 hover:opacity-100 transition-opacity", meta.text)}
             >
               <RotateCcw className="size-6" />
             </button>
@@ -433,36 +417,34 @@ export default function CircuitTimer({ onClose }: Props) {
 
       {/* ÉCRAN FIN DE CIRCUIT */}
       {status === 'finished' && (
-        <div className="flex-1 flex flex-col items-center justify-center px-4 pb-8 text-center">
-          <div className="p-5 bg-emerald-500/20 text-emerald-300 rounded-full mb-6 ring-1 ring-emerald-500/30">
-            <Flag className="size-12" />
-          </div>
-          <div className="text-4xl font-black text-white mb-2">CIRCUIT TERMINÉ</div>
-          <p className="text-emerald-300/80 font-bold mb-10">
-            {config.tours} tour{config.tours > 1 ? 's' : ''} · {config.exercices} exercice{config.exercices > 1 ? 's' : ''} · {formatDuree(dureeTotale)} min d'intervalle
+        <div className="flex-1 flex flex-col items-center justify-center px-4 pb-8 text-center bg-black">
+          <Flag className="size-10 text-white mb-6" />
+          <div className="text-2xl font-bold tracking-widest uppercase text-white mb-2">Terminé</div>
+          <p className="text-zinc-500 font-medium mb-12">
+            {config.tours} tours · {formatDuree(dureeTotale)}
           </p>
-          <div className="flex items-center gap-3 w-full max-w-sm">
+          <div className="flex flex-col gap-4 w-full max-w-xs">
             <button
               onClick={demarrer}
-              className="flex-1 p-5 rounded-2xl font-black text-lg bg-emerald-600 hover:bg-emerald-500 text-white transition-colors flex items-center justify-center gap-2"
+              className="w-full p-4 rounded-full font-bold text-sm tracking-widest uppercase bg-white text-black hover:bg-zinc-200 transition-colors"
             >
-              <RotateCcw className="size-6" /> RECOMMENCER
+              Recommencer
             </button>
             <button
               onClick={reinitialiser}
-              className="flex-1 p-5 rounded-2xl font-black text-lg bg-white/10 hover:bg-white/20 text-white transition-colors flex items-center justify-center gap-2"
+              className="w-full p-4 rounded-full font-bold text-sm tracking-widest uppercase bg-zinc-900 text-white hover:bg-zinc-800 transition-colors"
             >
-              <Coffee className="size-6" /> RÉGLAGES
+              Paramètres
             </button>
           </div>
         </div>
       )}
 
-      {/* Barre de progression globale */}
+      {/* Barre de progression globale slim */}
       {enCours && (
-        <div className="h-1.5 w-full bg-black/30">
+        <div className="absolute bottom-0 left-0 h-1 w-full bg-black/10">
           <div
-            className="h-full bg-white/70 transition-all duration-300"
+            className={cn("h-full transition-all duration-300", meta.text === 'text-black' ? 'bg-black' : 'bg-white')}
             style={{ width: `${Math.min(100, Math.max(0, progression))}%` }}
           />
         </div>
@@ -472,7 +454,7 @@ export default function CircuitTimer({ onClose }: Props) {
 }
 
 // ————————————————————————————————————————————————
-// Stepper : réglage hybride +/- et clavier
+// Stepper : Design Brutaliste/Minimaliste
 // ————————————————————————————————————————————————
 function Stepper({ label, value, onChange, min, max, step, unit }: {
   label: string;
@@ -526,18 +508,18 @@ function Stepper({ label, value, onChange, min, max, step, unit }: {
   };
 
   return (
-    <div className="flex items-center justify-between gap-3 p-3 rounded-xl border border-slate-800 bg-slate-900/60">
-      <span className="text-sm font-bold text-slate-300">{label}</span>
+    <div className="flex items-center justify-between p-3 rounded-2xl bg-zinc-900/50 hover:bg-zinc-900 transition-colors">
+      <span className="text-sm font-medium text-zinc-300 ml-1">{label}</span>
       <div className="flex items-center gap-1 shrink-0">
         <button
           onClick={() => onChange(Math.max(min, value - step))}
           disabled={value <= min}
-          className="h-11 w-11 flex items-center justify-center rounded-xl bg-slate-800 hover:bg-slate-700 text-white disabled:opacity-30 transition-colors"
+          className="h-10 w-10 flex items-center justify-center rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 disabled:opacity-20 transition-all"
         >
-          <Minus className="size-5" />
+          <Minus className="size-4" />
         </button>
 
-        <div className="relative flex items-center justify-center w-20">
+        <div className="relative flex items-center justify-center w-16">
           <input
             type="text"
             inputMode={unit === 's' ? 'decimal' : 'numeric'}
@@ -550,23 +532,18 @@ function Stepper({ label, value, onChange, min, max, step, unit }: {
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
             className={cn(
-              "w-full bg-transparent text-center text-xl font-black text-white tabular-nums outline-none rounded-md py-1 transition-all",
-              isEditing && "bg-black/30 ring-2 ring-emerald-500/50"
+              "w-full bg-transparent text-center text-lg font-bold text-white tabular-nums outline-none rounded-lg py-1 transition-all",
+              isEditing && "bg-black/50"
             )}
           />
-          {unit && !isEditing && (
-            <span className="absolute right-1 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-500 pointer-events-none">
-              {unit}
-            </span>
-          )}
         </div>
 
         <button
           onClick={() => onChange(Math.min(max, value + step))}
           disabled={value >= max}
-          className="h-11 w-11 flex items-center justify-center rounded-xl bg-slate-800 hover:bg-slate-700 text-white disabled:opacity-30 transition-colors"
+          className="h-10 w-10 flex items-center justify-center rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 disabled:opacity-20 transition-all"
         >
-          <Plus className="size-5" />
+          <Plus className="size-4" />
         </button>
       </div>
     </div>
