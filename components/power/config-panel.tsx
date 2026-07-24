@@ -51,7 +51,6 @@ export default function ConfigPanel() {
     }, 800)
   }
 
-  // LOGIQUE STRICTEMENT CONSERVÉE POUR LE TÉLÉCHARGEMENT TXT
   const telechargerBloc = async (block: TrainingBlock) => {
     setDownloadingId(block.id)
     try {
@@ -60,12 +59,35 @@ export default function ConfigPanel() {
       const finBloc = new Date(debutBloc)
       finBloc.setDate(debutBloc.getDate() + block.duration_weeks * 7 - 1)
       const finBlocStr = toLocalDateStr(finBloc)
-      const dateLimite = aujourdhuiStr < finBlocStr ? aujourdhuiStr : finBlocStr
 
-      if (block.start_date > dateLimite) { alert("CE BLOC N'A PAS ENCORE COMMENCÉ."); return }
+      // 1. On aspire TOUTES les données du bloc sans blocage de date
+      const { data: allData, error } = await supabase
+        .from('workout_sets')
+        .select('*')
+        .gte('date', block.start_date)
+        .lte('date', finBlocStr)
+        .order('date', { ascending: true })
+        .order('order_index', { ascending: true })
+        
+      if (error) throw error; 
+      if (!allData || allData.length === 0) { alert("AUCUNE SÉANCE ENREGISTRÉE."); return }
 
-      const { data, error } = await supabase.from('workout_sets').select('*').gte('date', block.start_date).lte('date', dateLimite).order('date', { ascending: true }).order('order_index', { ascending: true })
-      if (error) throw error; if (!data || data.length === 0) { alert("AUCUNE SÉANCE ENREGISTRÉE."); return }
+      // 2. Le scan intelligent : on cherche le dernier jour où un chiffre a été écrit (par le coach ou l'athlète)
+      let derniereDateRemplie = block.start_date;
+      for (const row of allData) {
+        const coachData = Array.isArray(row.coach_tracking_data) ? row.coach_tracking_data : [];
+        const athleteData = Array.isArray(row.tracking_data) ? row.tracking_data : [];
+        
+        const coachRempli = coachData.some((s: any) => (s.reps && s.reps.toString().trim() !== '') || (s.weight && s.weight.toString().trim() !== ''));
+        const athleteRempli = athleteData.some((s: any) => (s.reps && s.reps.toString().trim() !== '') || (s.weight && s.weight.toString().trim() !== ''));
+        
+        if ((coachRempli || athleteRempli) && row.date > derniereDateRemplie) {
+          derniereDateRemplie = row.date;
+        }
+      }
+
+      // 3. On filtre pour ne garder que les séances jusqu'à cette dernière date
+      const data = allData.filter(row => row.date <= derniereDateRemplie);
 
       const parJour = new Map<string, any[]>()
       for (const row of data) { const lignes = parJour.get(row.date) ?? []; lignes.push(row); parJour.set(row.date, lignes) }
@@ -73,7 +95,7 @@ export default function ConfigPanel() {
       const formatCote = (set: any, texteSiVide: string) => (set.reps || set.weight) ? `${set.reps || '-'} reps @ ${set.weight || '-'} kg (RPE ${set.rpe || '-'})` : texteSiVide
 
       let contenu = `=== HISTORIQUE DU BLOC ${block.block_number}${block.name ? ` (${block.name})` : ''} ===\n`
-      contenu += `Période exportée : ${block.start_date} → ${dateLimite} (export généré le ${aujourdhuiStr})\n`
+      contenu += `Période exportée : ${block.start_date} → ${derniereDateRemplie} (export généré le ${aujourdhuiStr})\n`
 
       let semaineAffichee = 0
       for (const [date, lignes] of parJour) {
