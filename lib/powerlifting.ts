@@ -195,3 +195,22 @@ export function painLabel(level: number | null | undefined): string | null {
   const p = PAIN_LEVELS.find((l) => l.value === level)
   return p ? `${p.emoji} ${p.label}` : null
 }
+
+// ————————————————————————————————————————————————
+// Score IPF GL — coefficients officiels IPF (mai 2020 à déc. 2023),
+// Powerlifting Classique. Source unique : ne pas dupliquer ces
+// constantes ailleurs (une coquille sur B a déjà faussé les scores).
+// https://www.powerlifting.sport/fileadmin/ipf/data/ipf-formula/IPF_GL_Coefficients-2020.pdf
+// ————————————————————————————————————————————————
+
+const IPF_GL_COEFFICIENTS = {
+  male: { A: 1199.72839, B: 1025.18162, C: 0.00921 },
+  female: { A: 610.32796, B: 1045.59282, C: 0.03048 },
+} as const
+
+export function calculateIPFGL(total: number, bodyweight: number, gender: 'male' | 'female' = 'male'): number {
+  if (!(total > 0) || !(bodyweight > 0)) return 0
+  const { A, B, C } = IPF_GL_COEFFICIENTS[gender]
+  const denom = A - B * Math.exp(-C * bodyweight)
+  return denom > 0 ? (100 * total) / denom : 0
+}

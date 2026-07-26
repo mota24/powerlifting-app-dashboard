@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Timer, Play, Pause, X, RotateCcw, Minus, Plus, Flag, Dumbbell, Settings2, Volume2, VolumeX } from 'lucide-react'
+import { Play, Pause, X, RotateCcw, Minus, Plus, Flag, Volume2, VolumeX } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 // ————————————————————————————————————————————————
@@ -245,7 +245,7 @@ export default function CircuitTimer({ onClose }: Props) {
         }
       } catch { }
     }
-    demarrer()
+    demander()
     const onVisible = () => {
       if (actif && document.visibilityState === 'visible') demander()
     }

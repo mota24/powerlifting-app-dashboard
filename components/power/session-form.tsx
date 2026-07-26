@@ -3,11 +3,10 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { toLocalDateStr, sessionTonnage, setsTonnage, bestE1RM, classifyLift, LIFT_SQUAT, LIFT_BENCH, LIFT_DEADLIFT, ACCESSORIES, PAIN_LEVELS, type SetData, type LiftCategory } from '@/lib/powerlifting'
-import { Target, Activity, Check, Moon, Footprints, Battery, Coffee, Plus, Trash2, MessageSquare, X, Copy, RefreshCw, Award, Zap, Flame, Sparkles, ChevronUp, ChevronDown, Dumbbell, HeartPulse, WifiOff } from 'lucide-react'
+import { Activity, Check, Coffee, Plus, Trash2, X, Copy, RefreshCw, Award, Sparkles, ChevronUp, ChevronDown, Dumbbell } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from '@/components/power/toaster'
 
-// ... (Garde exactement toutes tes interfaces Props, ExerciceRow, WorkoutSetRow, UserProgress et tes fonctions utilitaires type videSet) ...
 interface Props { dateActive: Date; isRestDayMode: boolean; setIsRestDayMode: (val: boolean) => void; pasDuJour: number | null; }
 interface ExerciceRow { id: string | null; uid: string; name: string; coachTracking: SetData[]; tracking: SetData[]; comments: string; painLevel: number | null; }
 interface WorkoutSetRow { id: string; date: string; exercise_name: string | null; coach_tracking_data: SetData[] | null; tracking_data: SetData[] | null; comments: string | null; fatigue_score: number | null; sleep_hours: number | null; steps_count: number | null; order_index: number | null; pain_level?: number | null; coach_reps?: number | string | null; coach_weight?: number | string | null; coach_rpe?: number | string | null; }
@@ -17,7 +16,6 @@ const videSet = (): SetData => ({ reps: '', weight: '', rpe: '' })
 const creerExerciceVierge = (): ExerciceRow => ({ id: null, uid: crypto.randomUUID(), name: '', coachTracking: [videSet()], tracking: [videSet()], comments: '', painLevel: null, })
 const safeInt = (v: string, fallback = 0) => { const n = parseInt(v, 10); return Number.isFinite(n) ? n : fallback }
 const safeFloat = (v: string, fallback = 0) => { const n = parseFloat(v); return Number.isFinite(n) ? n : fallback }
-const errMessage = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMode, pasDuJour }: Props) {
   const [exercices, setExercices] = useState<ExerciceRow[]>([])
@@ -49,7 +47,6 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
   const pasDuJourRef = useRef(pasDuJour)
   useEffect(() => { pasDuJourRef.current = pasDuJour; if (pasDuJour !== null) setPas(pasDuJour) }, [pasDuJour])
 
-  // --- LOGIQUE DE CHARGEMENT & SAVE & IA IDENTIQUE (Je la laisse inchangée) ---
   useEffect(() => { let cancelled = false; loadedDateRef.current = null; const chargerSeance = async () => { const { data, error } = await supabase.from('workout_sets').select('*').eq('date', dateFormatee).order('order_index', { ascending: true }); if (cancelled) return; if (error) { toast('Erreur de chargement', 'error'); return } const rows = (data ?? []) as WorkoutSetRow[]; if (rows.length > 0) { const isExplicitRest = rows.some((item) => REST_NAMES.includes(item.exercise_name ?? '')); const vraisExercices = rows.filter((item) => !REST_NAMES.includes(item.exercise_name ?? '')); if (isExplicitRest && vraisExercices.length === 0) setIsRestDayMode(true); else if (vraisExercices.length > 0) setIsRestDayMode(false); else setIsRestDayMode(jourSemaine === 0 || jourSemaine === 5); if (vraisExercices.length > 0) { setExercices(vraisExercices.map((item) => { const fallbackCoach: SetData[] = item.coach_reps ? [{ reps: String(item.coach_reps), weight: item.coach_weight != null ? String(item.coach_weight) : '', rpe: item.coach_rpe != null ? String(item.coach_rpe) : '' }] : [videSet()]; const coachTracking = item.coach_tracking_data ?? fallbackCoach; const tracking = [...(item.tracking_data ?? [videSet()])]; while (tracking.length < coachTracking.length) tracking.push(videSet()); return { id: item.id, uid: crypto.randomUUID(), name: item.exercise_name ?? '', coachTracking, tracking, comments: item.comments ?? '', painLevel: item.pain_level ?? null, } })) } else { setExercices([creerExerciceVierge()]) } const derniereLigne = rows[rows.length - 1]; setFatigue(derniereLigne.fatigue_score ?? 5); setSommeil(derniereLigne.sleep_hours ?? 8); setPas(pasDuJourRef.current ?? derniereLigne.steps_count ?? 0) } else { setIsRestDayMode(jourSemaine === 0 || jourSemaine === 5); setExercices([creerExerciceVierge()]); setFatigue(5); setSommeil(8); setPas(pasDuJourRef.current ?? 0) } loadedDateRef.current = dateFormatee }; chargerSeance(); return () => { cancelled = true } }, [dateFormatee, jourSemaine, setIsRestDayMode])
   useEffect(() => { let cancelled = false; const fetchSemainePrec = async () => { const d = new Date(dateActive); d.setDate(d.getDate() - 7); const { data } = await supabase.from('workout_sets').select('tracking_data').eq('date', toLocalDateStr(d)); if (cancelled) return; const total = (data ?? []).reduce((sum, row) => sum + setsTonnage(row.tracking_data as SetData[] | null), 0); setTonnageSemainePrec(total > 0 ? Math.round(total) : null) }; fetchSemainePrec(); return () => { cancelled = true } }, [dateFormatee])
   const handleToggleMode = () => { if (!isRestDayMode && exercices.length > 0 && exercices[0].name !== '') { if (!confirm('Effacer la séance pour passer en Repos ?')) return } setIsRestDayMode(!isRestDayMode) }

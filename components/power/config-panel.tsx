@@ -14,14 +14,14 @@ export default function ConfigPanel() {
   const [loading, setLoading] = useState(true)
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
 
-  useEffect(() => { fetchBlocks() }, [])
-
   const fetchBlocks = async () => {
     setLoading(true)
     const { data } = await supabase.from('training_blocks').select('*').order('block_number', { ascending: true })
     if (data) setBlocks(data)
     setLoading(false)
   }
+
+  useEffect(() => { fetchBlocks() }, [])
 
   const ajouterBloc = async () => {
     const nextNumber = blocks.length > 0 ? Math.max(...blocks.map(b => b.block_number)) + 1 : 1

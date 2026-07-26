@@ -8,7 +8,6 @@ interface WeekCalendarProps {
   dateActive: Date;
   setDateActive: (date: Date) => void;
   blockTitle?: string;
-  isRestDayMode?: boolean;
 }
 
 const WEEK_PROGRAM = [
@@ -16,7 +15,7 @@ const WEEK_PROGRAM = [
   { id: 4, dayName: 'Jeu' }, { id: 5, dayName: 'Ven' }, { id: 6, dayName: 'Sam' }, { id: 0, dayName: 'Dim' }, 
 ]
 
-export function WeekCalendar({ dateActive, setDateActive, blockTitle, isRestDayMode = false }: WeekCalendarProps) {
+export function WeekCalendar({ dateActive, setDateActive, blockTitle }: WeekCalendarProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const dateInputRef = useRef<HTMLInputElement>(null);
 

@@ -33,7 +33,7 @@ export function ConsentBanner() {
         <div className="fixed bottom-0 inset-x-0 z-[120] p-4 sm:p-6">
           <div className="mx-auto max-w-3xl rounded-2xl border border-zinc-900 bg-black/95 backdrop-blur-md shadow-2xl p-6 flex flex-col sm:flex-row items-start sm:items-center gap-6">
             <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest flex-1 leading-loose">
-              NOUS UTILISONS UNE MESURE D'AUDIENCE ANONYME POUR AMÉLIORER L'APP.{' '}
+              NOUS UTILISONS UNE MESURE D&apos;AUDIENCE ANONYME POUR AMÉLIORER L&apos;APP.{' '}
               <a href="/confidentialite" className="text-white underline hover:text-zinc-300">DÉTAILS</a>.
             </p>
             <div className="flex items-center gap-3 shrink-0 w-full sm:w-auto">

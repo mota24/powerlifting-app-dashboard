@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import { calculateIPFGL } from '@/lib/powerlifting';
 
 export default function GLCalculator() {
   const [gender, setGender] = useState<'male' | 'female'>('male');
@@ -7,23 +8,9 @@ export default function GLCalculator() {
   const [total, setTotal] = useState<number | ''>('');
 
   const calculateGL = () => {
-    // Si les champs sont vides ou à 0, on n'affiche rien[cite: 1]
     if (!bw || !total || bw <= 0 || total <= 0) return '—';
-
-    // Les constantes officielles IPF 2020 pour le Powerlifting Classique[cite: 1]
-    const constants = {
-      male: { A: 1199.72839, B: 1025.18162, C: 0.00921 },
-      female: { A: 610.32796, B: 1045.59282, C: 0.03048 }
-    };
-
-    const { A, B, C } = constants[gender];
-    
-    // Application de la formule mathématique[cite: 1]
-    const denominator = A - B * Math.exp(-C * Number(bw));
-    const coefficient = 100 / denominator;
-    
-    // On retourne le score avec 2 décimales[cite: 1]
-    return (Number(total) * coefficient).toFixed(2);
+    const score = calculateIPFGL(Number(total), Number(bw), gender);
+    return score > 0 ? score.toFixed(2) : '—';
   };
 
   return (

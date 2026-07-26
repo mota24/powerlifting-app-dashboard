@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic'
 /**
  * RGPD Art. 17 (droit à l'effacement). Supprime le COMPTE (utilisateur Supabase)
  * et les données strictement personnelles (pas quotidiens synchronisés depuis
- * l'iPhone, indexés par identifiant).
+ * l'iPhone et historique de poids de corps, indexés par identifiant).
  *
  * Les tables d'entraînement (workout_sets, training_blocks, user_progress) sont
  * PARTAGÉES entre les comptes autorisés (application mono-athlète) : elles ne
@@ -23,6 +23,7 @@ export async function POST(req: NextRequest) {
   const syncUserId = user.email?.split('@')[0]
   if (syncUserId) {
     await admin.from('seances_pas').delete().eq('user_id', syncUserId)
+    await admin.from('bodyweight_logs').delete().eq('user_id', syncUserId)
   }
   await admin.auth.admin.deleteUser(user.id).catch(() => { /* déjà supprimé */ })
   await revokeSession(auth.accessToken)

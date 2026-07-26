@@ -7,10 +7,9 @@ import { classifyLift, setsTonnage, setE1RM, toLocalDateStr, type LiftCategory, 
 import { cn } from '@/lib/utils'
 import { RefreshCw, HeartPulse } from 'lucide-react'
 
-// ... (Garde exactement tes interfaces ChartRow, WeekPoint, LIFTS, et la fonction mondayOf sans rien changer) ...
 interface ChartRow { date: string; exercise_name: string | null; tracking_data: SetData[] | null; pain_level?: number | null; }
 interface WeekPoint { semaine: string; tonnage: number; topSet: number; e1rm: number; douleur: number | null; }
-const LIFTS: { key: LiftCategory; label: string; color: string }[] = [ { key: 'squat', label: 'Squat', color: '#ffffff' }, { key: 'bench', label: 'Bench', color: '#a1a1aa' }, { key: 'deadlift', label: 'Deadlift', color: '#52525b' } ]
+const LIFTS: { key: LiftCategory; label: string }[] = [ { key: 'squat', label: 'Squat' }, { key: 'bench', label: 'Bench' }, { key: 'deadlift', label: 'Deadlift' } ]
 function mondayOf(dateStr: string): string { const [y, m, d] = dateStr.split('-').map(Number); const date = new Date(y, m - 1, d); const day = date.getDay(); date.setDate(date.getDate() - day + (day === 0 ? -6 : 1)); return toLocalDateStr(date); }
 
 export function LiftProgressChart() {
@@ -55,7 +54,6 @@ export function LiftProgressChart() {
     })
   }, [rows, lift])
 
-  const color = LIFTS.find((l) => l.key === lift)!.color
   const showPain = (lift === 'squat' || lift === 'deadlift') && points.some((p) => p.douleur !== null)
 
   if (loading) return <div className="h-[350px] flex items-center justify-center text-zinc-600"><RefreshCw className="size-5 animate-spin" /></div>

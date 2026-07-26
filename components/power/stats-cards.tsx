@@ -2,21 +2,11 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-import { classifyLift, setE1RM, toLocalDateStr, type SetData } from '@/lib/powerlifting'
+import { calculateIPFGL, classifyLift, setE1RM, toLocalDateStr, type SetData } from '@/lib/powerlifting'
 import { Trophy, Edit2, Check, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-// Formule IPF GL Hommes Classic
-function calculateIPFGL(total: number, bw: number): number {
-  if (total <= 0 || bw <= 0) return 0
-  const A = 1199.72839
-  const B = 1025.18192
-  const C = 0.00921
-  const denom = A - B * Math.exp(-C * bw)
-  return denom > 0 ? (100 * total) / denom : 0
-}
-
-export function StatsCards({ pasDuJour }: { pasDuJour: number | null }) {
+export function StatsCards() {
   const [isEditing, setIsEditing] = useState(false)
   const [realPrs, setRealPrs] = useState({ squat: 300, bench: 175, deadlift: 340 })
   const [tempPrs, setTempPrs] = useState({ squat: 300, bench: 175, deadlift: 340 })

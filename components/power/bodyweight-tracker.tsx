@@ -75,6 +75,7 @@ export function BodyweightTracker() {
         .eq('date', todayStr)
         .eq('user_id', syncUserId)
         .limit(1)
+      if (selError) throw selError
 
       if (existing && existing.length > 0) {
         const { error } = await supabase
