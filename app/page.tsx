@@ -49,7 +49,18 @@ export default function Page() {
   const [isRestDayMode, setIsRestDayMode] = useState(false)
   const [pasDuJour, setPasDuJour] = useState<number | null>(null);
   
-  const [dateActive, setDateActive] = useState<Date>(new Date())
+  // ?date=YYYY-MM-DD ouvre directement une séance (lien partageable, et
+  // cible de la navigation depuis le graphique de progression).
+  const [dateActive, setDateActive] = useState<Date>(() => {
+    if (typeof window !== 'undefined') {
+      const param = new URLSearchParams(window.location.search).get('date')
+      if (param && /^\d{4}-\d{2}-\d{2}$/.test(param)) {
+        const [annee, mois, jour] = param.split('-').map(Number)
+        return new Date(annee, mois - 1, jour)
+      }
+    }
+    return new Date()
+  })
   const [menuOuvert, setMenuOuvert] = useState(false)
   const [showPasswordModal, setShowPasswordModal] = useState(false)
   const [showCircuitTimer, setShowCircuitTimer] = useState(false)
@@ -179,6 +190,21 @@ export default function Page() {
     setVueActive(vue)
     setMenuOuvert(false)
     window.history.pushState({}, '', `?page=${vue}`);
+  }
+
+  /**
+   * Ouvre la séance d'un jour donné (clic sur un point du graphique de
+   * progression). Une séance est identifiée par sa DATE : les lignes
+   * workout_sets sont une par exercice, l'id de l'une d'elles ne désigne
+   * donc pas la séance entière.
+   */
+  const ouvrirSeance = (dateStr: string) => {
+    const [annee, mois, jour] = dateStr.split('-').map(Number)
+    setDateActive(new Date(annee, mois - 1, jour))
+    setVueActive('accueil')
+    setMenuOuvert(false)
+    window.history.pushState({}, '', `?page=accueil&date=${dateStr}`)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   useEffect(() => {
@@ -463,7 +489,7 @@ export default function Page() {
             <StatsCards />
             <Card>
               <CardTitle icon={LineChart} title="Progression des lifts" hint="Tonnage hebdo · Top set · Douleur" />
-              <LiftProgressChart />
+              <LiftProgressChart onSelectSession={ouvrirSeance} />
             </Card>
             <BodyweightTracker />
           </section>

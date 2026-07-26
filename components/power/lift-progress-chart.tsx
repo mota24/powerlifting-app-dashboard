@@ -8,11 +8,12 @@ import { cn } from '@/lib/utils'
 import { RefreshCw, HeartPulse } from 'lucide-react'
 
 interface ChartRow { date: string; exercise_name: string | null; tracking_data: SetData[] | null; pain_level?: number | null; }
-interface WeekPoint { semaine: string; tonnage: number; topSet: number; e1rm: number; douleur: number | null; }
+/** `date` = jour de la séance qui a produit le top set de la semaine (cible du clic). */
+interface WeekPoint { semaine: string; date: string; tonnage: number; topSet: number; e1rm: number; douleur: number | null; }
 const LIFTS: { key: LiftCategory; label: string }[] = [ { key: 'squat', label: 'Squat' }, { key: 'bench', label: 'Bench' }, { key: 'deadlift', label: 'Deadlift' } ]
 function mondayOf(dateStr: string): string { const [y, m, d] = dateStr.split('-').map(Number); const date = new Date(y, m - 1, d); const day = date.getDay(); date.setDate(date.getDate() - day + (day === 0 ? -6 : 1)); return toLocalDateStr(date); }
 
-export function LiftProgressChart() {
+export function LiftProgressChart({ onSelectSession }: { onSelectSession?: (date: string) => void }) {
   const [rows, setRows] = useState<ChartRow[]>([])
   const [loading, setLoading] = useState(true)
   const [lift, setLift] = useState<LiftCategory>('bench')
@@ -23,7 +24,7 @@ export function LiftProgressChart() {
       const since = new Date(); since.setMonth(since.getMonth() - 6)
       // .lte('date', aujourd'hui) : la propagation de bloc pré-remplit les 4
       // semaines à venir, mais ces séances n'ont pas encore eu lieu.
-      const { data } = await supabase.from('workout_sets').select('*').gte('date', toLocalDateStr(since)).lte('date', toLocalDateStr(new Date())).order('date', { ascending: true })
+      const { data } = await supabase.from('workout_sets').select('date, exercise_name, tracking_data, pain_level').gte('date', toLocalDateStr(since)).lte('date', toLocalDateStr(new Date())).order('date', { ascending: true })
       if (!cancelled) { setRows((data ?? []) as ChartRow[]); setLoading(false) }
     }
     fetchData()
@@ -31,7 +32,7 @@ export function LiftProgressChart() {
   }, [])
 
   const points: WeekPoint[] = useMemo(() => {
-    const parSemaine = new Map<string, { tonnage: number; topSet: number; e1rm: number; pains: number[] }>()
+    const parSemaine = new Map<string, { tonnage: number; topSet: number; topSetDate: string; e1rm: number; pains: number[] }>()
     for (const row of rows) {
       if (classifyLift(row.exercise_name) !== lift) continue
       // Séance planifiée mais rien de réellement soulevé (poids vide) : on
@@ -39,10 +40,12 @@ export function LiftProgressChart() {
       const validSets = (row.tracking_data ?? []).filter((set) => parseFloat(set?.weight) > 0)
       if (validSets.length === 0) continue
       const semaine = mondayOf(row.date)
-      const agg = parSemaine.get(semaine) ?? { tonnage: 0, topSet: 0, e1rm: 0, pains: [] }
+      const agg = parSemaine.get(semaine) ?? { tonnage: 0, topSet: 0, topSetDate: row.date, e1rm: 0, pains: [] }
       agg.tonnage += setsTonnage(row.tracking_data)
       for (const set of validSets) {
-        const w = parseFloat(set.weight); if (w > agg.topSet) agg.topSet = w
+        const w = parseFloat(set.weight)
+        // On retient le jour du top set : c'est la séance ouverte au clic.
+        if (w > agg.topSet) { agg.topSet = w; agg.topSetDate = row.date }
         const e1rm = setE1RM(set); if (e1rm > agg.e1rm) agg.e1rm = e1rm
       }
       if (typeof row.pain_level === 'number') agg.pains.push(row.pain_level)
@@ -50,9 +53,21 @@ export function LiftProgressChart() {
     }
     return Array.from(parSemaine.entries()).sort(([a], [b]) => (a < b ? -1 : 1)).map(([monday, agg]) => {
       const [, m, d] = monday.split('-')
-      return { semaine: `${d}/${m}`, tonnage: Math.round(agg.tonnage), topSet: agg.topSet, e1rm: Math.round(agg.e1rm), douleur: agg.pains.length ? Math.round((agg.pains.reduce((s, p) => s + p, 0) / agg.pains.length) * 10) / 10 : null }
+      return { semaine: `${d}/${m}`, date: agg.topSetDate, tonnage: Math.round(agg.tonnage), topSet: agg.topSet, e1rm: Math.round(agg.e1rm), douleur: agg.pains.length ? Math.round((agg.pains.reduce((s, p) => s + p, 0) / agg.pains.length) * 10) / 10 : null }
     })
   }, [rows, lift])
+
+  // Recharts expose l'index de la catégorie survolée : plus robuste que de
+  // fouiller la forme du payload, et couvre le clic n'importe où sur la colonne.
+  const handleChartClick = (state: { activeTooltipIndex?: number | string | null }) => {
+    if (!onSelectSession) return
+    const raw = state?.activeTooltipIndex
+    if (raw == null) return
+    const index = typeof raw === 'number' ? raw : Number.parseInt(raw, 10)
+    if (!Number.isInteger(index) || index < 0) return
+    const point = points[index]
+    if (point) onSelectSession(point.date)
+  }
 
   const showPain = (lift === 'squat' || lift === 'deadlift') && points.some((p) => p.douleur !== null)
 
@@ -81,9 +96,9 @@ export function LiftProgressChart() {
         </div>
       ) : (
         <>
-          <div className="h-[300px] w-full">
+          <div className={cn('h-[300px] w-full', onSelectSession && 'cursor-pointer')}>
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={points} margin={{ top: 10, right: 0, left: -10, bottom: 0 }}>
+              <ComposedChart data={points} margin={{ top: 10, right: 0, left: -10, bottom: 0 }} onClick={handleChartClick}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
                 <XAxis dataKey="semaine" stroke="#71717a" fontSize={10} tickLine={false} axisLine={false} />
                 <YAxis yAxisId="tonnage" stroke="#71717a" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v: number) => `${Math.round(v / 1000)}t`} />
@@ -95,7 +110,13 @@ export function LiftProgressChart() {
               </ComposedChart>
             </ResponsiveContainer>
           </div>
-          
+
+          {onSelectSession && (
+            <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-600">
+              Clique sur un point pour ouvrir la séance du top set
+            </p>
+          )}
+
           {showPain && (
             <div className="pt-6 border-t border-zinc-900">
               <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-4 flex items-center gap-2">
