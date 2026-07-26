@@ -6,7 +6,6 @@ import { Header } from '@/components/power/header'
 import { StatsCards } from '@/components/power/stats-cards'
 import { LiftProgressChart } from '@/components/power/lift-progress-chart'
 import { BodyweightTracker } from '@/components/power/bodyweight-tracker'
-import { PrBoard } from '@/components/power/pr-board'
 import { WeekCalendar } from '@/components/power/week-calendar'
 import SessionForm from '@/components/power/session-form'
 import { PlateVisualizer } from '@/components/power/plate-visualizer'
@@ -268,7 +267,7 @@ export default function Page() {
   if (loadingAuth) {
     return (
       <div className="min-h-dvh flex items-center justify-center bg-background">
-        <RefreshCw className="size-8 text-blue-500 animate-spin" />
+        <RefreshCw className="size-8 text-white animate-spin" />
       </div>
     )
   }
@@ -276,55 +275,55 @@ export default function Page() {
   if (!session) {
     return (
       <div className="min-h-dvh bg-background flex flex-col items-center justify-center p-4 relative overflow-hidden">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-blue-500/10 blur-[120px] rounded-full pointer-events-none"></div>
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-white/5 blur-[120px] rounded-full pointer-events-none"></div>
 
-        <div className="w-full max-w-sm p-8 rounded-2xl border border-slate-800 bg-slate-900/80 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-300 relative z-10">
+        <div className="w-full max-w-sm p-8 rounded-2xl border border-zinc-900 bg-zinc-950/80 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-300 relative z-10">
           <div className="flex flex-col items-center mb-8">
-            <div className="p-4 bg-blue-500/10 text-blue-500 rounded-full mb-4 ring-1 ring-blue-500/20">
+            <div className="p-4 bg-zinc-900 text-white rounded-full mb-4 ring-1 ring-zinc-800">
               <Lock className="size-8" />
             </div>
             <h1 className="text-2xl font-black text-white">Accès Réservé</h1>
-            <p className="text-sm text-slate-500 mt-1">Saisis tes identifiants</p>
+            <p className="text-sm text-zinc-500 mt-1">Saisis tes identifiants</p>
           </div>
-          
+
           <form onSubmit={handleLogin} className="space-y-5">
             {authError && (
               <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-bold rounded-lg text-center">
                 {authError}
               </div>
             )}
-            
+
             <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+              <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
                 <User className="size-3" /> Identifiant
               </label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 placeholder="Ex: 1"
                 value={identifiant}
                 onChange={(e) => setIdentifiant(e.target.value)}
-                className="w-full p-3 bg-slate-950 border border-slate-800 rounded-lg text-white font-bold outline-none focus:border-blue-500 transition-colors placeholder:text-slate-700"
-                required 
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-                <Lock className="size-3" /> Mot de passe
-              </label>
-              <input 
-                type="password" 
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full p-3 bg-slate-950 border border-slate-800 rounded-lg text-white font-bold outline-none focus:border-blue-500 transition-colors"
-                required 
+                className="w-full p-3 bg-black border border-zinc-800 rounded-lg text-white font-bold outline-none focus:border-white transition-colors placeholder:text-zinc-700"
+                required
               />
             </div>
 
-            <button 
-              type="submit" 
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
+                <Lock className="size-3" /> Mot de passe
+              </label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full p-3 bg-black border border-zinc-800 rounded-lg text-white font-bold outline-none focus:border-white transition-colors"
+                required
+              />
+            </div>
+
+            <button
+              type="submit"
               disabled={isLoggingIn}
-              className="w-full py-4 mt-4 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white font-black rounded-xl transition-all shadow-[0_0_20px_rgba(59,130,246,0.3)] flex justify-center items-center gap-2"
+              className="w-full py-4 mt-4 bg-white hover:bg-zinc-200 text-black font-black rounded-xl transition-all shadow-[0_0_20px_rgba(255,255,255,0.15)] flex justify-center items-center gap-2"
             >
               {isLoggingIn ? <RefreshCw className="size-5 animate-spin" /> : "DÉVERROUILLER"}
             </button>
@@ -383,7 +382,7 @@ export default function Page() {
                 ref={menuRef}
                 className="absolute top-12 right-0 w-56 bg-card border border-border p-2 rounded-lg shadow-xl flex flex-col gap-1 z-50 animate-in fade-in zoom-in-95 duration-200"
               >
-                <button onClick={() => changerVue('analytique')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'analytique' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><BarChart2 className="size-4" /> Analytique & Records</button>
+                <button onClick={() => changerVue('analytique')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'analytique' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><BarChart2 className="size-4" /> Analytique</button>
                 <button onClick={() => changerVue('outils')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'outils' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Wrench className="size-4" /> Outils</button>
                 <button onClick={() => changerVue('calculatrice')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'calculatrice' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Calculator className="size-4" /> Calculatrice</button>
                 <button onClick={() => changerVue('historique')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'historique' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><History className="size-4" /> Historique</button>
@@ -459,7 +458,6 @@ export default function Page() {
               <LiftProgressChart />
             </Card>
             <BodyweightTracker />
-            <PrBoard />
           </section>
         )}
 

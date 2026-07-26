@@ -6,15 +6,39 @@ import { classifyLift, setE1RM, toLocalDateStr, type SetData } from '@/lib/power
 import { Trophy, Edit2, Check, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
+// Formule IPF GL Hommes Classic
+function calculateIPFGL(total: number, bw: number): number {
+  if (total <= 0 || bw <= 0) return 0
+  const A = 1199.72839
+  const B = 1025.18192
+  const C = 0.00921
+  const denom = A - B * Math.exp(-C * bw)
+  return denom > 0 ? (100 * total) / denom : 0
+}
+
 export function StatsCards({ pasDuJour }: { pasDuJour: number | null }) {
   const [isEditing, setIsEditing] = useState(false)
   const [realPrs, setRealPrs] = useState({ squat: 300, bench: 175, deadlift: 340 })
   const [tempPrs, setTempPrs] = useState({ squat: 300, bench: 175, deadlift: 340 })
   const [theoPrs, setTheoPrs] = useState({ squat: 0, bench: 0, deadlift: 0 })
+  const [bodyweight, setBodyweight] = useState<number | null>(null)
 
   useEffect(() => {
     const saved = localStorage.getItem('mota_real_prs')
     if (saved) { setRealPrs(JSON.parse(saved)); setTempPrs(JSON.parse(saved)); }
+  }, [])
+
+  useEffect(() => {
+    const fetchBodyweight = async () => {
+      const { data, error } = await supabase
+        .from('bodyweight_logs')
+        .select('weight')
+        .order('date', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (!error && data) setBodyweight(data.weight)
+    }
+    fetchBodyweight()
   }, [])
 
   useEffect(() => {
@@ -48,6 +72,7 @@ export function StatsCards({ pasDuJour }: { pasDuJour: number | null }) {
 
   const totalReel = realPrs.squat + realPrs.bench + realPrs.deadlift
   const totalTheo = Math.max(realPrs.squat, theoPrs.squat) + Math.max(realPrs.bench, theoPrs.bench) + Math.max(realPrs.deadlift, theoPrs.deadlift)
+  const glScore = bodyweight ? calculateIPFGL(totalReel, bodyweight) : 0
 
   return (
     <div className="p-6 rounded-2xl border border-zinc-900 bg-zinc-950 space-y-6">
@@ -69,7 +94,7 @@ export function StatsCards({ pasDuJour }: { pasDuJour: number | null }) {
         )}
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         {['squat', 'bench', 'deadlift'].map((lift) => (
           <div key={lift} className="p-4 bg-zinc-900 rounded-xl">
             <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-3">{lift}</h3>
@@ -89,6 +114,14 @@ export function StatsCards({ pasDuJour }: { pasDuJour: number | null }) {
           <div className="text-3xl font-black tabular-nums mb-1">{totalReel}</div>
           <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">
             e1RM: <span className="text-black">{totalTheo} kg</span>
+          </div>
+        </div>
+
+        <div className="p-4 bg-zinc-900 rounded-xl flex flex-col justify-between">
+          <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-3">IPF GL</h3>
+          <div className="text-3xl font-black text-white tabular-nums mb-1">{glScore > 0 ? glScore.toFixed(2) : '--'}</div>
+          <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">
+            PDC: <span className="text-white">{bodyweight ? `${bodyweight} kg` : '--'}</span>
           </div>
         </div>
       </div>
