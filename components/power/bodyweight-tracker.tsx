@@ -56,11 +56,13 @@ export function BodyweightTracker() {
     const todayStr = toLocalDateStr(new Date())
 
     try {
-      // Get the session to find the user_id
+      // Get the session to find the user_id (doit correspondre à l'email du
+      // JWT pour passer la policy RLS de bodyweight_logs — NEXT_PUBLIC_SYNC_USER_ID
+      // est réservé au raccourci iPhone de synchro des pas, pas à ce compte)
       const res = await fetch('/api/auth/session')
       const session = await res.json()
-      
-      const syncUserId = process.env.NEXT_PUBLIC_SYNC_USER_ID || session?.email?.split('@')[0]
+
+      const syncUserId = session?.user?.email?.split('@')[0]
       if (!syncUserId) {
         toast('Erreur auth, introuvable', 'error')
         return

@@ -452,16 +452,14 @@ export default function Page() {
         )}
 
         {vueActive === 'analytique' && (
-          <section className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <section className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <StatsCards pasDuJour={pasDuJour} />
+            <Card>
+              <CardTitle icon={LineChart} title="Progression des lifts" hint="Tonnage hebdo · Top set · Douleur" />
+              <LiftProgressChart />
+            </Card>
+            <BodyweightTracker />
             <PrBoard />
-            <div className="grid gap-6">
-              <Card>
-                <CardTitle icon={LineChart} title="Progression des lifts" hint="Tonnage hebdo · Top set · Douleur" />
-                <LiftProgressChart />
-              </Card>
-              <BodyweightTracker />
-            </div>
           </section>
         )}
 
