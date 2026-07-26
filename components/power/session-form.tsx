@@ -66,7 +66,48 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
   const supprimerExercice = useCallback(async (index: number, dbId: string | null) => { if (dbId) await supabase.from('workout_sets').delete().eq('id', dbId); setExercices((prev) => prev.filter((_, i) => i !== index)) }, [])
   const deplacerExercice = useCallback((index: number, direction: 'up' | 'down') => { setExercices((prev) => { const newIndex = direction === 'up' ? index - 1 : index + 1; if (newIndex < 0 || newIndex >= prev.length) return prev; const liste = [...prev]; [liste[index], liste[newIndex]] = [liste[newIndex], liste[index]]; return liste }) }, [])
   const patchExercice = useCallback((index: number, patch: Partial<ExerciceRow>) => { setExercices((prev) => prev.map((ex, i) => (i === index ? { ...ex, ...patch } : ex))) }, [])
-  const updateSerie = useCallback((exIndex: number, list: 'coachTracking' | 'tracking', setIndex: number, champ: keyof SetData, valeur: string) => { setExercices((prev) => prev.map((ex, i) => i === exIndex ? { ...ex, [list]: ex[list].map((s, j) => (j === setIndex ? { ...s, [champ]: valeur } : s)) } : ex)) }, [])
+  const updateSerie = useCallback((exIndex: number, list: 'coachTracking' | 'tracking', setIndex: number, champ: keyof SetData, valeur: string) => {
+    setExercices((prev) => {
+      const newExercices = [...prev];
+      const ex = { ...newExercices[exIndex] };
+      const newList = [...ex[list]];
+      newList[setIndex] = { ...newList[setIndex], [champ]: valeur };
+      ex[list] = newList;
+      
+      // Auto-RPE Logic (Fatigue Drop)
+      if (list === 'tracking' && champ === 'rpe' && valeur !== '') {
+        const actualRpe = parseFloat(valeur);
+        const coachRpe = parseFloat(ex.coachTracking[setIndex]?.rpe || '0');
+        
+        if (!isNaN(actualRpe) && !isNaN(coachRpe) && coachRpe > 0 && actualRpe > coachRpe) {
+          const rpeDiff = actualRpe - coachRpe;
+          const dropPercentage = rpeDiff * 0.05; // 5% per point
+          let didDrop = false;
+
+          for (let i = setIndex + 1; i < ex.tracking.length; i++) {
+            const currentWeightStr = ex.tracking[i].weight || ex.coachTracking[i]?.weight;
+            if (currentWeightStr) {
+              const currentWeight = parseFloat(currentWeightStr);
+              if (!isNaN(currentWeight) && currentWeight > 0) {
+                const rawNewWeight = currentWeight * (1 - dropPercentage);
+                const newWeight = Math.round(rawNewWeight / 2.5) * 2.5;
+                if (newWeight < currentWeight) {
+                  ex.tracking[i] = { ...ex.tracking[i], weight: String(newWeight) };
+                  didDrop = true;
+                }
+              }
+            }
+          }
+          if (didDrop) {
+            toast(`Fatigue détectée (RPE ${actualRpe} > ${coachRpe}). Charges suivantes réduites !`, 'info');
+          }
+        }
+      }
+      
+      newExercices[exIndex] = ex;
+      return newExercices;
+    });
+  }, [])
   const ajouterSerie = useCallback((exIndex: number, list: 'coachTracking' | 'tracking') => { setExercices((prev) => prev.map((ex, i) => { if (i !== exIndex) return ex; if (list === 'coachTracking') return { ...ex, coachTracking: [...ex.coachTracking, videSet()], tracking: [...ex.tracking, videSet()] }; return { ...ex, tracking: [...ex.tracking, videSet()] } })) }, [])
   const supprimerSerie = useCallback((exIndex: number, list: 'coachTracking' | 'tracking', setIndex: number) => { setExercices((prev) => prev.map((ex, i) => { if (i !== exIndex) return ex; if (list === 'coachTracking') { const coachTracking = ex.coachTracking.filter((_, j) => j !== setIndex); const tracking = ex.tracking.length > coachTracking.length ? ex.tracking.filter((_, j) => j !== setIndex) : ex.tracking; return { ...ex, coachTracking, tracking } } return { ...ex, tracking: ex.tracking.filter((_, j) => j !== setIndex) } })) }, [])
   const copierCoach = useCallback((exIndex: number) => { setExercices((prev) => prev.map((ex, i) => { if (i !== exIndex) return ex; const tracking: SetData[] = ex.coachTracking.map((cSet, j) => ({ reps: cSet.reps, weight: cSet.weight, rpe: ex.tracking[j]?.rpe ?? '', })); if (ex.tracking.length > ex.coachTracking.length) { tracking.push(...ex.tracking.slice(ex.coachTracking.length)) } return { ...ex, tracking } })) }, [])

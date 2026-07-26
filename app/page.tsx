@@ -5,12 +5,14 @@ import { supabase } from '@/lib/supabase'
 import { Header } from '@/components/power/header'
 import { StatsCards } from '@/components/power/stats-cards'
 import { LiftProgressChart } from '@/components/power/lift-progress-chart'
+import { BodyweightTracker } from '@/components/power/bodyweight-tracker'
+import { PrBoard } from '@/components/power/pr-board'
 import { WeekCalendar } from '@/components/power/week-calendar'
 import SessionForm from '@/components/power/session-form'
 import { PlateVisualizer } from '@/components/power/plate-visualizer'
 import { WarmupGenerator } from '@/components/power/warmup-generator'
 import { Card, CardTitle } from '@/components/power/card'
-import { LineChart, Menu, X, Home, BarChart2, Wrench, Settings, Calculator, Lock, LogOut, RefreshCw, User, History, KeyRound, Timer, Download, Shield, Trash2 } from 'lucide-react'
+import { LineChart, Menu, X, Home, BarChart2, Wrench, Settings, Calculator, Lock, LogOut, RefreshCw, User, History, KeyRound, Timer, Download, Shield, Trash2, Trophy } from 'lucide-react'
 import ChangePasswordModal from '@/components/power/change-password-modal'
 import CircuitTimer from '@/components/power/circuit-timer'
 import { toast } from '@/components/power/toaster'
@@ -381,7 +383,7 @@ export default function Page() {
                 ref={menuRef}
                 className="absolute top-12 right-0 w-56 bg-card border border-border p-2 rounded-lg shadow-xl flex flex-col gap-1 z-50 animate-in fade-in zoom-in-95 duration-200"
               >
-                <button onClick={() => changerVue('analytique')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'analytique' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><BarChart2 className="size-4" /> Analytique</button>
+                <button onClick={() => changerVue('analytique')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'analytique' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><BarChart2 className="size-4" /> Analytique & Records</button>
                 <button onClick={() => changerVue('outils')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'outils' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Wrench className="size-4" /> Outils</button>
                 <button onClick={() => changerVue('calculatrice')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'calculatrice' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Calculator className="size-4" /> Calculatrice</button>
                 <button onClick={() => changerVue('historique')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'historique' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><History className="size-4" /> Historique</button>
@@ -450,12 +452,16 @@ export default function Page() {
         )}
 
         {vueActive === 'analytique' && (
-          <section className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <section className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <StatsCards pasDuJour={pasDuJour} />
-            <Card>
-              <CardTitle icon={LineChart} title="Progression des lifts" hint="Tonnage hebdo · Top set · Douleur" />
-              <LiftProgressChart />
-            </Card>
+            <PrBoard />
+            <div className="grid gap-6">
+              <Card>
+                <CardTitle icon={LineChart} title="Progression des lifts" hint="Tonnage hebdo · Top set · Douleur" />
+                <LiftProgressChart />
+              </Card>
+              <BodyweightTracker />
+            </div>
           </section>
         )}
 
