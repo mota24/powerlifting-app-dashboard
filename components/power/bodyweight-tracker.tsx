@@ -74,10 +74,7 @@ export function BodyweightTracker() {
         .eq('user_id', syncUserId)
         .limit(1)
 
-      let hasExisting = false;
-      if (existing && existing.length > 0) hasExisting = true;
-
-      if (hasExisting) {
+      if (existing && existing.length > 0) {
         const { error } = await supabase
           .from('bodyweight_logs')
           .update({ weight: weightNum })
