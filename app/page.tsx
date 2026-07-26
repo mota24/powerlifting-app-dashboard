@@ -488,7 +488,7 @@ export default function Page() {
           <section className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <StatsCards />
             <Card>
-              <CardTitle icon={LineChart} title="Progression des lifts" hint="Tonnage hebdo · Top set · Douleur" />
+              <CardTitle icon={LineChart} title="Progression des lifts" hint="Tonnage · Top set · e1RM · Douleur" />
               <LiftProgressChart onSelectSession={ouvrirSeance} />
             </Card>
             <BodyweightTracker />
