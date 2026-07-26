@@ -38,7 +38,7 @@ export default function ConfidentialitePage() {
         <section className="space-y-4 border-t border-zinc-900 pt-8">
           <h2 className="text-sm font-bold text-white uppercase tracking-widest">Tes droits (Art. 15 à 21 RGPD)</h2>
           <p className="text-xs font-bold uppercase tracking-wider text-zinc-500 leading-relaxed">
-            TU PEUX À TOUT MOMENT <strong className="text-white">EXPORTER TES DONNÉES</strong> ET <strong className="text-white">SUPPRIMER TON COMPTE</strong> DEPUIS L'APPLICATION.
+            TU PEUX À TOUT MOMENT <strong className="text-white">SUPPRIMER TON COMPTE</strong> DEPUIS L'APPLICATION.
             LE RETRAIT DU CONSENTEMENT IA SE FAIT EN REFUSANT LA DEMANDE DÉDIÉE.
           </p>
         </section>

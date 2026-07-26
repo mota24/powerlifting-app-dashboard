@@ -165,11 +165,6 @@ export default function Page() {
     setSession(null)
   }
 
-  // RGPD Art. 15/20 : téléchargement de toutes ses données (JSON)
-  const handleExportData = () => {
-    setMenuOuvert(false)
-    window.location.href = '/api/account/export'
-  }
 
   // RGPD Art. 17 : effacement du compte (irréversible)
   const handleDeleteAccount = async () => {
@@ -401,9 +396,7 @@ export default function Page() {
                 <button onClick={() => { setShowPasswordModal(true); setMenuOuvert(false) }} className="flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors hover:bg-secondary text-foreground">
                   <KeyRound className="size-4" /> Mot de passe
                 </button>
-                <button onClick={handleExportData} className="flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors hover:bg-secondary text-foreground">
-                  <Download className="size-4" /> Exporter mes données
-                </button>
+
                 <a href="/confidentialite" className="flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors hover:bg-secondary text-foreground">
                   <Shield className="size-4" /> Confidentialité
                 </a>
