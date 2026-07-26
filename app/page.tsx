@@ -11,7 +11,7 @@ import SessionForm from '@/components/power/session-form'
 import { PlateVisualizer } from '@/components/power/plate-visualizer'
 import { WarmupGenerator } from '@/components/power/warmup-generator'
 import { Card, CardTitle } from '@/components/power/card'
-import { LineChart, Menu, X, Home, BarChart2, Wrench, Settings, Calculator, Lock, LogOut, RefreshCw, User, History, KeyRound, Timer, Download, Shield, Trash2, Trophy } from 'lucide-react'
+import { LineChart, Menu, X, Home, BarChart2, Wrench, Settings, Calculator, Lock, LogOut, RefreshCw, User, History, KeyRound, Timer, Shield, Trash2, Trophy } from 'lucide-react'
 import ChangePasswordModal from '@/components/power/change-password-modal'
 import CircuitTimer from '@/components/power/circuit-timer'
 import { toast } from '@/components/power/toaster'
@@ -21,6 +21,7 @@ import ConfigPanel from '@/components/power/config-panel'
 import CalculatorPanel from '@/components/power/calculator-panel'
 import HistoryPanel from '@/components/power/history-panel'
 import GLCalculator from '@/components/power/GLCalculator';
+import { Palmares } from '@/components/power/palmares'
 
 // Utilisateur connecté tel que renvoyé par /api/auth/session.
 // Les jetons, eux, restent dans des cookies httpOnly : jamais côté JS.
@@ -350,6 +351,7 @@ export default function Page() {
             {vueActive === 'calculatrice' && "Calculateur de force"}
             {vueActive === 'historique' && "Historique des Mouvements"}
             {vueActive === 'configuration' && "Gestion de mes Blocs"}
+            {vueActive === 'palmares' && "Palmarès"}
           </h2>
         </div>
 
@@ -386,6 +388,7 @@ export default function Page() {
                 <button onClick={() => changerVue('outils')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'outils' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Wrench className="size-4" /> Outils</button>
                 <button onClick={() => changerVue('calculatrice')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'calculatrice' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Calculator className="size-4" /> Calculatrice</button>
                 <button onClick={() => changerVue('historique')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'historique' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><History className="size-4" /> Historique</button>
+                <button onClick={() => changerVue('palmares')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'palmares' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Trophy className="size-4" /> Palmarès</button>
                 <button onClick={() => { setShowCircuitTimer(true); setMenuOuvert(false) }} className="flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors hover:bg-secondary text-foreground"><Timer className="size-4" /> Chrono Circuit</button>
 
                 <div className="h-px bg-border my-1"></div>
@@ -427,6 +430,12 @@ export default function Page() {
           </div>
         )}
 
+        {vueActive === 'palmares' && (
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <Palmares />
+          </div>
+        )}
+
         {vueActive === 'historique' && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
             <HistoryPanel />
@@ -435,11 +444,10 @@ export default function Page() {
 
         {vueActive === 'accueil' && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <WeekCalendar 
-              dateActive={dateActive} 
-              setDateActive={setDateActive} 
-              blockTitle={blockInfo} 
-              isRestDayMode={isRestDayMode}
+            <WeekCalendar
+              dateActive={dateActive}
+              setDateActive={setDateActive}
+              blockTitle={blockInfo}
             />
             <SessionForm 
               dateActive={dateActive} 
@@ -452,7 +460,7 @@ export default function Page() {
 
         {vueActive === 'analytique' && (
           <section className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <StatsCards pasDuJour={pasDuJour} />
+            <StatsCards />
             <Card>
               <CardTitle icon={LineChart} title="Progression des lifts" hint="Tonnage hebdo · Top set · Douleur" />
               <LiftProgressChart />
