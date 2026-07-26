@@ -22,7 +22,9 @@ export function LiftProgressChart() {
     let cancelled = false
     const fetchData = async () => {
       const since = new Date(); since.setMonth(since.getMonth() - 6)
-      const { data } = await supabase.from('workout_sets').select('*').gte('date', toLocalDateStr(since)).order('date', { ascending: true })
+      // .lte('date', aujourd'hui) : la propagation de bloc pré-remplit les 4
+      // semaines à venir, mais ces séances n'ont pas encore eu lieu.
+      const { data } = await supabase.from('workout_sets').select('*').gte('date', toLocalDateStr(since)).lte('date', toLocalDateStr(new Date())).order('date', { ascending: true })
       if (!cancelled) { setRows((data ?? []) as ChartRow[]); setLoading(false) }
     }
     fetchData()
@@ -33,11 +35,15 @@ export function LiftProgressChart() {
     const parSemaine = new Map<string, { tonnage: number; topSet: number; e1rm: number; pains: number[] }>()
     for (const row of rows) {
       if (classifyLift(row.exercise_name) !== lift) continue
+      // Séance planifiée mais rien de réellement soulevé (poids vide) : on
+      // ignore la semaine plutôt que de la compter comme un 0.
+      const validSets = (row.tracking_data ?? []).filter((set) => parseFloat(set?.weight) > 0)
+      if (validSets.length === 0) continue
       const semaine = mondayOf(row.date)
       const agg = parSemaine.get(semaine) ?? { tonnage: 0, topSet: 0, e1rm: 0, pains: [] }
       agg.tonnage += setsTonnage(row.tracking_data)
-      for (const set of row.tracking_data ?? []) {
-        const w = parseFloat(set?.weight); if (w > agg.topSet) agg.topSet = w
+      for (const set of validSets) {
+        const w = parseFloat(set.weight); if (w > agg.topSet) agg.topSet = w
         const e1rm = setE1RM(set); if (e1rm > agg.e1rm) agg.e1rm = e1rm
       }
       if (typeof row.pain_level === 'number') agg.pains.push(row.pain_level)
