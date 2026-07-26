@@ -6,43 +6,190 @@ import { supabase } from '@/lib/supabase'
 import { toast } from '@/components/power/toaster'
 import { calculateIPFGL } from '@/lib/powerlifting'
 import { cn } from '@/lib/utils'
-import { Award, Calendar, Camera, Loader2, Pencil, Plus, Trash2, Trophy, X } from 'lucide-react'
+import { Calendar, Camera, Loader2, Medal, Pencil, Plus, Trash2, Trophy, X } from 'lucide-react'
+
+// ————————————————————————————————————————————————
+// Modèle
+//
+// Les essais suivent la convention OpenPowerlifting : valeur positive =
+// essai validé, valeur négative = essai manqué, null = non tenté.
+// ————————————————————————————————————————————————
+
+type LiftKey = 'squat' | 'bench' | 'deadlift'
+
+const LIFTS: { key: LiftKey; label: string; short: string }[] = [
+  { key: 'squat', label: 'Squat', short: 'SQ' },
+  { key: 'bench', label: 'Dév. Couché', short: 'BP' },
+  { key: 'deadlift', label: 'S. de Terre', short: 'DL' },
+]
+
+/** Niveaux proposés en autocomplétion — le champ reste libre. */
+const NIVEAUX = ['Régional', 'AEP 1', 'AEP 2', 'National', 'International']
 
 interface Competition {
   id: string
   name: string
   date: string
   category: string | null
+  level: string | null
+  placement: number | null
   bodyweight: number | null
   squat: number | null
   bench: number | null
   deadlift: number | null
-  photo_url: string | null
+  squat_1: number | null
+  squat_2: number | null
+  squat_3: number | null
+  bench_1: number | null
+  bench_2: number | null
+  bench_3: number | null
+  deadlift_1: number | null
+  deadlift_2: number | null
+  deadlift_3: number | null
+  photo_urls: string[] | null
 }
 
-const emptyForm = {
-  name: '',
-  date: '',
-  category: '',
-  bodyweight: '',
-  squat: '',
-  bench: '',
-  deadlift: '',
-  photoUrl: '' as string | null,
+type Attempt = number | null
+
+/** Les 3 essais d'un mouvement, dans l'ordre de passage. */
+function attemptsOf(comp: Competition, lift: LiftKey): Attempt[] {
+  switch (lift) {
+    case 'squat':
+      return [comp.squat_1, comp.squat_2, comp.squat_3]
+    case 'bench':
+      return [comp.bench_1, comp.bench_2, comp.bench_3]
+    case 'deadlift':
+      return [comp.deadlift_1, comp.deadlift_2, comp.deadlift_3]
+  }
+}
+
+function storedBest(comp: Competition, lift: LiftKey): number | null {
+  switch (lift) {
+    case 'squat':
+      return comp.squat
+    case 'bench':
+      return comp.bench
+    case 'deadlift':
+      return comp.deadlift
+  }
+}
+
+/** Meilleure barre validée d'une série d'essais (0 si aucune réussie). */
+function bestValid(attempts: Attempt[]): number {
+  return attempts.reduce<number>((best, a) => (a != null && a > best ? a : best), 0)
+}
+
+/**
+ * Meilleure barre du mouvement : dérivée des essais dès qu'au moins un est
+ * saisi (source de vérité), sinon la valeur enregistrée seule.
+ */
+function bestLift(comp: Competition, lift: LiftKey): number {
+  const fromAttempts = bestValid(attemptsOf(comp, lift))
+  if (fromAttempts > 0) return fromAttempts
+  const stored = storedBest(comp, lift)
+  return stored != null && stored > 0 ? stored : 0
+}
+
+function totalOf(comp: Competition): number {
+  return LIFTS.reduce((sum, l) => sum + bestLift(comp, l.key), 0)
+}
+
+function glOf(comp: Competition): number {
+  const total = totalOf(comp)
+  return total > 0 && comp.bodyweight ? calculateIPFGL(total, comp.bodyweight) : 0
 }
 
 function todayStr(): string {
   return new Date().toISOString().split('T')[0]
 }
 
+function formatDate(date: string): string {
+  return new Date(date + 'T00:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+function formatPlacement(placement: number): string {
+  return placement === 1 ? '1er' : `${placement}e`
+}
+
+/** Affichage d'un poids : décimale seulement si utile (167,5 mais 295). */
+function formatKg(value: number): string {
+  return value.toLocaleString('fr-FR', { maximumFractionDigits: 1 })
+}
+
+// ————————————————————————————————————————————————
+// Formulaire
+// ————————————————————————————————————————————————
+
+interface FormState {
+  name: string
+  date: string
+  category: string
+  level: string
+  placement: string
+  bodyweight: string
+  best: Record<LiftKey, string>
+  attempts: Record<LiftKey, string[]>
+  photoUrls: string[]
+}
+
+function createEmptyForm(): FormState {
+  return {
+    name: '',
+    date: todayStr(),
+    category: '',
+    level: '',
+    placement: '',
+    bodyweight: '',
+    best: { squat: '', bench: '', deadlift: '' },
+    attempts: { squat: ['', '', ''], bench: ['', '', ''], deadlift: ['', '', ''] },
+    photoUrls: [],
+  }
+}
+
+function formFrom(comp: Competition): FormState {
+  const str = (v: number | null) => (v != null ? String(v) : '')
+  return {
+    name: comp.name,
+    date: comp.date,
+    category: comp.category ?? '',
+    level: comp.level ?? '',
+    placement: str(comp.placement),
+    bodyweight: str(comp.bodyweight),
+    best: {
+      squat: str(comp.squat),
+      bench: str(comp.bench),
+      deadlift: str(comp.deadlift),
+    },
+    attempts: {
+      squat: attemptsOf(comp, 'squat').map(str),
+      bench: attemptsOf(comp, 'bench').map(str),
+      deadlift: attemptsOf(comp, 'deadlift').map(str),
+    },
+    photoUrls: comp.photo_urls ?? [],
+  }
+}
+
+/** Champ numérique optionnel : vide ou invalide → null. */
+function num(value: string): number | null {
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  const parsed = parseFloat(trimmed.replace(',', '.'))
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+// ————————————————————————————————————————————————
+// Palmarès
+// ————————————————————————————————————————————————
+
 export function Palmares() {
   const [competitions, setCompetitions] = useState<Competition[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [form, setForm] = useState(emptyForm)
+  const [form, setForm] = useState<FormState>(createEmptyForm)
   const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [detailId, setDetailId] = useState<string | null>(null)
 
   const fetchCompetitions = async () => {
     try {
@@ -61,47 +208,42 @@ export function Palmares() {
     fetchCompetitions()
   }, [])
 
+  const detail = competitions.find((c) => c.id === detailId) ?? null
+
   const openAddForm = () => {
     setEditingId(null)
-    setForm({ ...emptyForm, date: todayStr() })
+    setForm(createEmptyForm())
     setShowForm(true)
   }
 
   const openEditForm = (comp: Competition) => {
     setEditingId(comp.id)
-    setForm({
-      name: comp.name,
-      date: comp.date,
-      category: comp.category ?? '',
-      bodyweight: comp.bodyweight != null ? String(comp.bodyweight) : '',
-      squat: comp.squat != null ? String(comp.squat) : '',
-      bench: comp.bench != null ? String(comp.bench) : '',
-      deadlift: comp.deadlift != null ? String(comp.deadlift) : '',
-      photoUrl: comp.photo_url,
-    })
+    setForm(formFrom(comp))
+    setDetailId(null)
     setShowForm(true)
   }
 
   const closeForm = () => {
     setShowForm(false)
     setEditingId(null)
-    setForm(emptyForm)
+    setForm(createEmptyForm())
   }
 
   const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const files = e.target.files
+    if (!files || files.length === 0) return
     setUploading(true)
     try {
       const body = new FormData()
-      body.append('file', file)
+      for (const file of Array.from(files)) body.append('file', file)
       const res = await fetch('/api/palmares/photo', { method: 'POST', body })
-      const json = (await res.json()) as { url?: string; error?: string }
-      if (!res.ok || !json.url) throw new Error(json.error ?? 'Échec upload')
-      setForm((prev) => ({ ...prev, photoUrl: json.url as string }))
-    } catch (e) {
-      toast("Échec de l'envoi de la photo", 'error')
-      console.error(e)
+      const json = (await res.json()) as { urls?: string[]; error?: string }
+      if (!res.ok || !json.urls) throw new Error(json.error ?? 'Échec upload')
+      const urls = json.urls
+      setForm((prev) => ({ ...prev, photoUrls: [...prev.photoUrls, ...urls] }))
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Échec de l'envoi des photos", 'error')
+      console.error(err)
     } finally {
       setUploading(false)
       e.target.value = ''
@@ -116,26 +258,38 @@ export function Palmares() {
     }
     setSaving(true)
     try {
-      const payload = {
+      const payload: Record<string, unknown> = {
         name: form.name.trim(),
         date: form.date,
         category: form.category.trim() || null,
-        bodyweight: form.bodyweight ? parseFloat(form.bodyweight) : null,
-        squat: form.squat ? parseFloat(form.squat) : null,
-        bench: form.bench ? parseFloat(form.bench) : null,
-        deadlift: form.deadlift ? parseFloat(form.deadlift) : null,
-        photo_url: form.photoUrl || null,
+        level: form.level.trim() || null,
+        placement: num(form.placement),
+        bodyweight: num(form.bodyweight),
+        photo_urls: form.photoUrls,
       }
+
+      for (const { key } of LIFTS) {
+        const attempts = form.attempts[key].map(num)
+        payload[`${key}_1`] = attempts[0]
+        payload[`${key}_2`] = attempts[1]
+        payload[`${key}_3`] = attempts[2]
+        // La meilleure barre validée prime sur la saisie manuelle dès qu'un
+        // essai est renseigné : les deux ne peuvent pas se contredire.
+        const derived = bestValid(attempts)
+        payload[key] = derived > 0 ? derived : num(form.best[key])
+      }
+
       const { error } = editingId
         ? await supabase.from('competitions').update(payload).eq('id', editingId)
         : await supabase.from('competitions').insert([payload])
       if (error) throw error
+
       toast(editingId ? 'Compétition mise à jour' : 'Compétition ajoutée', 'success')
       closeForm()
       fetchCompetitions()
-    } catch (e) {
+    } catch (err) {
       toast('Erreur lors de la sauvegarde', 'error')
-      console.error(e)
+      console.error(err)
     } finally {
       setSaving(false)
     }
@@ -147,10 +301,11 @@ export function Palmares() {
       const { error } = await supabase.from('competitions').delete().eq('id', id)
       if (error) throw error
       setCompetitions((prev) => prev.filter((c) => c.id !== id))
+      setDetailId(null)
       toast('Compétition supprimée', 'success')
-    } catch (e) {
+    } catch (err) {
       toast('Erreur lors de la suppression', 'error')
-      console.error(e)
+      console.error(err)
     }
   }
 
@@ -169,100 +324,16 @@ export function Palmares() {
       </div>
 
       {showForm && (
-        <form onSubmit={handleSubmit} className="mb-8 space-y-4 rounded-2xl border border-zinc-900 bg-black p-4 sm:p-6">
-          <div className="flex items-center justify-between">
-            <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
-              {editingId ? 'Modifier la compétition' : 'Nouvelle compétition'}
-            </h3>
-            <button type="button" onClick={closeForm} className="text-zinc-500 hover:text-white transition-colors">
-              <X className="size-4" />
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Field label="Nom de la compétition">
-              <input
-                type="text"
-                value={form.name}
-                onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
-                placeholder="Ex: Championnat régional"
-                className="w-full bg-zinc-900 rounded-lg p-3 text-white text-sm font-bold outline-none focus:ring-1 focus:ring-white placeholder:text-zinc-700"
-                required
-              />
-            </Field>
-            <Field label="Date">
-              <input
-                type="date"
-                value={form.date}
-                onChange={(e) => setForm((p) => ({ ...p, date: e.target.value }))}
-                className="w-full bg-zinc-900 rounded-lg p-3 text-white text-sm font-bold outline-none focus:ring-1 focus:ring-white [color-scheme:dark]"
-                required
-              />
-            </Field>
-            <Field label="Catégorie">
-              <input
-                type="text"
-                value={form.category}
-                onChange={(e) => setForm((p) => ({ ...p, category: e.target.value }))}
-                placeholder="Ex: -83kg Open"
-                className="w-full bg-zinc-900 rounded-lg p-3 text-white text-sm font-bold outline-none focus:ring-1 focus:ring-white placeholder:text-zinc-700"
-              />
-            </Field>
-            <Field label="Poids de corps (kg)">
-              <input
-                type="number"
-                step="0.1"
-                value={form.bodyweight}
-                onChange={(e) => setForm((p) => ({ ...p, bodyweight: e.target.value }))}
-                placeholder="Ex: 82.4"
-                className="w-full bg-zinc-900 rounded-lg p-3 text-white text-sm font-bold tabular-nums outline-none focus:ring-1 focus:ring-white placeholder:text-zinc-700"
-              />
-            </Field>
-            <Field label="Squat (kg)">
-              <input
-                type="number"
-                step="0.5"
-                value={form.squat}
-                onChange={(e) => setForm((p) => ({ ...p, squat: e.target.value }))}
-                className="w-full bg-zinc-900 rounded-lg p-3 text-white text-sm font-bold tabular-nums outline-none focus:ring-1 focus:ring-white"
-              />
-            </Field>
-            <Field label="Bench (kg)">
-              <input
-                type="number"
-                step="0.5"
-                value={form.bench}
-                onChange={(e) => setForm((p) => ({ ...p, bench: e.target.value }))}
-                className="w-full bg-zinc-900 rounded-lg p-3 text-white text-sm font-bold tabular-nums outline-none focus:ring-1 focus:ring-white"
-              />
-            </Field>
-            <Field label="Deadlift (kg)">
-              <input
-                type="number"
-                step="0.5"
-                value={form.deadlift}
-                onChange={(e) => setForm((p) => ({ ...p, deadlift: e.target.value }))}
-                className="w-full bg-zinc-900 rounded-lg p-3 text-white text-sm font-bold tabular-nums outline-none focus:ring-1 focus:ring-white"
-              />
-            </Field>
-            <Field label="Photo de l'événement">
-              <label className="flex items-center justify-center gap-2 w-full bg-zinc-900 rounded-lg p-3 text-[11px] font-bold uppercase tracking-widest text-zinc-400 hover:text-white cursor-pointer transition-colors">
-                {uploading ? <Loader2 className="size-4 animate-spin" /> : <Camera className="size-4" />}
-                {form.photoUrl ? 'Remplacer' : 'Choisir un fichier'}
-                <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handlePhotoChange} className="hidden" disabled={uploading} />
-              </label>
-            </Field>
-          </div>
-
-          <button
-            type="submit"
-            disabled={saving || uploading}
-            className="w-full py-3 rounded-lg bg-white text-black text-[11px] font-bold uppercase tracking-widest hover:bg-zinc-200 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-          >
-            {saving && <Loader2 className="size-4 animate-spin" />}
-            {editingId ? 'Enregistrer' : 'Ajouter au palmarès'}
-          </button>
-        </form>
+        <CompetitionForm
+          form={form}
+          setForm={setForm}
+          editing={editingId !== null}
+          saving={saving}
+          uploading={uploading}
+          onPhotoChange={handlePhotoChange}
+          onSubmit={handleSubmit}
+          onCancel={closeForm}
+        />
       )}
 
       {loading ? (
@@ -276,36 +347,73 @@ export function Palmares() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {competitions.map((comp) => (
-            <CompetitionCard key={comp.id} comp={comp} onEdit={() => openEditForm(comp)} onDelete={() => handleDelete(comp.id)} />
+            <CompetitionCard
+              key={comp.id}
+              comp={comp}
+              onOpen={() => setDetailId(comp.id)}
+              onEdit={() => openEditForm(comp)}
+              onDelete={() => handleDelete(comp.id)}
+            />
           ))}
         </div>
+      )}
+
+      {detail && (
+        <CompetitionDetail
+          comp={detail}
+          onClose={() => setDetailId(null)}
+          onEdit={() => openEditForm(detail)}
+          onDelete={() => handleDelete(detail.id)}
+        />
       )}
     </Card>
   )
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="space-y-1.5">
-      <label className="block text-[9px] font-bold text-zinc-500 uppercase tracking-widest ml-1">{label}</label>
-      {children}
-    </div>
-  )
-}
+// ————————————————————————————————————————————————
+// Carte résumé
+// ————————————————————————————————————————————————
 
-function CompetitionCard({ comp, onEdit, onDelete }: { comp: Competition; onEdit: () => void; onDelete: () => void }) {
-  const total = (comp.squat ?? 0) + (comp.bench ?? 0) + (comp.deadlift ?? 0)
-  const hasResults = total > 0
-  const glScore = hasResults && comp.bodyweight ? calculateIPFGL(total, comp.bodyweight) : 0
+function CompetitionCard({
+  comp,
+  onOpen,
+  onEdit,
+  onDelete,
+}: {
+  comp: Competition
+  onOpen: () => void
+  onEdit: () => void
+  onDelete: () => void
+}) {
+  const total = totalOf(comp)
+  const gl = glOf(comp)
+  const cover = comp.photo_urls?.[0]
   const isUpcoming = comp.date > todayStr()
-  const formattedDate = new Date(comp.date + 'T00:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })
+
+  // Les boutons vivent dans la carte cliquable : sans stopPropagation, un
+  // clic sur « modifier » ouvrirait aussi la vue détaillée.
+  const stop = (fn: () => void) => (e: React.MouseEvent) => {
+    e.stopPropagation()
+    fn()
+  }
 
   return (
-    <div className="group relative overflow-hidden rounded-2xl border border-zinc-900 bg-black">
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onOpen}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onOpen()
+        }
+      }}
+      className="group relative overflow-hidden rounded-2xl border border-zinc-900 bg-black text-left cursor-pointer transition-colors hover:border-zinc-700 focus:outline-none focus-visible:border-white"
+    >
       <div className="relative h-36 w-full bg-zinc-900">
-        {comp.photo_url ? (
+        {cover ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={comp.photo_url} alt={comp.name} className="h-full w-full object-cover" />
+          <img src={cover} alt={comp.name} className="h-full w-full object-cover" />
         ) : (
           <div className="flex h-full w-full items-center justify-center">
             <Trophy className="size-8 text-zinc-800" />
@@ -320,25 +428,29 @@ function CompetitionCard({ comp, onEdit, onDelete }: { comp: Competition; onEdit
 
         <div className="absolute inset-x-0 bottom-0 bg-black/80 px-4 py-3">
           <h3 className="text-sm font-bold uppercase tracking-widest text-white truncate">{comp.name}</h3>
-          <div className="mt-1 flex items-center gap-1.5 text-[10px] font-mono font-bold uppercase tracking-widest text-zinc-400">
-            <Calendar className="size-3" /> {formattedDate}
+          <div className="mt-1 flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase tracking-widest text-zinc-400">
+            <Calendar className="size-3" /> {formatDate(comp.date)}
           </div>
         </div>
       </div>
 
       <div className="p-4 space-y-4">
-        <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-zinc-500">
-          <span>{comp.category || '—'}</span>
-          <span>PDC {comp.bodyweight ? `${comp.bodyweight} kg` : '—'}</span>
+        <div className="flex items-center justify-between gap-2 text-[10px] font-bold uppercase tracking-widest">
+          <span className="truncate text-zinc-400">{comp.level || comp.category || '—'}</span>
+          {comp.placement != null && (
+            <span className="flex shrink-0 items-center gap-1 rounded-full bg-zinc-900 px-2 py-1 text-white">
+              <Medal className="size-3" /> {formatPlacement(comp.placement)}
+            </span>
+          )}
         </div>
 
-        {hasResults ? (
+        {total > 0 ? (
           <div className="grid grid-cols-5 gap-1 border-t border-zinc-900 pt-4">
-            <StatCell label="SQ" value={comp.squat} />
-            <StatCell label="BP" value={comp.bench} />
-            <StatCell label="DL" value={comp.deadlift} />
-            <StatCell label="TOTAL" value={total} emphasis />
-            <StatCell label="GL" value={glScore > 0 ? glScore.toFixed(2) : null} emphasis />
+            {LIFTS.map((l) => (
+              <StatCell key={l.key} label={l.short} value={bestLift(comp, l.key)} />
+            ))}
+            <StatCell label="Total" value={total} emphasis />
+            <StatCell label="IPF GL" value={gl > 0 ? gl.toFixed(2) : null} emphasis />
           </div>
         ) : (
           <p className="border-t border-zinc-900 pt-4 text-[10px] font-bold uppercase tracking-widest text-zinc-600">
@@ -346,13 +458,18 @@ function CompetitionCard({ comp, onEdit, onDelete }: { comp: Competition; onEdit
           </p>
         )}
 
-        <div className="flex justify-end gap-1 pt-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button onClick={onEdit} className="p-2 text-zinc-500 hover:text-white rounded-lg transition-colors">
-            <Pencil className="size-3.5" />
-          </button>
-          <button onClick={onDelete} className="p-2 text-zinc-500 hover:text-red-400 rounded-lg transition-colors">
-            <Trash2 className="size-3.5" />
-          </button>
+        <div className="flex items-center justify-between pt-1">
+          <span className="font-mono text-[9px] font-bold uppercase tracking-widest text-zinc-600">
+            {comp.bodyweight ? `PDC ${formatKg(comp.bodyweight)} kg` : 'PDC —'}
+          </span>
+          <div className="flex gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+            <button onClick={stop(onEdit)} aria-label="Modifier" className="p-2 text-zinc-500 hover:text-white rounded-lg transition-colors">
+              <Pencil className="size-3.5" />
+            </button>
+            <button onClick={stop(onDelete)} aria-label="Supprimer" className="p-2 text-zinc-500 hover:text-red-400 rounded-lg transition-colors">
+              <Trash2 className="size-3.5" />
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -362,13 +479,459 @@ function CompetitionCard({ comp, onEdit, onDelete }: { comp: Competition; onEdit
 function StatCell({ label, value, emphasis }: { label: string; value: number | string | null; emphasis?: boolean }) {
   return (
     <div className="flex flex-col items-center">
-      <span className="text-[8px] font-bold uppercase tracking-widest text-zinc-600 flex items-center gap-0.5">
-        {emphasis && label === 'TOTAL' && <Award className="size-2.5" />}
-        {label}
+      <span className="text-[8px] font-bold uppercase tracking-widest text-zinc-600">{label}</span>
+      <span
+        className={cn(
+          'mt-0.5 font-mono text-xs sm:text-sm font-black tabular-nums',
+          emphasis ? 'text-white' : 'text-zinc-300'
+        )}
+      >
+        {typeof value === 'number' ? (value > 0 ? formatKg(value) : '—') : value ?? '—'}
       </span>
-      <span className={cn('font-mono tabular-nums text-xs sm:text-sm font-black mt-0.5', emphasis ? 'text-white' : 'text-zinc-300')}>
-        {value ?? '—'}
-      </span>
+    </div>
+  )
+}
+
+// ————————————————————————————————————————————————
+// Vue détaillée : feuille de match + galerie
+// ————————————————————————————————————————————————
+
+function CompetitionDetail({
+  comp,
+  onClose,
+  onEdit,
+  onDelete,
+}: {
+  comp: Competition
+  onClose: () => void
+  onEdit: () => void
+  onDelete: () => void
+}) {
+  const [zoom, setZoom] = useState<string | null>(null)
+  const photos = comp.photo_urls ?? []
+  const total = totalOf(comp)
+  const gl = glOf(comp)
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      // La photo plein écran se referme avant la modale elle-même.
+      setZoom((current) => {
+        if (current) return null
+        onClose()
+        return null
+      })
+    }
+    document.addEventListener('keydown', onKey)
+    const previous = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = previous
+    }
+  }, [onClose])
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-black/90 p-4 sm:p-8 backdrop-blur-sm animate-in fade-in duration-200"
+      onClick={onClose}
+    >
+      <div
+        className="relative w-full max-w-3xl rounded-2xl border border-zinc-900 bg-zinc-950 p-6 sm:p-8 animate-in zoom-in-95 duration-200"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h2 className="text-lg font-black uppercase tracking-widest text-white">{comp.name}</h2>
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+              <span className="flex items-center gap-1.5">
+                <Calendar className="size-3" /> {formatDate(comp.date)}
+              </span>
+              {comp.level && <span className="text-zinc-400">{comp.level}</span>}
+              {comp.category && <span>{comp.category}</span>}
+              {comp.placement != null && (
+                <span className="flex items-center gap-1 text-white">
+                  <Medal className="size-3" /> {formatPlacement(comp.placement)}
+                </span>
+              )}
+            </div>
+          </div>
+          <button onClick={onClose} aria-label="Fermer" className="shrink-0 p-2 text-zinc-500 hover:text-white transition-colors">
+            <X className="size-4" />
+          </button>
+        </div>
+
+        <div className="mt-8">
+          <Scoresheet comp={comp} total={total} gl={gl} />
+        </div>
+
+        {photos.length > 0 && (
+          <div className="mt-8">
+            <h3 className="mb-4 text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+              Photos · {photos.length}
+            </h3>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {photos.map((url) => (
+                <button
+                  key={url}
+                  onClick={() => setZoom(url)}
+                  className="group relative aspect-4/3 overflow-hidden rounded-lg bg-zinc-900"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={url} alt={comp.name} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
+                  <span className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="mt-8 flex justify-end gap-2 border-t border-zinc-900 pt-6">
+          <button
+            onClick={onEdit}
+            className="flex items-center gap-2 rounded-lg bg-zinc-900 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-white hover:bg-zinc-800 transition-colors"
+          >
+            <Pencil className="size-3.5" /> Modifier
+          </button>
+          <button
+            onClick={onDelete}
+            className="flex items-center gap-2 rounded-lg px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-red-400 hover:bg-red-500/10 transition-colors"
+          >
+            <Trash2 className="size-3.5" /> Supprimer
+          </button>
+        </div>
+      </div>
+
+      {zoom && (
+        <div
+          className="fixed inset-0 z-[110] flex items-center justify-center bg-black/95 p-4 animate-in fade-in duration-150"
+          onClick={(e) => {
+            e.stopPropagation()
+            setZoom(null)
+          }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={zoom} alt={comp.name} className="max-h-full max-w-full rounded-lg object-contain" />
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              setZoom(null)
+            }}
+            aria-label="Fermer la photo"
+            className="absolute top-4 right-4 p-2 text-zinc-400 hover:text-white transition-colors"
+          >
+            <X className="size-5" />
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Feuille de match : les 9 essais, un mouvement par ligne. Un essai validé
+ * s'affiche en blanc, un essai manqué est grisé, barré et gardé en négatif
+ * (convention OpenPowerlifting) pour rester identifiable d'un coup d'œil.
+ */
+function Scoresheet({ comp, total, gl }: { comp: Competition; total: number; gl: number }) {
+  const hasAttempts = LIFTS.some(({ key }) => attemptsOf(comp, key).some((a) => a != null))
+
+  return (
+    <div className="overflow-x-auto rounded-xl border border-zinc-900">
+      <table className="w-full border-collapse text-left">
+        <thead>
+          <tr className="border-b border-zinc-900 bg-black">
+            <th className="px-4 py-3 text-[9px] font-bold uppercase tracking-widest text-zinc-500">Mouvement</th>
+            {[1, 2, 3].map((n) => (
+              <th key={n} className="px-3 py-3 text-center text-[9px] font-bold uppercase tracking-widest text-zinc-500">
+                Essai {n}
+              </th>
+            ))}
+            <th className="px-4 py-3 text-right text-[9px] font-bold uppercase tracking-widest text-zinc-500">Meilleur</th>
+          </tr>
+        </thead>
+        <tbody>
+          {LIFTS.map(({ key, label }) => {
+            const attempts = attemptsOf(comp, key)
+            const best = bestLift(comp, key)
+            return (
+              <tr key={key} className="border-b border-zinc-900/60 last:border-0">
+                <td className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-zinc-300 whitespace-nowrap">
+                  {label}
+                </td>
+                {attempts.map((attempt, i) => (
+                  <td key={i} className="px-3 py-3 text-center">
+                    <AttemptValue value={attempt} />
+                  </td>
+                ))}
+                <td className="px-4 py-3 text-right font-mono text-sm font-black tabular-nums text-white">
+                  {best > 0 ? formatKg(best) : '—'}
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+        <tfoot>
+          <tr className="border-t border-zinc-800 bg-black">
+            <td className="px-4 py-3 text-[9px] font-bold uppercase tracking-widest text-zinc-500">Total</td>
+            <td colSpan={2} className="px-3 py-3 font-mono text-lg font-black tabular-nums text-white">
+              {total > 0 ? `${formatKg(total)} kg` : '—'}
+            </td>
+            <td className="px-3 py-3 text-right text-[9px] font-bold uppercase tracking-widest text-zinc-500">IPF GL</td>
+            <td className="px-4 py-3 text-right font-mono text-lg font-black tabular-nums text-white">
+              {gl > 0 ? gl.toFixed(2) : '—'}
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+
+      {!hasAttempts && (
+        <p className="border-t border-zinc-900 px-4 py-3 text-[9px] font-bold uppercase tracking-widest text-zinc-600">
+          Essais non détaillés pour cette compétition
+        </p>
+      )}
+    </div>
+  )
+}
+
+function AttemptValue({ value }: { value: Attempt }) {
+  if (value == null) return <span className="font-mono text-sm text-zinc-800">—</span>
+  const failed = value < 0
+  return (
+    <span
+      className={cn(
+        'font-mono text-sm font-bold tabular-nums',
+        failed ? 'text-zinc-600 line-through decoration-zinc-700' : 'text-white'
+      )}
+      title={failed ? 'Essai manqué' : 'Essai validé'}
+    >
+      {failed ? `−${formatKg(Math.abs(value))}` : formatKg(value)}
+    </span>
+  )
+}
+
+// ————————————————————————————————————————————————
+// Formulaire d'ajout / édition
+// ————————————————————————————————————————————————
+
+function CompetitionForm({
+  form,
+  setForm,
+  editing,
+  saving,
+  uploading,
+  onPhotoChange,
+  onSubmit,
+  onCancel,
+}: {
+  form: FormState
+  setForm: React.Dispatch<React.SetStateAction<FormState>>
+  editing: boolean
+  saving: boolean
+  uploading: boolean
+  onPhotoChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+  onSubmit: (e: React.FormEvent) => void
+  onCancel: () => void
+}) {
+  const inputClass =
+    'w-full bg-zinc-900 rounded-lg p-3 text-white text-sm font-bold outline-none focus:ring-1 focus:ring-white placeholder:text-zinc-700'
+  const numClass = `${inputClass} font-mono tabular-nums text-center`
+
+  const setAttempt = (lift: LiftKey, index: number, value: string) => {
+    setForm((prev) => ({
+      ...prev,
+      attempts: {
+        ...prev.attempts,
+        [lift]: prev.attempts[lift].map((a, i) => (i === index ? value : a)),
+      },
+    }))
+  }
+
+  const removePhoto = (url: string) => {
+    setForm((prev) => ({ ...prev, photoUrls: prev.photoUrls.filter((u) => u !== url) }))
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="mb-8 space-y-6 rounded-2xl border border-zinc-900 bg-black p-4 sm:p-6">
+      <div className="flex items-center justify-between">
+        <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+          {editing ? 'Modifier la compétition' : 'Nouvelle compétition'}
+        </h3>
+        <button type="button" onClick={onCancel} aria-label="Annuler" className="text-zinc-500 hover:text-white transition-colors">
+          <X className="size-4" />
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <Field label="Nom de la compétition">
+          <input
+            type="text"
+            value={form.name}
+            onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+            placeholder="Ex: Campeonato de España Junior"
+            className={inputClass}
+            required
+          />
+        </Field>
+        <Field label="Date">
+          <input
+            type="date"
+            value={form.date}
+            onChange={(e) => setForm((p) => ({ ...p, date: e.target.value }))}
+            className={`${inputClass} [color-scheme:dark]`}
+            required
+          />
+        </Field>
+        <Field label="Niveau">
+          <input
+            type="text"
+            list="palmares-niveaux"
+            value={form.level}
+            onChange={(e) => setForm((p) => ({ ...p, level: e.target.value }))}
+            placeholder="Ex: National"
+            className={inputClass}
+          />
+          <datalist id="palmares-niveaux">
+            {NIVEAUX.map((n) => (
+              <option key={n} value={n} />
+            ))}
+          </datalist>
+        </Field>
+        <Field label="Catégorie">
+          <input
+            type="text"
+            value={form.category}
+            onChange={(e) => setForm((p) => ({ ...p, category: e.target.value }))}
+            placeholder="Ex: -120kg Junior"
+            className={inputClass}
+          />
+        </Field>
+        <Field label="Classement">
+          <input
+            type="number"
+            min="1"
+            step="1"
+            value={form.placement}
+            onChange={(e) => setForm((p) => ({ ...p, placement: e.target.value }))}
+            placeholder="Ex: 1"
+            className={numClass}
+          />
+        </Field>
+        <Field label="Poids de corps (kg)">
+          <input
+            type="number"
+            step="0.01"
+            value={form.bodyweight}
+            onChange={(e) => setForm((p) => ({ ...p, bodyweight: e.target.value }))}
+            placeholder="Ex: 117.2"
+            className={numClass}
+          />
+        </Field>
+      </div>
+
+      <div className="space-y-3 border-t border-zinc-900 pt-6">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Les 9 essais</p>
+        <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-600 leading-relaxed">
+          Essai manqué : saisis la charge en négatif (ex : −175). Laisse vide si non tenté.
+          La meilleure barre validée est calculée automatiquement.
+        </p>
+
+        <div className="space-y-2">
+          {LIFTS.map(({ key, label }) => (
+            <div key={key} className="grid grid-cols-[1fr_auto] sm:grid-cols-[10rem_1fr] items-center gap-3">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">{label}</span>
+              <div className="grid grid-cols-3 gap-2">
+                {form.attempts[key].map((value, i) => (
+                  <input
+                    key={i}
+                    type="number"
+                    step="0.5"
+                    value={value}
+                    onChange={(e) => setAttempt(key, i, e.target.value)}
+                    placeholder={`E${i + 1}`}
+                    aria-label={`${label} essai ${i + 1}`}
+                    className={numClass}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-3 border-t border-zinc-900 pt-6">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+          Meilleures barres <span className="text-zinc-600">— si les essais ne sont pas détaillés</span>
+        </p>
+        <div className="grid grid-cols-3 gap-2">
+          {LIFTS.map(({ key, short }) => (
+            <Field key={key} label={short}>
+              <input
+                type="number"
+                step="0.5"
+                value={form.best[key]}
+                onChange={(e) => setForm((p) => ({ ...p, best: { ...p.best, [key]: e.target.value } }))}
+                disabled={bestValid(form.attempts[key].map(num)) > 0}
+                className={`${numClass} disabled:opacity-40`}
+              />
+            </Field>
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-3 border-t border-zinc-900 pt-6">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Photos</p>
+
+        {form.photoUrls.length > 0 && (
+          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+            {form.photoUrls.map((url) => (
+              <div key={url} className="relative aspect-4/3 overflow-hidden rounded-lg bg-zinc-900">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={url} alt="" className="h-full w-full object-cover" />
+                <button
+                  type="button"
+                  onClick={() => removePhoto(url)}
+                  aria-label="Retirer la photo"
+                  className="absolute top-1 right-1 rounded-full bg-black/80 p-1 text-zinc-300 hover:text-white transition-colors"
+                >
+                  <X className="size-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <label className="flex items-center justify-center gap-2 w-full bg-zinc-900 rounded-lg p-3 text-[11px] font-bold uppercase tracking-widest text-zinc-400 hover:text-white cursor-pointer transition-colors">
+          {uploading ? <Loader2 className="size-4 animate-spin" /> : <Camera className="size-4" />}
+          {uploading ? 'Envoi…' : 'Ajouter des photos'}
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            multiple
+            onChange={onPhotoChange}
+            className="hidden"
+            disabled={uploading}
+          />
+        </label>
+      </div>
+
+      <button
+        type="submit"
+        disabled={saving || uploading}
+        className="w-full py-3 rounded-lg bg-white text-black text-[11px] font-bold uppercase tracking-widest hover:bg-zinc-200 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+      >
+        {saving && <Loader2 className="size-4 animate-spin" />}
+        {editing ? 'Enregistrer' : 'Ajouter au palmarès'}
+      </button>
+    </form>
+  )
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1.5">
+      <label className="block text-[9px] font-bold text-zinc-500 uppercase tracking-widest ml-1">{label}</label>
+      {children}
     </div>
   )
 }
