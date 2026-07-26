@@ -5,6 +5,7 @@ import { Card, CardTitle } from '@/components/power/card'
 import { supabase } from '@/lib/supabase'
 import { toast } from '@/components/power/toaster'
 import { calculateIPFGL } from '@/lib/powerlifting'
+import { COUNTRIES, countryCodeToFlag, countryName } from '@/lib/countries'
 import { cn } from '@/lib/utils'
 import { Calendar, Camera, Loader2, Medal, Pencil, Plus, Trash2, Trophy, X } from 'lucide-react'
 
@@ -32,6 +33,8 @@ interface Competition {
   date: string
   category: string | null
   level: string | null
+  /** Code ISO 3166-1 alpha-2 ; le drapeau en est dérivé à l'affichage. */
+  country_code: string | null
   placement: number | null
   bodyweight: number | null
   squat: number | null
@@ -125,6 +128,7 @@ interface FormState {
   date: string
   category: string
   level: string
+  countryCode: string
   placement: string
   bodyweight: string
   best: Record<LiftKey, string>
@@ -138,6 +142,7 @@ function createEmptyForm(): FormState {
     date: todayStr(),
     category: '',
     level: '',
+    countryCode: '',
     placement: '',
     bodyweight: '',
     best: { squat: '', bench: '', deadlift: '' },
@@ -153,6 +158,7 @@ function formFrom(comp: Competition): FormState {
     date: comp.date,
     category: comp.category ?? '',
     level: comp.level ?? '',
+    countryCode: comp.country_code ?? '',
     placement: str(comp.placement),
     bodyweight: str(comp.bodyweight),
     best: {
@@ -263,6 +269,7 @@ export function Palmares() {
         date: form.date,
         category: form.category.trim() || null,
         level: form.level.trim() || null,
+        country_code: form.countryCode || null,
         placement: num(form.placement),
         bodyweight: num(form.bodyweight),
         photo_urls: form.photoUrls,
@@ -436,7 +443,11 @@ function CompetitionCard({
 
       <div className="p-4 space-y-4">
         <div className="flex items-center justify-between gap-2 text-[10px] font-bold uppercase tracking-widest">
-          <span className="truncate text-zinc-400">{comp.level || comp.category || '—'}</span>
+          {/* Niveau puis drapeau : le texte seul est tronqué, l'émoji ne l'est jamais. */}
+          <span className="flex min-w-0 items-center gap-1.5 text-zinc-400">
+            <span className="truncate">{comp.level || comp.category || '—'}</span>
+            <CountryFlag code={comp.country_code} />
+          </span>
           {comp.placement != null && (
             <span className="flex shrink-0 items-center gap-1 rounded-full bg-zinc-900 px-2 py-1 text-white">
               <Medal className="size-3" /> {formatPlacement(comp.placement)}
@@ -473,6 +484,27 @@ function CompetitionCard({
         </div>
       </div>
     </div>
+  )
+}
+
+/**
+ * Drapeau du pays, émoji seul — le nom n'est jamais écrit à l'écran, il ne
+ * sert que d'étiquette d'accessibilité (invisible, lue par les lecteurs
+ * d'écran). `tracking-normal` annule le letter-spacing hérité du texte
+ * environnant, qui décalerait l'émoji vers la gauche, et `leading-none`
+ * l'empêche d'augmenter la hauteur de ligne.
+ */
+function CountryFlag({ code }: { code: string | null }) {
+  const flag = countryCodeToFlag(code)
+  if (!flag) return null
+  return (
+    <span
+      role="img"
+      aria-label={countryName(code) ?? 'Pays'}
+      className="shrink-0 text-[13px] leading-none tracking-normal"
+    >
+      {flag}
+    </span>
   )
 }
 
@@ -547,7 +579,12 @@ function CompetitionDetail({
               <span className="flex items-center gap-1.5">
                 <Calendar className="size-3" /> {formatDate(comp.date)}
               </span>
-              {comp.level && <span className="text-zinc-400">{comp.level}</span>}
+              {(comp.level || comp.country_code) && (
+                <span className="flex items-center gap-1.5 text-zinc-400">
+                  {comp.level}
+                  <CountryFlag code={comp.country_code} />
+                </span>
+              )}
               {comp.category && <span>{comp.category}</span>}
               {comp.placement != null && (
                 <span className="flex items-center gap-1 text-white">
@@ -796,6 +833,22 @@ function CompetitionForm({
               <option key={n} value={n} />
             ))}
           </datalist>
+        </Field>
+        <Field label="Pays">
+          {/* Le nom du pays apparaît ici pour rendre la saisie utilisable,
+              mais jamais sur les cartes : seul l'émoji y est affiché. */}
+          <select
+            value={form.countryCode}
+            onChange={(e) => setForm((p) => ({ ...p, countryCode: e.target.value }))}
+            className={`${inputClass} [color-scheme:dark]`}
+          >
+            <option value="">— Aucun</option>
+            {COUNTRIES.map((pays) => (
+              <option key={pays.code} value={pays.code}>
+                {countryCodeToFlag(pays.code)} {pays.name}
+              </option>
+            ))}
+          </select>
         </Field>
         <Field label="Catégorie">
           <input
