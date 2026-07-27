@@ -214,3 +214,32 @@ export function calculateIPFGL(total: number, bodyweight: number, gender: 'male'
   const denom = A - B * Math.exp(-C * bodyweight)
   return denom > 0 ? (100 * total) / denom : 0
 }
+
+// ————————————————————————————————————————————————
+// Peaking : décompte vers la prochaine compétition
+// ————————————————————————————————————————————————
+
+/** Le strict nécessaire pour le décompte de peaking (issu de `competitions`). */
+export interface UpcomingCompetition {
+  id: string
+  name: string
+  date: string // 'YYYY-MM-DD'
+  level: string | null
+  country_code: string | null
+}
+
+function parseLocalDateStr(dateStr: string): Date {
+  const [annee, mois, jour] = dateStr.split('-').map(Number)
+  return new Date(annee, mois - 1, jour)
+}
+
+/**
+ * Semaines pleines séparant deux dates locales 'YYYY-MM-DD' (0 si `target`
+ * est déjà passée par rapport à `from`, ou tombe le jour même). Arrondi au
+ * SUPÉRIEUR : à J-1..J-7 de la compétition, on est encore dans "S-1" — la
+ * dernière semaine ne devient "S0" qu'au jour J lui-même.
+ */
+export function weeksOut(fromDateStr: string, targetDateStr: string): number {
+  const diffJours = Math.round((parseLocalDateStr(targetDateStr).getTime() - parseLocalDateStr(fromDateStr).getTime()) / 86_400_000)
+  return diffJours > 0 ? Math.ceil(diffJours / 7) : 0
+}

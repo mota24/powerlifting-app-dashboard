@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Card, CardTitle } from '@/components/power/card'
 import { supabase } from '@/lib/supabase'
 import { toast } from '@/components/power/toaster'
@@ -205,7 +205,17 @@ function num(value: string): number | null {
 // Palmarès
 // ————————————————————————————————————————————————
 
-export function Palmares() {
+interface PalmaresProps {
+  /** Ouvre directement le formulaire d'édition de cette compétition (ex :
+   * bouton "Saisir mes résultats" de l'écran Jour J). */
+  initialEditId?: string | null
+  /** Appelé une fois l'ouverture automatique effectuée, pour que le parent
+   * efface son état (sinon rouvrir le Palmarès rouvrirait toujours le
+   * même formulaire, même après que l'utilisateur l'ait fermé). */
+  onInitialEditConsumed?: () => void
+}
+
+export function Palmares({ initialEditId, onInitialEditConsumed }: PalmaresProps = {}) {
   const [competitions, setCompetitions] = useState<Competition[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -247,6 +257,19 @@ export function Palmares() {
     setDetailId(null)
     setShowForm(true)
   }
+
+  // Ouverture automatique depuis l'écran Jour J : ne se déclenche qu'une
+  // fois (le ref empêche de rouvrir le formulaire si l'utilisateur le ferme
+  // avant que le parent n'ait eu le temps d'effacer initialEditId).
+  const initialEditConsumedRef = useRef(false)
+  useEffect(() => {
+    if (!initialEditId || initialEditConsumedRef.current || competitions.length === 0) return
+    const comp = competitions.find((c) => c.id === initialEditId)
+    if (!comp) return
+    initialEditConsumedRef.current = true
+    openEditForm(comp)
+    onInitialEditConsumed?.()
+  }, [initialEditId, competitions])
 
   const closeForm = () => {
     setShowForm(false)

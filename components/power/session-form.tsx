@@ -2,12 +2,13 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { toLocalDateStr, sessionTonnage, setsTonnage, bestE1RM, classifyLift, LIFT_SQUAT, LIFT_BENCH, LIFT_DEADLIFT, ACCESSORIES, PAIN_LEVELS, type SetData, type LiftCategory } from '@/lib/powerlifting'
-import { Activity, Check, Coffee, Plus, Trash2, X, Copy, RefreshCw, Award, Sparkles, ChevronUp, ChevronDown, Dumbbell } from 'lucide-react'
+import { toLocalDateStr, sessionTonnage, setsTonnage, bestE1RM, classifyLift, LIFT_SQUAT, LIFT_BENCH, LIFT_DEADLIFT, ACCESSORIES, PAIN_LEVELS, type SetData, type LiftCategory, type UpcomingCompetition } from '@/lib/powerlifting'
+import { countryCodeToFlag } from '@/lib/countries'
+import { Activity, Check, Coffee, Plus, Trash2, X, Copy, RefreshCw, Award, Sparkles, ChevronUp, ChevronDown, Dumbbell, Trophy } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from '@/components/power/toaster'
 
-interface Props { dateActive: Date; isRestDayMode: boolean; setIsRestDayMode: (val: boolean) => void; pasDuJour: number | null; setDateActive: (date: Date) => void; }
+interface Props { dateActive: Date; isRestDayMode: boolean; setIsRestDayMode: (val: boolean) => void; pasDuJour: number | null; setDateActive: (date: Date) => void; nextCompetition: UpcomingCompetition | null; onGoToPalmares: (competitionId: string) => void; }
 interface ExerciceRow { id: string | null; uid: string; name: string; coachTracking: SetData[]; tracking: SetData[]; comments: string; painLevel: number | null; }
 interface WorkoutSetRow { id: string; date: string; exercise_name: string | null; coach_tracking_data: SetData[] | null; tracking_data: SetData[] | null; comments: string | null; fatigue_score: number | null; sleep_hours: number | null; steps_count: number | null; order_index: number | null; pain_level?: number | null; coach_reps?: number | string | null; coach_weight?: number | string | null; coach_rpe?: number | string | null; }
 interface UserProgress { id: string; level: number; current_xp: number; total_xp: number; streak_days: number | null; last_completed_date: string | null; }
@@ -20,7 +21,7 @@ const safeFloat = (v: string, fallback = 0) => { const n = parseFloat(v); return
 // UTC (décalage d'un jour possible selon le fuseau du navigateur).
 const formatDateAffichage = (dateStr: string) => { const [y, m, d] = dateStr.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('fr-FR') }
 
-export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMode, pasDuJour, setDateActive }: Props) {
+export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMode, pasDuJour, setDateActive, nextCompetition, onGoToPalmares }: Props) {
   const [exercices, setExercices] = useState<ExerciceRow[]>([])
   const [isEditingDate, setIsEditingDate] = useState(false)
   const [isSwappingDate, setIsSwappingDate] = useState(false)
@@ -177,6 +178,34 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
   const tonnageJour = useMemo(() => sessionTonnage(exercices), [exercices])
   const deltaTonnage = tonnageSemainePrec ? Math.round(((tonnageJour - tonnageSemainePrec) / tonnageSemainePrec) * 100) : null
   const listId = `liste-exos-${jourSemaine}`
+
+  // Jour J : ni séance standard, ni repos — un écran dédié qui remplace tout
+  // le reste. Comparaison de chaînes 'YYYY-MM-DD' directe, sans passer par
+  // un objet Date des deux côtés (même convention que le reste du fichier).
+  if (nextCompetition && nextCompetition.date === dateFormatee) {
+    const drapeau = countryCodeToFlag(nextCompetition.country_code)
+    return (
+      <div className="flex flex-col items-center gap-6 rounded-2xl border border-zinc-900 bg-zinc-950 p-10 sm:p-16 text-center animate-in fade-in duration-500">
+        <Trophy className="size-12 text-orange-500" />
+        <div>
+          <h2 className="text-3xl sm:text-4xl font-black text-white uppercase tracking-widest">Comp Day</h2>
+          <p className="mt-3 text-sm font-bold text-zinc-400 uppercase tracking-widest">{nextCompetition.name}</p>
+          {(nextCompetition.level || drapeau) && (
+            <div className="mt-3 flex items-center justify-center gap-2 font-mono text-xs font-bold uppercase tracking-widest text-zinc-500">
+              {nextCompetition.level && <span>{nextCompetition.level}</span>}
+              {drapeau && <span className="text-base leading-none tracking-normal">{drapeau}</span>}
+            </div>
+          )}
+        </div>
+        <button
+          onClick={() => onGoToPalmares(nextCompetition.id)}
+          className="rounded-xl bg-white px-6 py-3 text-[11px] font-bold uppercase tracking-widest text-black transition-colors hover:bg-zinc-200"
+        >
+          Saisir mes résultats
+        </button>
+      </div>
+    )
+  }
 
   // --- RENDU BRUTALISTE ---
   return (

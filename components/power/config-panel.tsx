@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
-import { toLocalDateStr, setsTonnage, painLabel, type SetData } from '../../lib/powerlifting'
-import { Plus, Trash2, Calendar, Settings, RefreshCw, Download, Tag } from 'lucide-react'
+import { toLocalDateStr, setsTonnage, painLabel, weeksOut, type SetData, type UpcomingCompetition } from '../../lib/powerlifting'
+import { countryCodeToFlag } from '../../lib/countries'
+import { Plus, Trash2, Calendar, Settings, RefreshCw, Download, Tag, Trophy } from 'lucide-react'
 
 interface TrainingBlock { id: string; block_number: number; start_date: string; duration_weeks: number; name?: string; }
 const parseLocalDate = (dateStr: string): Date => { const [annee, mois, jour] = dateStr.split('-').map(Number); return new Date(annee, mois - 1, jour) }
@@ -13,6 +14,7 @@ export default function ConfigPanel() {
   const [blocks, setBlocks] = useState<TrainingBlock[]>([])
   const [loading, setLoading] = useState(true)
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
+  const [nextCompetition, setNextCompetition] = useState<UpcomingCompetition | null>(null)
 
   const fetchBlocks = async () => {
     setLoading(true)
@@ -22,6 +24,22 @@ export default function ConfigPanel() {
   }
 
   useEffect(() => { fetchBlocks() }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    const fetchNextCompetition = async () => {
+      const { data } = await supabase
+        .from('competitions')
+        .select('id, name, date, level, country_code')
+        .gte('date', toLocalDateStr(new Date()))
+        .order('date', { ascending: true })
+        .limit(1)
+        .maybeSingle()
+      if (!cancelled) setNextCompetition(data ?? null)
+    }
+    fetchNextCompetition()
+    return () => { cancelled = true }
+  }, [])
 
   const ajouterBloc = async () => {
     const nextNumber = blocks.length > 0 ? Math.max(...blocks.map(b => b.block_number)) + 1 : 1
@@ -216,6 +234,31 @@ export default function ConfigPanel() {
 
           </div>
         ))}
+
+        {nextCompetition && (
+          <div className="p-6 rounded-2xl border border-zinc-900 bg-zinc-950 flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-4 min-w-0">
+              <div className="shrink-0 bg-orange-500/10 text-orange-500 p-3 rounded-xl">
+                <Trophy className="size-5" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-sm font-black text-white uppercase tracking-widest">🏆 Comp Day</h3>
+                <p className="truncate text-xs font-bold text-zinc-500 uppercase tracking-widest">
+                  {nextCompetition.name}
+                  {nextCompetition.country_code && ` ${countryCodeToFlag(nextCompetition.country_code)}`}
+                </p>
+              </div>
+            </div>
+            <div className="text-right shrink-0">
+              <div className="font-mono text-lg font-black tabular-nums text-white">
+                {parseLocalDate(nextCompetition.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}
+              </div>
+              <div className="font-mono text-[10px] font-bold uppercase tracking-widest text-orange-500">
+                {(() => { const s = weeksOut(toLocalDateStr(new Date()), nextCompetition.date); return s > 0 ? `S-${s}` : 'S0' })()}
+              </div>
+            </div>
+          </div>
+        )}
 
         <button onClick={ajouterBloc} className="w-full py-6 border border-zinc-800 hover:border-white text-zinc-500 hover:text-white bg-zinc-950 rounded-2xl flex items-center justify-center gap-2 transition-colors text-[10px] font-bold uppercase tracking-widest mt-6">
           <Plus className="size-4" /> NOUVEAU BLOC

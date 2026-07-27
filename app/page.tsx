@@ -16,7 +16,7 @@ import ChangePasswordModal from '@/components/power/change-password-modal'
 import CircuitTimer from '@/components/power/circuit-timer'
 import { toast } from '@/components/power/toaster'
 import { cn } from '@/lib/utils'
-import { toLocalDateStr } from '@/lib/powerlifting'
+import { toLocalDateStr, weeksOut, type UpcomingCompetition } from '@/lib/powerlifting'
 import ConfigPanel from '@/components/power/config-panel'
 import CalculatorPanel from '@/components/power/calculator-panel'
 import HistoryPanel from '@/components/power/history-panel'
@@ -74,8 +74,36 @@ export default function Page() {
     return 'accueil';
   });
 
+  // ?editComp=<id> ouvre directement le formulaire d'une compétition dans le
+  // Palmarès (cible du bouton "Saisir mes résultats" de l'écran Jour J).
+  const [editCompId, setEditCompId] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') return new URLSearchParams(window.location.search).get('editComp')
+    return null
+  })
+  const [nextCompetition, setNextCompetition] = useState<UpcomingCompetition | null>(null)
+
   const menuRef = useRef<HTMLDivElement>(null)
   const toggleBtnRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    // Dépend de `session` : au premier rendu, la session n'a pas encore fini
+    // de se charger (cf. l'effet plus bas) et la requête échouerait — sans
+    // quoi elle ne serait jamais rejouée une fois l'utilisateur authentifié.
+    if (!session) return
+    let cancelled = false
+    const fetchNextCompetition = async () => {
+      const { data } = await supabase
+        .from('competitions')
+        .select('id, name, date, level, country_code')
+        .gte('date', toLocalDateStr(new Date()))
+        .order('date', { ascending: true })
+        .limit(1)
+        .maybeSingle()
+      if (!cancelled) setNextCompetition(data ?? null)
+    }
+    fetchNextCompetition()
+    return () => { cancelled = true }
+  }, [session])
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -196,6 +224,17 @@ export default function Page() {
     setVueActive('accueil')
     setMenuOuvert(false)
     window.history.pushState({}, '', `?page=accueil&date=${dateStr}`)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  /** Bouton "Saisir mes résultats" de l'écran Jour J : bascule sur le
+   * Palmarès et signale à quelle compétition ouvrir directement le
+   * formulaire d'édition. */
+  const ouvrirResultatsCompetition = (competitionId: string) => {
+    setVueActive('palmares')
+    setEditCompId(competitionId)
+    setMenuOuvert(false)
+    window.history.pushState({}, '', `?page=palmares&editComp=${competitionId}`)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -446,7 +485,7 @@ export default function Page() {
 
         {vueActive === 'palmares' && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <Palmares />
+            <Palmares initialEditId={editCompId} onInitialEditConsumed={() => setEditCompId(null)} />
           </div>
         )}
 
@@ -462,6 +501,11 @@ export default function Page() {
               dateActive={dateActive}
               setDateActive={setDateActive}
               blockTitle={blockInfo}
+              // Masqué au-delà du jour J : weeksOut() renvoie 0 aussi bien
+              // pour "jour J" que pour "déjà passé", sans quoi le badge
+              // resterait bloqué sur "S0" en naviguant sur des semaines
+              // largement postérieures à la compétition.
+              weeksOut={nextCompetition && toLocalDateStr(dateActive) <= nextCompetition.date ? weeksOut(toLocalDateStr(dateActive), nextCompetition.date) : null}
             />
             <SessionForm
               dateActive={dateActive}
@@ -469,6 +513,8 @@ export default function Page() {
               setIsRestDayMode={setIsRestDayMode}
               pasDuJour={pasDuJour}
               setDateActive={setDateActive}
+              nextCompetition={nextCompetition}
+              onGoToPalmares={ouvrirResultatsCompetition}
             />
           </div>
         )}

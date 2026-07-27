@@ -8,6 +8,8 @@ interface WeekCalendarProps {
   dateActive: Date;
   setDateActive: (date: Date) => void;
   blockTitle?: string;
+  /** Semaines avant la prochaine compétition (0 = semaine du jour J), null si aucune compétition à venir. */
+  weeksOut?: number | null;
 }
 
 const WEEK_PROGRAM = [
@@ -15,7 +17,7 @@ const WEEK_PROGRAM = [
   { id: 4, dayName: 'Jeu' }, { id: 5, dayName: 'Ven' }, { id: 6, dayName: 'Sam' }, { id: 0, dayName: 'Dim' }, 
 ]
 
-export function WeekCalendar({ dateActive, setDateActive, blockTitle }: WeekCalendarProps) {
+export function WeekCalendar({ dateActive, setDateActive, blockTitle, weeksOut }: WeekCalendarProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const dateInputRef = useRef<HTMLInputElement>(null);
 
@@ -59,10 +61,18 @@ export function WeekCalendar({ dateActive, setDateActive, blockTitle }: WeekCale
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <button type="button" onClick={ouvrirCalendrier} className="relative flex items-center gap-2 p-2 -ml-2 rounded-lg hover:bg-zinc-900 active:bg-zinc-800 transition-colors text-left min-h-11">
+        {/* min-w-0 sur le bouton et truncate sur le titre : le badge S-X
+            allonge cette ligne, min-width:auto (implicite en flex) la ferait
+            sinon déborder au lieu de laisser le titre se tronquer. */}
+        <button type="button" onClick={ouvrirCalendrier} className="relative flex min-w-0 items-center gap-2 p-2 -ml-2 rounded-lg hover:bg-zinc-900 active:bg-zinc-800 transition-colors text-left min-h-11">
           <input ref={dateInputRef} type="date" value={localDateFormatee} onChange={(e) => { if (e.target.value) setDateActive(new Date(e.target.value)) }} className="absolute inset-0 h-full w-full opacity-0 pointer-events-none" tabIndex={-1} aria-hidden="true" />
           <Calendar className="size-4 text-white pointer-events-none shrink-0" />
-          <span className="text-sm font-bold uppercase tracking-widest text-white pointer-events-none">{blockTitle || "CALENDRIER"}</span>
+          <span className="min-w-0 truncate text-sm font-bold uppercase tracking-widest text-white pointer-events-none">{blockTitle || "CALENDRIER"}</span>
+          {weeksOut != null && (
+            <span className="shrink-0 pointer-events-none rounded-md bg-orange-500/10 px-2 py-0.5 font-mono text-[10px] font-black tabular-nums text-orange-500">
+              {weeksOut > 0 ? `S-${weeksOut}` : 'S0'}
+            </span>
+          )}
         </button>
 
         <div className="flex items-center gap-1">
