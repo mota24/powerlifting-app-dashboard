@@ -726,7 +726,7 @@ function CompetitionDetail({
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-3xl rounded-2xl border border-zinc-900 bg-zinc-950 p-6 sm:p-8 animate-in zoom-in-95 duration-200"
+        className="relative w-full max-w-3xl rounded-2xl border border-zinc-900 bg-zinc-950 p-4 sm:p-8 animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4">
@@ -832,33 +832,48 @@ function Scoresheet({ comp, total, gl }: { comp: Competition; total: number; gl:
 
   return (
     <div className="overflow-x-auto rounded-xl border border-zinc-900">
+      {/* Sur téléphone, chaque libellé passe à sa forme courte et le padding
+          se resserre : la feuille tient dans la modale sans défilement. Tout
+          est en whitespace-nowrap — sans quoi « Essai 3 » se coupait en deux
+          lignes. */}
       <table className="w-full border-collapse text-left">
         <thead>
           <tr className="border-b border-zinc-900 bg-black">
-            <th className="px-4 py-3 text-[9px] font-bold uppercase tracking-widest text-zinc-500">Mouvement</th>
+            <th className="whitespace-nowrap px-1.5 py-3 text-[9px] font-bold uppercase tracking-widest text-zinc-500 sm:px-4">
+              <span className="sm:hidden">Mvt</span>
+              <span className="hidden sm:inline">Mouvement</span>
+            </th>
             {[1, 2, 3].map((n) => (
-              <th key={n} className="px-3 py-3 text-center text-[9px] font-bold uppercase tracking-widest text-zinc-500">
-                Essai {n}
+              <th
+                key={n}
+                className="whitespace-nowrap px-1 py-3 text-center text-[9px] font-bold uppercase tracking-widest text-zinc-500 sm:px-3"
+              >
+                <span className="hidden sm:inline">Essai </span>
+                {n}
               </th>
             ))}
-            <th className="px-4 py-3 text-right text-[9px] font-bold uppercase tracking-widest text-zinc-500">Meilleur</th>
+            <th className="whitespace-nowrap px-1.5 py-3 text-right text-[9px] font-bold uppercase tracking-widest text-zinc-500 sm:px-4">
+              <span className="sm:hidden">Max</span>
+              <span className="hidden sm:inline">Meilleur</span>
+            </th>
           </tr>
         </thead>
         <tbody>
-          {LIFTS.map(({ key, label }) => {
+          {LIFTS.map(({ key, label, short }) => {
             const attempts = attemptsOf(comp, key)
             const best = bestLift(comp, key)
             return (
               <tr key={key} className="border-b border-zinc-900/60 last:border-0">
-                <td className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-zinc-300 whitespace-nowrap">
-                  {label}
+                <td className="whitespace-nowrap px-1.5 py-3 text-[10px] font-bold uppercase tracking-widest text-zinc-300 sm:px-4">
+                  <span className="sm:hidden">{short}</span>
+                  <span className="hidden sm:inline">{label}</span>
                 </td>
                 {attempts.map((attempt, i) => (
-                  <td key={i} className="px-3 py-3 text-center">
+                  <td key={i} className="whitespace-nowrap px-1 py-3 text-center sm:px-3">
                     <AttemptValue value={attempt} />
                   </td>
                 ))}
-                <td className="px-4 py-3 text-right font-mono text-sm font-black tabular-nums text-white">
+                <td className="whitespace-nowrap px-1.5 py-3 text-right font-mono text-sm font-black tabular-nums text-white sm:px-4">
                   {best > 0 ? formatKg(best) : '—'}
                 </td>
               </tr>
@@ -867,12 +882,16 @@ function Scoresheet({ comp, total, gl }: { comp: Competition; total: number; gl:
         </tbody>
         <tfoot>
           <tr className="border-t border-zinc-800 bg-black">
-            <td className="px-4 py-3 text-[9px] font-bold uppercase tracking-widest text-zinc-500">Total</td>
-            <td colSpan={2} className="px-3 py-3 font-mono text-lg font-black tabular-nums text-white">
+            <td className="whitespace-nowrap px-1.5 py-3 text-[9px] font-bold uppercase tracking-widest text-zinc-500 sm:px-4">
+              Total
+            </td>
+            <td colSpan={2} className="whitespace-nowrap px-1 py-3 font-mono text-base font-black tabular-nums text-white sm:px-3 sm:text-lg">
               {total > 0 ? `${formatKg(total)} kg` : '—'}
             </td>
-            <td className="px-3 py-3 text-right text-[9px] font-bold uppercase tracking-widest text-zinc-500">IPF GL</td>
-            <td className="px-4 py-3 text-right font-mono text-lg font-black tabular-nums text-white">
+            <td className="whitespace-nowrap px-1 py-3 text-right text-[9px] font-bold uppercase tracking-widest text-zinc-500 sm:px-3">
+              IPF GL
+            </td>
+            <td className="whitespace-nowrap px-1.5 py-3 text-right font-mono text-base font-black tabular-nums text-white sm:px-4 sm:text-lg">
               {gl > 0 ? gl.toFixed(2) : '—'}
             </td>
           </tr>
