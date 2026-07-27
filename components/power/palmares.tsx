@@ -1103,7 +1103,7 @@ function CompetitionForm({
             className={numClass}
           />
         </Field>
-        <div className="sm:col-span-2">
+        <div className="sm:col-span-2 min-w-0">
           <Field label="Lien de la rediffusion (YouTube, live…)">
             <input
               type="url"
@@ -1216,8 +1216,13 @@ function CompetitionForm({
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  // min-w-0 : par défaut, un item de grid ne rétrécit jamais sous la
+  // largeur intrinsèque de son contenu (min-width: auto implicite). Un
+  // <input type="date"> a un rendu natif qui ne se compresse pas bien, il
+  // débordait donc de sa colonne malgré le w-full posé sur l'input — le
+  // w-full n'a d'effet que si le conteneur est autorisé à être plus étroit.
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-1.5 min-w-0">
       <label className="block text-[9px] font-bold text-zinc-500 uppercase tracking-widest ml-1">{label}</label>
       {children}
     </div>

@@ -352,15 +352,20 @@ const ExerciseCard = memo(function ExerciseCard({ ex, exIndex, isLast, listId, o
   return (
     <div className="p-4 sm:p-6 rounded-2xl border border-zinc-900 bg-zinc-950 space-y-6">
 
-      <div className="flex items-center gap-3">
-        <div className="bg-white text-black px-4 py-2 rounded-lg text-lg font-black tabular-nums">{exIndex + 1}</div>
-        <input list={listId} placeholder="NOM DU MOUVEMENT" className="flex-1 p-3 bg-zinc-900 border border-zinc-800 rounded-xl text-white text-sm font-black uppercase tracking-widest outline-none focus:border-white placeholder:text-zinc-600 transition-colors" value={ex.name} onChange={(e) => onPatch(exIndex, { name: e.target.value })} />
+      {/* w-full max-w-full : le conteneur ne pousse jamais au-delà de sa
+          carte. Sans min-w-0, un <input> flex-1 refuse de descendre sous sa
+          largeur intrinsèque par défaut (~20 caractères) et pousse le reste
+          (flèches, poubelle) hors de l'écran sur mobile — shrink-0 sur les
+          éléments fixes garantit qu'eux seuls ne rétrécissent jamais. */}
+      <div className="flex items-center gap-1.5 sm:gap-3 w-full max-w-full">
+        <div className="shrink-0 bg-white text-black px-4 py-2 rounded-lg text-lg font-black tabular-nums">{exIndex + 1}</div>
+        <input list={listId} placeholder="NOM DU MOUVEMENT" className="flex-1 min-w-0 p-3 bg-zinc-900 border border-zinc-800 rounded-xl text-white text-sm font-black uppercase tracking-widest outline-none focus:border-white placeholder:text-zinc-600 transition-colors truncate" value={ex.name} onChange={(e) => onPatch(exIndex, { name: e.target.value })} />
 
-        <div className="flex items-center bg-zinc-900 border border-zinc-800 rounded-xl">
+        <div className="shrink-0 flex items-center bg-zinc-900 border border-zinc-800 rounded-xl">
           <button onClick={() => onDeplacer(exIndex, 'up')} disabled={exIndex === 0} className="p-3 text-zinc-500 hover:text-white disabled:opacity-20 transition-colors border-r border-zinc-800"><ChevronUp className="size-4" /></button>
           <button onClick={() => onDeplacer(exIndex, 'down')} disabled={isLast} className="p-3 text-zinc-500 hover:text-white disabled:opacity-20 transition-colors"><ChevronDown className="size-4" /></button>
         </div>
-        <button onClick={() => onSupprimer(exIndex, ex.id)} className="p-3 text-zinc-500 hover:text-red-500 bg-zinc-900 border border-zinc-800 rounded-xl transition-colors"><Trash2 className="size-4" /></button>
+        <button onClick={() => onSupprimer(exIndex, ex.id)} className="shrink-0 p-3 text-zinc-500 hover:text-red-500 bg-zinc-900 border border-zinc-800 rounded-xl transition-colors"><Trash2 className="size-4" /></button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
