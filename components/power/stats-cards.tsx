@@ -85,19 +85,27 @@ export function StatsCards() {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        {['squat', 'bench', 'deadlift'].map((lift) => (
-          <div key={lift} className="p-4 bg-zinc-900 rounded-xl">
-            <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-3">{lift}</h3>
-            {isEditing ? (
-              <input type="number" value={tempPrs[lift as keyof typeof tempPrs]} onChange={(e) => setTempPrs({...tempPrs, [lift]: parseInt(e.target.value) || 0})} className="w-full bg-black p-3 rounded-lg border border-zinc-800 text-white font-black tabular-nums outline-none mb-1 text-lg" />
-            ) : (
-              <div className="text-3xl font-black text-white tabular-nums mb-1">{realPrs[lift as keyof typeof realPrs]}</div>
-            )}
-            <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">
-              e1RM: <span className={cn(theoPrs[lift as keyof typeof theoPrs] > realPrs[lift as keyof typeof realPrs] ? "text-white" : "text-zinc-600")}>{theoPrs[lift as keyof typeof theoPrs] > 0 ? theoPrs[lift as keyof typeof theoPrs] : '-'} kg</span>
+        {(['squat', 'bench', 'deadlift'] as const).map((lift) => {
+          const reel = realPrs[lift]
+          const theorique = theoPrs[lift]
+          // Un maximum THÉORIQUE ne peut pas être inférieur à une barre
+          // réellement soulevée : le PR validé sert de plancher.
+          const affiche = Math.max(reel, theorique)
+          const depasseLePr = theorique > reel
+          return (
+            <div key={lift} className="p-4 bg-zinc-900 rounded-xl">
+              <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-3">{lift}</h3>
+              {isEditing ? (
+                <input type="number" value={tempPrs[lift]} onChange={(e) => setTempPrs({ ...tempPrs, [lift]: parseInt(e.target.value) || 0 })} className="w-full bg-black p-3 rounded-lg border border-zinc-800 text-white font-black tabular-nums outline-none mb-1 text-lg" />
+              ) : (
+                <div className="text-3xl font-black text-white tabular-nums mb-1">{reel}</div>
+              )}
+              <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">
+                e1RM: <span className={cn(depasseLePr ? 'text-white' : 'text-zinc-600')}>{affiche > 0 ? affiche : '-'} kg</span>
+              </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
         
         <div className="p-4 bg-white rounded-xl text-black flex flex-col justify-between">
           <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-3">Total SBD</h3>

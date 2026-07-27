@@ -5,8 +5,17 @@ import { computePlates, BAR_WEIGHT } from '@/lib/powerlifting'
 import { Dumbbell } from 'lucide-react'
 
 export function PlateVisualizer() {
-  const [target, setTarget] = useState(167.5)
+  // La saisie est gardée en TEXTE : avec un état numérique, taper « 200 » sur
+  // un champ à 0 laissait « 0200 », et vider le champ y réécrivait « 0 ».
+  const [targetText, setTargetText] = useState('167.5')
+  const target = Number(targetText) || 0
   const { plates, perSide, achievable, remainder } = computePlates(target)
+
+  const handleTargetChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Supprime les zéros non significatifs (« 0200 » → « 200 ») sans casser
+    // « 0.5 », et laisse le champ se vider complètement.
+    setTargetText(e.target.value.replace(/^0+(?=\d)/, ''))
+  }
 
   return (
     <div className="p-6 sm:p-8 bg-zinc-950 border border-zinc-900 rounded-2xl">
@@ -21,7 +30,7 @@ export function PlateVisualizer() {
       <div className="mb-8 flex items-end gap-4">
         <label className="flex-1">
           <span className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-zinc-500">Poids cible (kg)</span>
-          <input type="number" step={2.5} inputMode="decimal" value={target} onChange={(e) => setTarget(Number(e.target.value) || 0)} className="w-full rounded-xl bg-zinc-900 px-4 py-4 font-black text-2xl text-white outline-none focus:ring-2 focus:ring-zinc-700 tabular-nums transition-all" />
+          <input type="number" step={2.5} inputMode="decimal" value={targetText} onChange={handleTargetChange} className="w-full rounded-xl bg-zinc-900 px-4 py-4 font-black text-2xl text-white outline-none focus:ring-2 focus:ring-zinc-700 tabular-nums transition-all" />
         </label>
         <div className="text-right pb-3">
           <span className="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1">Par côté</span>

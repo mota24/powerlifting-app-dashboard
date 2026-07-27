@@ -366,7 +366,10 @@ export default function Page() {
       {showCircuitTimer && <CircuitTimer onClose={() => setShowCircuitTimer(false)} />}
       <Header />
 
-      <div className="mx-auto max-w-5xl px-4 pt-4 flex justify-between items-center relative z-50">
+      {/* z-30 : cette barre défile, elle doit passer SOUS le header collant
+          (z-50). Avec son ancien z-50 elle lui passait par-dessus, et les deux
+          se superposaient de façon illisible. */}
+      <div className="mx-auto max-w-5xl px-4 pt-4 flex justify-between items-center relative z-30 bg-background">
         
         <div className="flex flex-col">
           <h2 className="text-sm font-medium text-muted-foreground capitalize">
@@ -389,7 +392,7 @@ export default function Page() {
               "flex items-center justify-center p-2 rounded-md border transition-colors",
               vueActive === 'accueil' 
                 ? "bg-primary/10 border-primary/20 text-primary" 
-                : "bg-secondary/50 border-border hover:bg-secondary text-slate-400 hover:text-white"
+                : "bg-zinc-900 border-border hover:bg-zinc-800 text-slate-400 hover:text-white"
             )}
             title="Retour à l'accueil"
           >
@@ -400,7 +403,7 @@ export default function Page() {
             <button 
               ref={toggleBtnRef}
               onClick={() => setMenuOuvert(!menuOuvert)} 
-              className="flex items-center justify-center p-2 rounded-md bg-secondary/50 hover:bg-secondary border border-border transition-colors"
+              className="flex items-center justify-center p-2 rounded-md bg-zinc-900 hover:bg-zinc-800 border border-border transition-colors"
             >
               {menuOuvert ? <X className="size-5" /> : <Menu className="size-5" />}
             </button>

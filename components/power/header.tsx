@@ -41,7 +41,9 @@ export function Header() {
   else if (progress.level > 45) { GradeIcon = Crown; gradeName = "LÉGENDE"; gradeColor = "text-white" }
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-zinc-900 bg-black/90 backdrop-blur-md">
+    // Fond 100 % opaque et z-50 : le contenu qui défile passe DERRIÈRE la
+    // barre de niveau au lieu de la traverser. Le flou n'a plus lieu d'être.
+    <header className="sticky top-0 z-50 w-full border-b border-zinc-900 bg-zinc-950">
       <div className="mx-auto max-w-5xl px-6 h-16 flex items-center justify-between">
         
         <div className="flex items-center gap-3">
@@ -62,9 +64,11 @@ export function Header() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 bg-zinc-900/50 px-3 py-1.5 rounded-lg border border-zinc-800">
-            <Flame className={cn("size-3.5", progress.streak_days >= 3 ? "text-white" : "text-zinc-600")} />
-            <span className={cn("text-xs font-black tabular-nums", progress.streak_days >= 3 ? "text-white" : "text-zinc-500")}>
+          {/* La flamme s'allume dès le 1er jour de série : à l'ancien seuil de
+              3, un streak en cours restait gris et semblait éteint. */}
+          <div className="flex items-center gap-2 bg-zinc-900 px-3 py-1.5 rounded-lg border border-zinc-800">
+            <Flame className={cn("size-3.5", progress.streak_days > 0 ? "text-orange-500" : "text-zinc-600")} />
+            <span className={cn("text-xs font-black tabular-nums", progress.streak_days > 0 ? "text-white" : "text-zinc-500")}>
               {progress.streak_days}
             </span>
           </div>
