@@ -19,13 +19,6 @@ const WEEK_PROGRAM = [
 
 export function WeekCalendar({ dateActive, setDateActive, blockTitle, weeksOut }: WeekCalendarProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const dateInputRef = useRef<HTMLInputElement>(null);
-
-  const ouvrirCalendrier = () => {
-    const input = dateInputRef.current
-    if (!input) return
-    try { input.showPicker() } catch { input.click() }
-  }
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -61,19 +54,26 @@ export function WeekCalendar({ dateActive, setDateActive, blockTitle, weeksOut }
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        {/* min-w-0 sur le bouton et truncate sur le titre : le badge S-X
-            allonge cette ligne, min-width:auto (implicite en flex) la ferait
-            sinon déborder au lieu de laisser le titre se tronquer. */}
-        <button type="button" onClick={ouvrirCalendrier} className="relative flex min-w-0 items-center gap-2 p-2 -ml-2 rounded-lg hover:bg-zinc-900 active:bg-zinc-800 transition-colors text-left min-h-11">
-          <input ref={dateInputRef} type="date" value={localDateFormatee} onChange={(e) => { if (e.target.value) setDateActive(new Date(e.target.value)) }} className="absolute inset-0 h-full w-full opacity-0 pointer-events-none" tabIndex={-1} aria-hidden="true" />
+        {/* <label> plutôt qu'un onClick + showPicker()/click() JS : un clic
+            sur un <label> associé à un contrôle l'active nativement dans le
+            navigateur (y compris l'ouverture du picker natif), quelle que
+            soit la plateforme — showPicker()/click() déclenchés en script
+            ne sont pas fiables sur mobile (silencieusement no-op sur
+            certains Safari iOS). L'input reste invisible mais n'a plus
+            pointer-events-none : c'est lui qui doit recevoir le tap. Le
+            reste (icône, texte) garde pointer-events-none pour laisser le
+            tap "traverser" jusqu'à l'input en dessous. */}
+        <label className="relative flex min-w-0 cursor-pointer items-center gap-2 p-2 -ml-2 rounded-lg hover:bg-zinc-900 active:bg-zinc-800 transition-colors text-left min-h-11">
+          <input type="date" value={localDateFormatee} onChange={(e) => { if (e.target.value) setDateActive(new Date(e.target.value)) }} className="absolute inset-0 h-full w-full opacity-0" tabIndex={-1} aria-hidden="true" />
           <Calendar className="size-4 text-white pointer-events-none shrink-0" />
-          <span className="min-w-0 truncate text-sm font-bold uppercase tracking-widest text-white pointer-events-none">{blockTitle || "CALENDRIER"}</span>
-          {weeksOut != null && (
-            <span className="shrink-0 pointer-events-none rounded-md bg-zinc-800/50 px-2 py-0.5 font-mono text-[10px] font-black tabular-nums text-zinc-300">
-              {weeksOut > 0 ? `S-${weeksOut}` : 'S0'}
-            </span>
-          )}
-        </button>
+          {/* Même typographie que le titre pour "S-N" : une seule phrase
+              cohérente ("BLOC 1 | SEMAINE 1 / 4 | S-11"), plus de badge à
+              fond distinct. */}
+          <span className="min-w-0 truncate text-sm font-bold uppercase tracking-widest text-white pointer-events-none">
+            {blockTitle || "CALENDRIER"}
+            {weeksOut != null && ` | ${weeksOut > 0 ? `S-${weeksOut}` : 'S0'}`}
+          </span>
+        </label>
 
         <div className="flex items-center gap-1">
           <button onClick={() => changerSemaine(-7)} className="p-2 hover:bg-zinc-900 rounded-lg text-zinc-500 hover:text-white transition-colors"><ChevronLeft className="size-4"/></button>

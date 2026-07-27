@@ -236,20 +236,26 @@ export default function ConfigPanel() {
         ))}
 
         {nextCompetition && (
-          <div className="p-6 rounded-2xl border border-zinc-900 bg-zinc-950 flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-4 min-w-0">
+          // flex-col + text-center sur mobile, ligne normale à partir de sm :
+          // sans ça, une fois les deux blocs empilés par flex-wrap, la date
+          // et le sous-titre restaient collés à gauche au lieu d'être
+          // centrés comme le reste de la carte.
+          <div className="p-6 rounded-2xl border border-zinc-900 bg-zinc-950 flex flex-col sm:flex-row items-center sm:justify-between gap-4 text-center sm:text-left">
+            <div className="flex flex-col sm:flex-row items-center gap-4 min-w-0">
               <div className="shrink-0 bg-zinc-900 text-zinc-400 p-3 rounded-xl">
                 <Trophy className="size-5" />
               </div>
               <div className="min-w-0">
-                <h3 className="text-sm font-black text-white uppercase tracking-widest">🏆 Comp Day</h3>
+                {/* Le trophée est déjà l'icône à gauche : pas besoin de le
+                    répéter en emoji dans le titre. */}
+                <h3 className="text-sm font-black text-white uppercase tracking-widest">Comp Day</h3>
                 <p className="truncate text-xs font-bold text-zinc-500 uppercase tracking-widest">
                   {nextCompetition.name}
                   {nextCompetition.country_code && ` ${countryCodeToFlag(nextCompetition.country_code)}`}
                 </p>
               </div>
             </div>
-            <div className="text-right shrink-0">
+            <div className="shrink-0">
               <div className="font-mono text-lg font-black tabular-nums text-white">
                 {parseLocalDate(nextCompetition.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}
               </div>
