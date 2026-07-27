@@ -7,7 +7,7 @@ import { Activity, Check, Coffee, Plus, Trash2, X, Copy, RefreshCw, Award, Spark
 import { cn } from '@/lib/utils'
 import { toast } from '@/components/power/toaster'
 
-interface Props { dateActive: Date; isRestDayMode: boolean; setIsRestDayMode: (val: boolean) => void; pasDuJour: number | null; }
+interface Props { dateActive: Date; isRestDayMode: boolean; setIsRestDayMode: (val: boolean) => void; pasDuJour: number | null; setDateActive: (date: Date) => void; }
 interface ExerciceRow { id: string | null; uid: string; name: string; coachTracking: SetData[]; tracking: SetData[]; comments: string; painLevel: number | null; }
 interface WorkoutSetRow { id: string; date: string; exercise_name: string | null; coach_tracking_data: SetData[] | null; tracking_data: SetData[] | null; comments: string | null; fatigue_score: number | null; sleep_hours: number | null; steps_count: number | null; order_index: number | null; pain_level?: number | null; coach_reps?: number | string | null; coach_weight?: number | string | null; coach_rpe?: number | string | null; }
 interface UserProgress { id: string; level: number; current_xp: number; total_xp: number; streak_days: number | null; last_completed_date: string | null; }
@@ -16,9 +16,14 @@ const videSet = (): SetData => ({ reps: '', weight: '', rpe: '' })
 const creerExerciceVierge = (): ExerciceRow => ({ id: null, uid: crypto.randomUUID(), name: '', coachTracking: [videSet()], tracking: [videSet()], comments: '', painLevel: null, })
 const safeInt = (v: string, fallback = 0) => { const n = parseInt(v, 10); return Number.isFinite(n) ? n : fallback }
 const safeFloat = (v: string, fallback = 0) => { const n = parseFloat(v); return Number.isFinite(n) ? n : fallback }
+// Affiche une date 'YYYY-MM-DD' sans repasser par un Date() qui la lirait en
+// UTC (décalage d'un jour possible selon le fuseau du navigateur).
+const formatDateAffichage = (dateStr: string) => { const [y, m, d] = dateStr.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('fr-FR') }
 
-export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMode, pasDuJour }: Props) {
+export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMode, pasDuJour, setDateActive }: Props) {
   const [exercices, setExercices] = useState<ExerciceRow[]>([])
+  const [isEditingDate, setIsEditingDate] = useState(false)
+  const [isSwappingDate, setIsSwappingDate] = useState(false)
   const [fatigue, setFatigue] = useState(5)
   const [sommeil, setSommeil] = useState(8)
   const [pas, setPas] = useState(0)
@@ -58,6 +63,61 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
   const validerMission = async () => { setIsValidating(true); const savedOk = await executerSauvegarde(dateFormatee); if (!savedOk) { marquerPending(true); toast('Sauvegarde impossible', 'error'); setIsValidating(false); return } try { const { data } = await supabase.from('user_progress').select('*').limit(1).single(); const progress = data as UserProgress | null; if (!progress) throw new Error('Profil introuvable'); if (progress.last_completed_date === dateFormatee) { toast('Déjà validé !', 'info'); return } const currentStreak = progress.streak_days ?? 0; let newStreak = currentStreak; const today = new Date(dateFormatee); const lastDate = progress.last_completed_date ? new Date(progress.last_completed_date) : null; if (lastDate) { const diffTime = Math.abs(today.getTime() - lastDate.getTime()); const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); if (diffDays === 1) { newStreak += 1 } else if (diffDays > 1) { let brokeStreak = false; for (let i = 1; i < diffDays; i++) { const missingDate = new Date(lastDate); missingDate.setDate(missingDate.getDate() + i); const missingDay = missingDate.getDay(); if (missingDay !== 0 && missingDay !== 5) { brokeStreak = true; break } } newStreak = brokeStreak ? 1 : newStreak + 1 } } else { newStreak = 1 } let baseXP = 0; if (isRestDayMode) { baseXP = 50 } else { baseXP += 50; if (pas >= 8000) baseXP += 25; if (sommeil >= 7.5) baseXP += 25; const hasMainLifts = exercices.some((ex) => LIFT_SQUAT.includes(ex.name) || LIFT_BENCH.includes(ex.name) || LIFT_DEADLIFT.includes(ex.name)); if (hasMainLifts) baseXP += 50; const hasAccessories = exercices.some((ex) => ACCESSORIES.includes(ex.name)); if (hasAccessories) baseXP += 50 } let multiplier = 1; if (newStreak >= 7) multiplier = 1.5; else if (newStreak >= 5) multiplier = 1.25; else if (newStreak >= 3) multiplier = 1.1; const finalXP = Math.round(baseXP * multiplier); let newLevel = progress.level; let newCurrentXP = progress.current_xp + finalXP; const newTotalXP = progress.total_xp + finalXP; let xpNeeded = newLevel * 1000; let aLevelUp = false; while (newCurrentXP >= xpNeeded) { newCurrentXP -= xpNeeded; newLevel += 1; xpNeeded = newLevel * 1000; aLevelUp = true } await supabase.from('user_progress').update({ level: newLevel, current_xp: newCurrentXP, total_xp: newTotalXP, streak_days: newStreak, last_completed_date: dateFormatee, }).eq('id', progress.id); window.dispatchEvent(new Event('user-progress-updated')); setXpGained(finalXP); setNewStreakState(newStreak); setLeveledUp(aLevelUp); setShowModal(true) } catch (e) { toast('Erreur', 'error') } finally { setIsValidating(false) } }
   const propagerSemaine1VersBloc = async () => { if (!confirm('Propager sur 4 semaines ?')) return; setIsPropagating(true); try { const savedOk = await executerSauvegarde(dateFormatee); if (!savedOk) throw new Error('Sauvegarde impossible'); const { data: semaine1Data, error: fetchError } = await supabase.from('workout_sets').select('*').eq('date', dateFormatee); if (fetchError) throw fetchError; if (!semaine1Data || semaine1Data.length === 0) throw new Error('Vide'); const deltas = [7, 14, 21, 28]; const insertions: Record<string, unknown>[] = []; for (const delta of deltas) { const dateCible = new Date(dateActive); dateCible.setDate(dateCible.getDate() + delta); const dateCibleStr = toLocalDateStr(dateCible); await supabase.from('workout_sets').delete().eq('date', dateCibleStr); for (const item of semaine1Data as WorkoutSetRow[]) { const { id: _id, ...dataToCopy } = item as WorkoutSetRow & { created_at?: string }; delete (dataToCopy as { created_at?: string }).created_at; insertions.push({ ...dataToCopy, date: dateCibleStr }) } } const { error: insertError } = await supabase.from('workout_sets').insert(insertions); if (insertError) throw insertError; toast('Propagé', 'success') } catch (e) { toast('Erreur', 'error') } finally { setIsPropagating(false) } }
   const reinitialiserFutur = async () => { if (!confirm("Tout effacer le futur ?")) return; setIsResetting(true); try { const demain = new Date(dateActive); demain.setDate(demain.getDate() + 1); const { error } = await supabase.from('workout_sets').delete().gte('date', toLocalDateStr(demain)); if (error) throw error; toast('Réinitialisé', 'success') } catch (e) { toast('Erreur', 'error') } finally { setIsResetting(false) } }
+
+  /**
+   * Double-clic sur l'en-tête : déplace ou intervertit la séance affichée
+   * avec une autre date. `newDateStr` vient directement de la value d'un
+   * <input type="date"> — déjà au format YYYY-MM-DD LOCAL, sans passer par
+   * un objet Date. C'est volontaire : reconstruire un Date avec
+   * `new Date(newDateStr)` le lirait en UTC minuit et ferait sauter d'un
+   * jour selon le fuseau du navigateur. On reste en chaîne de bout en bout,
+   * comme le fait déjà toLocalDateStr ailleurs dans ce fichier.
+   */
+  const handleSwapDate = async (newDateStr: string) => {
+    if (newDateStr === dateFormatee || isSwappingDate) return
+    setIsSwappingDate(true)
+    try {
+      // Les modifications en cours (debounce de 1.5s) doivent être en base
+      // avant de bouger quoi que ce soit, sinon elles seraient perdues.
+      const savedOk = await executerSauvegarde(dateFormatee)
+      if (!savedOk) { toast('Sauvegarde impossible avant le changement de date', 'error'); return }
+
+      const { data: rowsB, error: fetchBError } = await supabase.from('workout_sets').select('id').eq('date', newDateStr)
+      if (fetchBError) throw fetchBError
+
+      if (rowsB && rowsB.length > 0) {
+        // Cas 1 — une séance existe déjà à la date cible : on intervertit.
+        // Les ids des deux côtés sont capturés AVANT toute écriture ; sans
+        // ça, la première UPDATE (A → B) ferait qu'une requête ultérieure
+        // "WHERE date = B" récupérerait aussi les lignes qu'on vient de
+        // déplacer, et la seconde UPDATE écraserait tout sur la même date.
+        const { data: rowsA, error: fetchAError } = await supabase.from('workout_sets').select('id').eq('date', dateFormatee)
+        if (fetchAError) throw fetchAError
+        const idsA = (rowsA ?? []).map((r) => r.id)
+        const idsB = rowsB.map((r) => r.id)
+
+        if (idsA.length > 0) {
+          const { error } = await supabase.from('workout_sets').update({ date: newDateStr }).in('id', idsA)
+          if (error) throw error
+        }
+        const { error: errB } = await supabase.from('workout_sets').update({ date: dateFormatee }).in('id', idsB)
+        if (errB) throw errB
+        toast(`Séances interverties avec le ${formatDateAffichage(newDateStr)}`, 'success')
+      } else {
+        // Cas 2 — rien à la date cible : simple déplacement.
+        const { error } = await supabase.from('workout_sets').update({ date: newDateStr }).eq('date', dateFormatee)
+        if (error) throw error
+        toast(`Séance déplacée au ${formatDateAffichage(newDateStr)}`, 'success')
+      }
+
+      const [annee, mois, jour] = newDateStr.split('-').map(Number)
+      setDateActive(new Date(annee, mois - 1, jour))
+    } catch (e) {
+      toast('Erreur lors du changement de date', 'error')
+    } finally {
+      setIsSwappingDate(false)
+    }
+  }
 
   const ajouterExercice = useCallback(() => { setExercices((prev) => [...prev, creerExerciceVierge()]) }, [])
   const supprimerExercice = useCallback(async (index: number, dbId: string | null) => { if (dbId) await supabase.from('workout_sets').delete().eq('id', dbId); setExercices((prev) => prev.filter((_, i) => i !== index)) }, [])
@@ -125,10 +185,26 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
       {/* Header Mode */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-zinc-950 p-6 rounded-2xl border border-zinc-900 gap-6">
         <div>
-          <h2 className="text-xl font-black text-white uppercase tracking-widest flex items-center gap-3">
-            {isRestDayMode ? <Coffee className="size-5" /> : <Activity className="size-5" />}
-            {isRestDayMode ? 'RÉCUPÉRATION' : `SÉANCE DU ${dateActive.toLocaleDateString('fr-FR')}`}
-          </h2>
+          {isEditingDate ? (
+            <input
+              type="date"
+              autoFocus
+              defaultValue={dateFormatee}
+              onChange={(e) => { const v = e.target.value; setIsEditingDate(false); if (v) handleSwapDate(v) }}
+              onBlur={() => setIsEditingDate(false)}
+              className="bg-black border border-zinc-800 rounded-lg px-3 py-2 font-mono text-lg font-black text-white outline-none focus:ring-2 focus:ring-zinc-700 tabular-nums [color-scheme:dark]"
+            />
+          ) : (
+            <h2
+              onDoubleClick={() => !isSwappingDate && setIsEditingDate(true)}
+              title="Double-clique pour déplacer ou intervertir cette séance"
+              className="text-xl font-black text-white uppercase tracking-widest flex items-center gap-3 cursor-pointer select-none"
+            >
+              {isRestDayMode ? <Coffee className="size-5" /> : <Activity className="size-5" />}
+              {isRestDayMode ? 'RÉCUPÉRATION' : `SÉANCE DU ${dateActive.toLocaleDateString('fr-FR')}`}
+              {isSwappingDate && <RefreshCw className="size-4 animate-spin text-zinc-500" />}
+            </h2>
+          )}
         </div>
 
         <div className="flex items-center gap-4 bg-zinc-900 p-1 rounded-xl w-full sm:w-auto justify-center">

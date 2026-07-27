@@ -11,7 +11,7 @@ import SessionForm from '@/components/power/session-form'
 import { PlateVisualizer } from '@/components/power/plate-visualizer'
 import { WarmupGenerator } from '@/components/power/warmup-generator'
 import { Card, CardTitle } from '@/components/power/card'
-import { LineChart, Menu, X, Home, BarChart2, Wrench, Settings, Calculator, Lock, LogOut, RefreshCw, User, History, KeyRound, Timer, Shield, Trash2, Trophy } from 'lucide-react'
+import { LineChart, Menu, X, Home, BarChart2, Wrench, Settings, Calculator, Lock, LogOut, RefreshCw, User, KeyRound, Timer, Trophy } from 'lucide-react'
 import ChangePasswordModal from '@/components/power/change-password-modal'
 import CircuitTimer from '@/components/power/circuit-timer'
 import { toast } from '@/components/power/toaster'
@@ -175,14 +175,6 @@ export default function Page() {
 
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {})
-    setSession(null)
-  }
-
-
-  // RGPD Art. 17 : effacement du compte (irréversible)
-  const handleDeleteAccount = async () => {
-    if (!confirm("Supprimer définitivement ton compte ? Tes pas synchronisés seront effacés et tu seras déconnecté. Cette action est irréversible.")) return
-    await fetch('/api/account/delete', { method: 'POST' }).catch(() => {})
     setSession(null)
   }
 
@@ -416,7 +408,6 @@ export default function Page() {
                 <button onClick={() => changerVue('analytique')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'analytique' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><BarChart2 className="size-4" /> Analytique</button>
                 <button onClick={() => changerVue('outils')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'outils' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Wrench className="size-4" /> Outils</button>
                 <button onClick={() => changerVue('calculatrice')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'calculatrice' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Calculator className="size-4" /> Calculatrice</button>
-                <button onClick={() => changerVue('historique')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'historique' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><History className="size-4" /> Historique</button>
                 <button onClick={() => changerVue('palmares')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'palmares' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Trophy className="size-4" /> Palmarès</button>
                 <button onClick={() => { setShowCircuitTimer(true); setMenuOuvert(false) }} className="flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors hover:bg-secondary text-foreground"><Timer className="size-4" /> Chrono Circuit</button>
 
@@ -430,14 +421,8 @@ export default function Page() {
                   <KeyRound className="size-4" /> Mot de passe
                 </button>
 
-                <a href="/confidentialite" className="flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors hover:bg-secondary text-foreground">
-                  <Shield className="size-4" /> Confidentialité
-                </a>
                 <button onClick={handleLogout} className="flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors hover:bg-red-500/10 text-red-400 font-medium">
                   <LogOut className="size-4" /> Se déconnecter
-                </button>
-                <button onClick={handleDeleteAccount} className="flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors hover:bg-red-500/10 text-red-500 font-medium">
-                  <Trash2 className="size-4" /> Supprimer mon compte
                 </button>
               </div>
             )}
@@ -478,11 +463,12 @@ export default function Page() {
               setDateActive={setDateActive}
               blockTitle={blockInfo}
             />
-            <SessionForm 
-              dateActive={dateActive} 
+            <SessionForm
+              dateActive={dateActive}
               isRestDayMode={isRestDayMode}
-              setIsRestDayMode={setIsRestDayMode} 
+              setIsRestDayMode={setIsRestDayMode}
               pasDuJour={pasDuJour}
+              setDateActive={setDateActive}
             />
           </div>
         )}
