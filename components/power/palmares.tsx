@@ -1035,7 +1035,9 @@ function CompetitionForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className="mb-8 space-y-6 rounded-2xl border border-zinc-900 bg-black p-4 sm:p-6">
+    // overflow-x-hidden : filet de sécurité, coupe tout élément qui
+    // tenterait malgré tout de déborder plutôt que d'élargir la page.
+    <form onSubmit={onSubmit} className="mb-8 w-full max-w-full space-y-6 overflow-x-hidden rounded-2xl border border-zinc-900 bg-black p-4 sm:p-6">
       <div className="flex items-center justify-between">
         <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
           {editing ? 'Modifier la compétition' : 'Nouvelle compétition'}
@@ -1057,11 +1059,16 @@ function CompetitionForm({
           />
         </Field>
         <Field label="Date">
+          {/* iOS Safari donne aux parties internes (shadow DOM) d'un
+              <input type="date"> une largeur qui résiste à w-full seul.
+              appearance-none retire le chrome natif qu'Apple dessine par-
+              dessus — sans lui, min-w-0/max-w-full n'ont aucun effet sur
+              cet input précis, même s'ils suffisent partout ailleurs. */}
           <input
             type="date"
             value={form.date}
             onChange={(e) => setForm((p) => ({ ...p, date: e.target.value }))}
-            className={`${inputClass} [color-scheme:dark]`}
+            className={`${inputClass} [color-scheme:dark] min-w-0 max-w-full w-full appearance-none box-border`}
             required
           />
         </Field>
