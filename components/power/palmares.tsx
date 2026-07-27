@@ -7,7 +7,7 @@ import { toast } from '@/components/power/toaster'
 import { calculateIPFGL } from '@/lib/powerlifting'
 import { COUNTRIES, countryCodeToFlag, countryName } from '@/lib/countries'
 import { cn } from '@/lib/utils'
-import { Calendar, Camera, LayoutGrid, Loader2, Medal, Pencil, Plus, Table2, Trash2, Trophy, X } from 'lucide-react'
+import { Calendar, Camera, CirclePlay, LayoutGrid, Loader2, Medal, Pencil, Plus, Table2, Trash2, Trophy, X } from 'lucide-react'
 
 // ————————————————————————————————————————————————
 // Modèle
@@ -38,6 +38,8 @@ interface Competition {
   /** Code ISO 3166-1 alpha-2 ; le drapeau en est dérivé à l'affichage. */
   country_code: string | null
   placement: number | null
+  /** Rediffusion / live de la compétition (YouTube ou autre). */
+  video_url: string | null
   bodyweight: number | null
   squat: number | null
   bench: number | null
@@ -132,6 +134,7 @@ interface FormState {
   level: string
   countryCode: string
   placement: string
+  videoUrl: string
   bodyweight: string
   best: Record<LiftKey, string>
   attempts: Record<LiftKey, string[]>
@@ -146,6 +149,7 @@ function createEmptyForm(): FormState {
     level: '',
     countryCode: '',
     placement: '',
+    videoUrl: '',
     bodyweight: '',
     best: { squat: '', bench: '', deadlift: '' },
     attempts: { squat: ['', '', ''], bench: ['', '', ''], deadlift: ['', '', ''] },
@@ -162,6 +166,7 @@ function formFrom(comp: Competition): FormState {
     level: comp.level ?? '',
     countryCode: comp.country_code ?? '',
     placement: str(comp.placement),
+    videoUrl: comp.video_url ?? '',
     bodyweight: str(comp.bodyweight),
     best: {
       squat: str(comp.squat),
@@ -175,6 +180,17 @@ function formFrom(comp: Competition): FormState {
     },
     photoUrls: comp.photo_urls ?? [],
   }
+}
+
+/**
+ * Une URL saisie librement finit dans un href : on n'accepte que http(s).
+ * Un lien « javascript:… » y serait une faille XSS, et « data: » permettrait
+ * d'injecter une page arbitraire. Tout le reste est ignoré.
+ */
+function safeHttpUrl(url: string | null | undefined): string | null {
+  if (!url) return null
+  const trimmed = url.trim()
+  return /^https?:\/\//i.test(trimmed) ? trimmed : null
 }
 
 /** Champ numérique optionnel : vide ou invalide → null. */
@@ -265,6 +281,11 @@ export function Palmares() {
       toast('Nom et date requis', 'error')
       return
     }
+    // Plutôt que d'ignorer silencieusement un lien mal formé.
+    if (form.videoUrl.trim() && !safeHttpUrl(form.videoUrl)) {
+      toast('Le lien vidéo doit commencer par http:// ou https://', 'error')
+      return
+    }
     setSaving(true)
     try {
       const payload: Record<string, unknown> = {
@@ -274,6 +295,7 @@ export function Palmares() {
         level: form.level.trim() || null,
         country_code: form.countryCode || null,
         placement: num(form.placement),
+        video_url: safeHttpUrl(form.videoUrl),
         bodyweight: num(form.bodyweight),
         photo_urls: form.photoUrls,
       }
@@ -584,6 +606,16 @@ function CompetitionCard({
           </div>
         )}
 
+        {safeHttpUrl(comp.video_url) && (
+          <span
+            role="img"
+            aria-label="Rediffusion disponible"
+            className="absolute top-3 left-3 rounded-full bg-black/80 p-1.5 text-white"
+          >
+            <CirclePlay className="size-3.5" />
+          </span>
+        )}
+
         {isUpcoming && (
           <span className="absolute top-3 right-3 rounded-full bg-white px-2 py-1 text-[9px] font-bold uppercase tracking-widest text-black">
             À venir
@@ -698,6 +730,9 @@ function CompetitionDetail({
 }) {
   const [zoom, setZoom] = useState<string | null>(null)
   const photos = comp.photo_urls ?? []
+  // Revalidé à l'affichage : une valeur douteuse en base ne doit pas
+  // atterrir dans un href, même si la saisie la filtre déjà.
+  const video = safeHttpUrl(comp.video_url)
   const total = totalOf(comp)
   const gl = glOf(comp)
 
@@ -780,7 +815,19 @@ function CompetitionDetail({
           </div>
         )}
 
-        <div className="mt-8 flex justify-end gap-2 border-t border-zinc-900 pt-6">
+        <div className="mt-8 flex flex-wrap items-center justify-end gap-2 border-t border-zinc-900 pt-6">
+          {video && (
+            <a
+              href={video}
+              target="_blank"
+              // noreferrer/noopener : la page ouverte ne doit pas pouvoir
+              // manipuler la nôtre via window.opener.
+              rel="noopener noreferrer"
+              className="mr-auto flex items-center gap-2 rounded-lg bg-zinc-900 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-white hover:bg-zinc-800 transition-colors"
+            >
+              <CirclePlay className="size-3.5 shrink-0" /> Rediffusion
+            </a>
+          )}
           <button
             onClick={onEdit}
             className="flex items-center gap-2 rounded-lg bg-zinc-900 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-white hover:bg-zinc-800 transition-colors"
@@ -1056,6 +1103,18 @@ function CompetitionForm({
             className={numClass}
           />
         </Field>
+        <div className="sm:col-span-2">
+          <Field label="Lien de la rediffusion (YouTube, live…)">
+            <input
+              type="url"
+              inputMode="url"
+              value={form.videoUrl}
+              onChange={(e) => setForm((p) => ({ ...p, videoUrl: e.target.value }))}
+              placeholder="https://www.youtube.com/watch?v=…"
+              className={inputClass}
+            />
+          </Field>
+        </div>
       </div>
 
       <div className="space-y-3 border-t border-zinc-900 pt-6">
