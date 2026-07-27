@@ -67,7 +67,9 @@ export function Header() {
           {/* La flamme s'allume dès le 1er jour de série : à l'ancien seuil de
               3, un streak en cours restait gris et semblait éteint. */}
           <div className="flex items-center gap-2 bg-zinc-900 px-3 py-1.5 rounded-lg border border-zinc-800">
-            <Flame className={cn("size-3.5", progress.streak_days > 0 ? "text-orange-500" : "text-zinc-600")} />
+            {/* fill="currentColor" : Lucide ne trace qu'un contour par
+                défaut (fill="none"), d'où l'effet "juste surligné". */}
+            <Flame fill="currentColor" className={cn("size-3.5", progress.streak_days > 0 ? "text-orange-500" : "text-zinc-600")} />
             <span className={cn("text-xs font-black tabular-nums", progress.streak_days > 0 ? "text-white" : "text-zinc-500")}>
               {progress.streak_days}
             </span>
