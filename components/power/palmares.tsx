@@ -7,7 +7,7 @@ import { toast } from '@/components/power/toaster'
 import { calculateIPFGL } from '@/lib/powerlifting'
 import { COUNTRIES, countryCodeToFlag, countryName } from '@/lib/countries'
 import { cn } from '@/lib/utils'
-import { Calendar, Camera, Loader2, Medal, Pencil, Plus, Trash2, Trophy, X } from 'lucide-react'
+import { Calendar, Camera, LayoutGrid, Loader2, Medal, Pencil, Plus, Table2, Trash2, Trophy, X } from 'lucide-react'
 
 // ————————————————————————————————————————————————
 // Modèle
@@ -26,6 +26,8 @@ const LIFTS: { key: LiftKey; label: string; short: string }[] = [
 
 /** Niveaux proposés en autocomplétion — le champ reste libre. */
 const NIVEAUX = ['Régional', 'AEP 1', 'AEP 2', 'National', 'International']
+
+type VueMode = 'cartes' | 'tableau'
 
 interface Competition {
   id: string
@@ -196,6 +198,7 @@ export function Palmares() {
   const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [detailId, setDetailId] = useState<string | null>(null)
+  const [vue, setVue] = useState<VueMode>('cartes')
 
   const fetchCompetitions = async () => {
     try {
@@ -318,16 +321,42 @@ export function Palmares() {
 
   return (
     <Card>
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-8">
         <CardTitle icon={Trophy} title="Palmarès" hint="Historique de compétitions" />
-        {!showForm && (
-          <button
-            onClick={openAddForm}
-            className="flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-black hover:bg-zinc-200 transition-colors"
-          >
-            <Plus className="size-3.5" /> Ajouter
-          </button>
-        )}
+
+        <div className="flex items-center gap-2">
+          {/* Libellés masqués sous 640px : les icônes suffisent et l'en-tête
+              tient sur une ligne, même à 375px de large. */}
+          <div className="flex bg-zinc-900 p-1 rounded-xl">
+            {([
+              { key: 'cartes', label: 'Cartes', Icon: LayoutGrid },
+              { key: 'tableau', label: 'Tableau', Icon: Table2 },
+            ] as const).map(({ key, label, Icon }) => (
+              <button
+                key={key}
+                onClick={() => setVue(key)}
+                aria-pressed={vue === key}
+                aria-label={`Vue ${label}`}
+                className={cn(
+                  'flex items-center gap-1.5 rounded-lg px-3 py-2 text-[10px] font-bold uppercase tracking-widest transition-colors',
+                  vue === key ? 'bg-white text-black' : 'text-zinc-500 hover:text-white'
+                )}
+              >
+                <Icon className="size-3.5 shrink-0" />
+                <span className="hidden sm:inline">{label}</span>
+              </button>
+            ))}
+          </div>
+
+          {!showForm && (
+            <button
+              onClick={openAddForm}
+              className="flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-black hover:bg-zinc-200 transition-colors"
+            >
+              <Plus className="size-3.5 shrink-0" /> Ajouter
+            </button>
+          )}
+        </div>
       </div>
 
       {showForm && (
@@ -351,7 +380,7 @@ export function Palmares() {
         <p className="text-center text-[10px] font-bold uppercase tracking-widest text-zinc-600 py-12">
           Aucune compétition enregistrée
         </p>
-      ) : (
+      ) : vue === 'cartes' ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {competitions.map((comp) => (
             <CompetitionCard
@@ -363,6 +392,8 @@ export function Palmares() {
             />
           ))}
         </div>
+      ) : (
+        <PalmaresTable competitions={competitions} onOpen={setDetailId} />
       )}
 
       {detail && (
@@ -375,6 +406,132 @@ export function Palmares() {
       )}
     </Card>
   )
+}
+
+// ————————————————————————————————————————————————
+// Vue tableau (style OpenPowerlifting)
+// ————————————————————————————————————————————————
+
+/**
+ * Tableau dense de toutes les compétitions. Le conteneur porte
+ * `overflow-x-auto` et la table `min-w-max` : les colonnes gardent leur
+ * largeur naturelle et c'est LE TABLEAU qui défile horizontalement, jamais
+ * la page. Sans `min-w-max`, la table se comprimerait dans le conteneur au
+ * lieu de déborder, rendant les chiffres illisibles sur mobile.
+ */
+function PalmaresTable({ competitions, onOpen }: { competitions: Competition[]; onOpen: (id: string) => void }) {
+  return (
+    <div className="overflow-x-auto rounded-xl border border-zinc-900 bg-zinc-950">
+      <table className="min-w-max w-full border-collapse text-left">
+        <thead>
+          <tr className="border-b border-zinc-900 bg-black">
+            <Th rowSpan={2}>#</Th>
+            <Th rowSpan={2}>Date</Th>
+            <Th rowSpan={2} align="center">Lieu</Th>
+            <Th rowSpan={2}>Compétition</Th>
+            <Th rowSpan={2}>Niveau</Th>
+            <Th rowSpan={2}>Division</Th>
+            <Th rowSpan={2} align="right">PDC</Th>
+            {LIFTS.map(({ key, label }) => (
+              <Th key={key} colSpan={3} align="center" className="border-l border-zinc-900">
+                {label}
+              </Th>
+            ))}
+            <Th rowSpan={2} align="right" className="border-l border-zinc-900">Total</Th>
+            <Th rowSpan={2} align="right">IPF GL</Th>
+          </tr>
+          <tr className="border-b border-zinc-900 bg-black">
+            {LIFTS.flatMap(({ key }) =>
+              [1, 2, 3].map((n) => (
+                <Th key={`${key}-${n}`} align="center" className={n === 1 ? 'border-l border-zinc-900' : undefined}>
+                  {n}
+                </Th>
+              ))
+            )}
+          </tr>
+        </thead>
+        <tbody>
+          {competitions.map((comp) => {
+            const total = totalOf(comp)
+            const gl = glOf(comp)
+            return (
+              <tr
+                key={comp.id}
+                onClick={() => onOpen(comp.id)}
+                className="border-b border-zinc-900/60 last:border-0 cursor-pointer transition-colors hover:bg-zinc-900/40"
+              >
+                <Td className="font-mono tabular-nums text-zinc-400">
+                  {comp.placement != null ? comp.placement : '—'}
+                </Td>
+                <Td className="font-mono tabular-nums text-zinc-400">{comp.date}</Td>
+                <Td align="center">
+                  <CountryFlag code={comp.country_code} />
+                </Td>
+                <Td className="font-bold uppercase tracking-widest text-white text-[10px]">
+                  {/* Borne la colonne : un nom a rallonge etirerait toute la table. */}
+                  <span className="block max-w-[220px] truncate" title={comp.name}>
+                    {comp.name}
+                  </span>
+                </Td>
+                <Td className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">{comp.level || '—'}</Td>
+                <Td className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">{comp.category || '—'}</Td>
+                <Td align="right" className="font-mono tabular-nums text-zinc-300">
+                  {comp.bodyweight != null ? formatKg(comp.bodyweight) : '—'}
+                </Td>
+                {LIFTS.flatMap(({ key }) =>
+                  attemptsOf(comp, key).map((attempt, i) => (
+                    <Td key={`${key}-${i}`} align="center" className={i === 0 ? 'border-l border-zinc-900' : undefined}>
+                      <AttemptValue value={attempt} />
+                    </Td>
+                  ))
+                )}
+                <Td align="right" className="border-l border-zinc-900 font-mono tabular-nums font-black text-white">
+                  {total > 0 ? formatKg(total) : '—'}
+                </Td>
+                <Td align="right" className="font-mono tabular-nums font-black text-white">
+                  {gl > 0 ? gl.toFixed(2) : '—'}
+                </Td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+const ALIGNS = { left: 'text-left', center: 'text-center', right: 'text-right' } as const
+
+function Th({
+  children,
+  align = 'left',
+  className,
+  ...props
+}: React.ThHTMLAttributes<HTMLTableCellElement> & { align?: keyof typeof ALIGNS }) {
+  return (
+    <th
+      {...props}
+      className={cn(
+        'px-3 py-2.5 whitespace-nowrap text-[9px] font-bold uppercase tracking-widest text-zinc-500',
+        ALIGNS[align],
+        className
+      )}
+    >
+      {children}
+    </th>
+  )
+}
+
+function Td({
+  children,
+  align = 'left',
+  className,
+}: {
+  children: React.ReactNode
+  align?: keyof typeof ALIGNS
+  className?: string
+}) {
+  return <td className={cn('px-3 py-3 whitespace-nowrap text-sm', ALIGNS[align], className)}>{children}</td>
 }
 
 // ————————————————————————————————————————————————
