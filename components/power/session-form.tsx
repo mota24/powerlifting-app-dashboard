@@ -186,7 +186,7 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
     const drapeau = countryCodeToFlag(nextCompetition.country_code)
     return (
       <div className="flex flex-col items-center gap-6 rounded-2xl border border-zinc-900 bg-zinc-950 p-10 sm:p-16 text-center animate-in fade-in duration-500">
-        <Trophy className="size-12 text-orange-500" />
+        <Trophy className="size-12 text-white" />
         <div>
           <h2 className="text-3xl sm:text-4xl font-black text-white uppercase tracking-widest">Comp Day</h2>
           <p className="mt-3 text-sm font-bold text-zinc-400 uppercase tracking-widest">{nextCompetition.name}</p>

@@ -238,7 +238,7 @@ export default function ConfigPanel() {
         {nextCompetition && (
           <div className="p-6 rounded-2xl border border-zinc-900 bg-zinc-950 flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-4 min-w-0">
-              <div className="shrink-0 bg-orange-500/10 text-orange-500 p-3 rounded-xl">
+              <div className="shrink-0 bg-zinc-900 text-zinc-400 p-3 rounded-xl">
                 <Trophy className="size-5" />
               </div>
               <div className="min-w-0">
@@ -253,7 +253,7 @@ export default function ConfigPanel() {
               <div className="font-mono text-lg font-black tabular-nums text-white">
                 {parseLocalDate(nextCompetition.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}
               </div>
-              <div className="font-mono text-[10px] font-bold uppercase tracking-widest text-orange-500">
+              <div className="font-mono text-[10px] font-bold uppercase tracking-widest text-zinc-400">
                 {(() => { const s = weeksOut(toLocalDateStr(new Date()), nextCompetition.date); return s > 0 ? `S-${s}` : 'S0' })()}
               </div>
             </div>

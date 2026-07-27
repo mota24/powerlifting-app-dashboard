@@ -69,7 +69,7 @@ export function WeekCalendar({ dateActive, setDateActive, blockTitle, weeksOut }
           <Calendar className="size-4 text-white pointer-events-none shrink-0" />
           <span className="min-w-0 truncate text-sm font-bold uppercase tracking-widest text-white pointer-events-none">{blockTitle || "CALENDRIER"}</span>
           {weeksOut != null && (
-            <span className="shrink-0 pointer-events-none rounded-md bg-orange-500/10 px-2 py-0.5 font-mono text-[10px] font-black tabular-nums text-orange-500">
+            <span className="shrink-0 pointer-events-none rounded-md bg-zinc-800/50 px-2 py-0.5 font-mono text-[10px] font-black tabular-nums text-zinc-300">
               {weeksOut > 0 ? `S-${weeksOut}` : 'S0'}
             </span>
           )}
