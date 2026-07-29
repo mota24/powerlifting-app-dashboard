@@ -170,6 +170,14 @@ export default function Page() {
       .then(async (res) => (res.ok ? ((await res.json()) as { user: AuthUser | null }).user : null))
       .catch(() => null)
       .then((user) => {
+        // mota_real_prs (records réels) survit normalement d'une session à
+        // l'autre pour l'utilisateur légitime — mais si AUCUNE session
+        // valide n'est confirmée ici (déconnecté, jeton expiré, ou
+        // simplement quelqu'un d'autre sur ce navigateur), il ne doit pas
+        // rester lisible sans authentification : purge défensive.
+        if (!user) {
+          try { window.localStorage.removeItem('mota_real_prs') } catch { /* stockage inaccessible */ }
+        }
         setSession(user)
         setLoadingAuth(false)
       })
@@ -203,6 +211,10 @@ export default function Page() {
 
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {})
+    // Sans ça, les vrais records (squat/bench/deadlift) restaient lisibles
+    // dans le localStorage après déconnexion, sans jamais repasser par le
+    // login — lisible par quiconque a accès à ce navigateur ensuite.
+    try { window.localStorage.removeItem('mota_real_prs') } catch { /* stockage inaccessible */ }
     setSession(null)
   }
 
