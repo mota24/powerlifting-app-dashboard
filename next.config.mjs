@@ -48,6 +48,11 @@ const nextConfig = {
           { key: 'X-Frame-Options', value: 'DENY' },
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          // L'app n'utilise ni caméra, ni micro, ni géolocalisation
+          // (vérifié : aucun appel à getUserMedia/navigator.geolocation) :
+          // les trois sont désactivées sans exception, pour cette origine
+          // comme pour toute page qui l'embarquerait.
+          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
           // Pas de "preload" : cela engage tous les sous-domaines présents
           // et futurs à servir du HTTPS, de façon quasi irréversible (retrait
           // de la liste de préchargement des navigateurs = plusieurs mois).

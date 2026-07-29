@@ -140,7 +140,7 @@ export function BodyweightTracker() {
           </div>
         )}
         {!loading && logs.length === 0 && (
-          <p className="text-sm text-muted-foreground mt-4">Aucun historique de poids. Saisis ton premier poids ci-dessus !</p>
+          <p className="text-sm text-muted-foreground mt-4">Aucun historique de poids. Saisis ton premier poids !</p>
         )}
       </div>
     </Card>

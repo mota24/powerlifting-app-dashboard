@@ -23,6 +23,15 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'Paramètres invalides (userId, steps requis)' }, { status: 400 })
   }
 
+  // IDOR : SYNC_SECRET prouve qu'on a le droit d'écrire, mais ne dit rien sur
+  // QUI on écrit — sans ce contrôle, quiconque connaît le secret pourrait
+  // upserter des pas pour un userId arbitraire. Un seul identifiant est
+  // légitime dans cette app mono-athlète : on le compare explicitement au
+  // lieu de faire confiance à la valeur envoyée par le client.
+  if (userId !== process.env.NEXT_PUBLIC_SYNC_USER_ID) {
+    return NextResponse.json({ error: 'Identifiant non autorisé' }, { status: 403 })
+  }
+
   // Date du jour au fuseau français ('en-CA' produit nativement YYYY-MM-DD)
   const dateFrancaise = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Paris' })
 
