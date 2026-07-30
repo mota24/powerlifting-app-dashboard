@@ -7,8 +7,16 @@ import {
   REFRESH_COOKIE,
   type SessionTokens,
 } from '@/lib/server/auth-session'
+import { clientIp } from '@/lib/server/rate-limit'
+import { limiterMemoire } from '@/lib/server/memory-rate-limit'
 
 export const dynamic = 'force-dynamic'
+
+// Toute la donnée de l'app transite par ce proxy : un plafond généreux
+// mais réel protège le quota d'invocations Vercel Hobby d'un scraping
+// ou d'une boucle cliente agressive, sans gêner un usage normal
+// (chargements de page + autosave debounced restent très en dessous).
+const LIMITE_PAR_MINUTE = 100
 
 // Proxy authentifié vers PostgREST : le client supabase-js du navigateur
 // pointe sur /api/db et n'a plus aucun jeton — c'est ici, côté serveur, que
@@ -24,6 +32,14 @@ async function proxy(req: NextRequest, ctx: { params: Promise<{ path: string[] }
   // Seul PostgREST est exposé : ni auth, ni storage, ni functions via le proxy
   if (!joined.startsWith('rest/v1/')) {
     return NextResponse.json({ error: 'Chemin non autorisé' }, { status: 404 })
+  }
+
+  const verdict = limiterMemoire(`db:${clientIp(req)}`, LIMITE_PAR_MINUTE, 60_000)
+  if (verdict.bloque) {
+    return NextResponse.json(
+      { error: 'Trop de requêtes' },
+      { status: 429, headers: { 'Retry-After': String(verdict.retryAfterSeconds) } }
+    )
   }
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL

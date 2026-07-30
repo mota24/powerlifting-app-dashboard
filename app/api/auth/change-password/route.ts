@@ -9,6 +9,7 @@ import {
 import { getSupabaseAdmin } from '@/lib/supabase-admin'
 import { pwnedCount, validatePasswordStrength } from '@/lib/server/password-policy'
 import { checkRateLimit, clearFailures, clientIp, recordFailure } from '@/lib/server/rate-limit'
+import { limiterMemoire } from '@/lib/server/memory-rate-limit'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,12 +18,24 @@ export const dynamic = 'force-dynamic'
 const LIMIT_PER_COMPTE = 5
 const LIMIT_PER_IP = 20
 
+// Débit brut, en mémoire locale à l'instance — voir
+// lib/server/memory-rate-limit.ts pour les limites de cette approche.
+const LIMITE_DEBIT_PAR_IP = 10
+
 /**
  * Changement de mot de passe. Toute la politique est appliquée côté serveur :
  * session valide (cookie httpOnly) + mot de passe actuel exigés, puis règles
  * de robustesse et refus des mots de passe fuités (Have I Been Pwned).
  */
 export async function POST(req: NextRequest) {
+  const debit = limiterMemoire(`auth:${clientIp(req)}`, LIMITE_DEBIT_PAR_IP, 60_000)
+  if (debit.bloque) {
+    return NextResponse.json(
+      { error: 'Trop de requêtes' },
+      { status: 429, headers: { 'Retry-After': String(debit.retryAfterSeconds) } }
+    )
+  }
+
   const auth = await getAccessToken(req)
   const user = auth ? await fetchUser(auth.accessToken) : null
   if (!auth || !user?.email) {
