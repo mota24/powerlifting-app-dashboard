@@ -1,8 +1,11 @@
 # Audit de sécurité — PowerApp
 
-**Date** : 29 juillet 2026
-**Périmètre** : Phase 0 (lecture seule). Aucun fichier applicatif modifié.
+**Dernière mise à jour** : 30 juillet 2026 — **Phases 0 à 5 terminées.**
 **Prod** : https://powerlifting-app-dashboard.vercel.app/ · **Supabase** : `jiwjhzbnlyhjmcjekbva`
+**Contraintes du projet, rappelées ici car elles ont guidé chaque décision** : coût zéro strict
+(Vercel Hobby + Supabase Free, aucune dépendance payante même à palier gratuit expirable), latence
+minimale, **`/` doit conserver `x-vercel-cache: HIT` en toute circonstance** — vérifié après chaque
+phase, jamais rompu.
 
 ---
 
@@ -186,78 +189,131 @@ sortie de l'audit), soit une régression de 7 versions majeures qui détruirait 
 
 ---
 
-## 9. Plan d'exécution révisé (Phases 1 → 5)
+## 9. Bilan final par phase
 
-| Phase | Cahier des charges initial | Réalité constatée | Recommandation |
-|---|---|---|---|
-| **1 — CSP nonce** | CSP nonce + `strict-dynamic`, Report-Only | Applicable. `connect-src 'self'` à **conserver** (arch. A), pas de `wss://` | ⚠️ **Arbitrage nécessaire — voir ci-dessous** |
-| **2 — Headers** | Permissions-Policy étendue, COOP, CORP, HSTS preload, `poweredByHeader`, retrait `generator` | 4 headers déjà là ; COOP/CORP absents ; `generator: 'v0.app'` présent ([`app/layout.tsx:13`](app/layout.tsx)) | ✅ **À faire** — gain net, risque quasi nul |
-| **3 — CORS** | Helper `lib/cors.ts` + allowlist | **Aucun** `Access-Control-Allow-*` dans le code. Le `*` observé vient des assets `_next/static` (normal, géré par Vercel) | ❌ **Sans objet** — ne rien créer |
-| **4.1 — Audit RLS** | Générer `audit-rls.sql` + `rls-policies.sql` | Utile, surtout après l'incident | ✅ **À faire** (SQL fourni, non exécuté) |
-| **4.2 — Session cookies** | Migrer vers `@supabase/ssr` | **Objectif déjà atteint** autrement (§6) | ❌ **Ne pas faire** — réécriture lourde, zéro gain |
-| **5 — PWA & divers** | Cache SW, manifest, purge au logout | **Pas de PWA** (§4) | ⚠️ **Partiel** : garder Dependabot + `.gitignore`. Reste sans objet (énumération de comptes et validation d'URL **déjà** conformes) |
+| Item | Avant | Après | Fichiers | Latence | Coût | Statut |
+|---|---|---|---|---|---|---|
+| RLS `workout_sets`/`training_blocks`/`user_progress` | Lisibles **et** modifiables par `anon`, sans session (incident réel) | `anon` bloqué (401) sur les 6 tables ; compte légitime voit tout | `supabase/rls-policies.sql` (exécuté par toi) | nulle (RLS = Postgres, déjà sur le chemin) | 0 — inclus Supabase Free | ✅ Corrigé, vérifié en prod |
+| CSP nonce (`script-src` sans `unsafe-inline`) | `'unsafe-inline'` | **Inchangé** — Option B retenue | — | — | — | ❌ Non fait, délibérément (§10) |
+| `Permissions-Policy` | `camera=(), microphone=(), geolocation=()` | Liste complète (accelerometer, autoplay, payment, usb, etc.), `screen-wake-lock=(self)` vérifié utilisé | `next.config.mjs` | nulle (header sur réponse déjà émise) | 0 | ✅ |
+| `Cross-Origin-Opener-Policy` | absent | `same-origin` | `next.config.mjs` | nulle | 0 | ✅ |
+| `Cross-Origin-Resource-Policy` | absent | `same-origin` | `next.config.mjs` | nulle | 0 | ✅ |
+| `generator: 'v0.app'` | présent | retiré | `app/layout.tsx` | — | 0 | ✅ |
+| `productionBrowserSourceMaps` | par défaut (`false` implicite) | `false` explicite | `next.config.mjs` | — | 0 | ✅ |
+| CORS | aucun `Access-Control-Allow-*` dans le code | inchangé | — | — | — | ❌ Sans objet, confirmé |
+| `.gitignore` | `.env*.local` (ne couvrait pas `.env.local.txt`) | `.env` + `.env.*` | `.gitignore` | — | 0 | ✅ |
+| Dependabot | absent | npm, hebdomadaire, PR majeures jamais groupées | `.github/dependabot.yml` | — | 0 — gratuit GitHub | ✅ |
+| Énumération de comptes | déjà uniforme (vérifié) | inchangé | — | — | — | ✅ Déjà conforme |
+| Validation des schémas d'URL | `href={video}` déjà protégé (`safeHttpUrl`) ; 4× `<img src>` alimentés uniquement par l'API d'upload serveur | inchangé — exhaustif sur tout le dépôt (5 occurrences au total, aucune autre) | — | — | — | ✅ Déjà conforme |
+| Rate limit login (échecs) | 5/identifiant + 20/IP par 15 min, couche Supabase **jamais activée** (table absente) | Table `auth_failed_attempts` créée, vérifiée fonctionnelle (5 échecs → 429) | `supabase/migration_rate_limit.sql` (exécuté par toi) | +1 requête Supabase par tentative de login (déjà présent avant) | 0 — inclus Supabase Free | ✅ |
+| Rate limit débit `/api/auth/*` | aucun | 10 req/min/IP, mémoire, testé (10 passent, 11ᵉ → 429) | `lib/server/memory-rate-limit.ts` + 4 routes | négligeable (comparaisons en mémoire, zéro I/O) | 0 | ✅ |
+| Rate limit débit `/api/db` | aucun | 100 req/min/IP, mémoire, testé (100 passent, 101ᵉ → 429) | `lib/server/memory-rate-limit.ts`, `app/api/db/[...path]/route.ts` | négligeable | 0 | ✅ |
+| IDOR `/api/sync-steps` | `userId` client jamais vérifié | comparé à `NEXT_PUBLIC_SYNC_USER_ID`, testé (403 si différent) | `app/api/sync-steps/route.ts` | négligeable | 0 | ✅ (fait avant cet audit, revérifié) |
+| `.env.local.txt` dans l'historique git | commité le 12/06/2026, supprimé depuis | confirmé **vide**, aucune fuite | — | — | — | ✅ Vérifié, aucune action nécessaire |
 
-### ❓ Arbitrage à trancher — Phase 1 (CSP nonce)
-
-Le nonce **force le rendu dynamique** sur les routes couvertes. Impact mesuré sur ton app :
-
-- Routes actuellement statiques : **`/`** et **`/confidentialite`** (`○ prerendered` au build).
-- `/` est servi aujourd'hui depuis le CDN Vercel (`x-vercel-cache: HIT`, `Cache-Control: s-maxage=31536000`).
-- Avec un nonce : **`/` devient dynamique** → rendu serveur à chaque visite, plus de cache CDN,
-  latence en hausse et consommation de fonctions Vercel en hausse.
-
-**Bénéfice réel dans ton cas précis** : retirer `'unsafe-inline'` de `script-src` protège contre
-l'injection de script. Or l'audit ne trouve **aucune surface XSS** (§5) : pas de rendu HTML brut,
-pas d'`eval`, les seules URL dynamiques sont validées. Le vecteur que la CSP nonce neutralise
-n'a donc pas de point d'entrée identifié aujourd'hui.
-
-C'est un arbitrage « défense en profondeur » contre « perf + coût », pas une évidence :
-
-- **Option A — faire la Phase 1** : protection maximale contre une XSS *future* (si tu ajoutes un jour
-  du contenu riche, du markdown, un champ libre affiché en HTML). Coût : `/` perd son cache CDN.
-- **Option B — sauter la Phase 1**, garder `'unsafe-inline'`, et faire les Phases 2, 4.1 et 5-partiel.
-  Coût : aucun. Risque : une XSS introduite plus tard serait moins contenue.
-- **Option C — compromis** : Phase 1 en **Report-Only permanent** (rapports collectés, aucun blocage).
-  ⚠️ Attention : cela **force quand même le rendu dynamique** — tu paies le coût perf sans obtenir
-  le bénéfice de blocage. À mon sens, le pire des deux mondes.
-
-**Ma recommandation : Option B pour l'instant**, et Phase 1 le jour où tu introduis une surface
-d'affichage de contenu non maîtrisé. Mais c'est ton appel — dis-moi.
+**Aucune route n'a changé de mode de rendu.** `/` et `/confidentialite` sont restées `○ Static`
+sur l'ensemble des 5 phases — vérifié par `npm run build` et par `x-nextjs-cache: HIT` /
+`x-vercel-cache: HIT` après chaque étape. C'est la conséquence directe d'avoir écarté la CSP nonce :
+aucun des changements réellement appliqués n'a de coût de rendu.
 
 ---
 
-## 10. Risques résiduels identifiés
+## 10. Pourquoi la CSP nonce n'a pas été faite (Phase 1 / Option D)
 
-1. **`NEXT_PUBLIC_SYNC_USER_ID` exposé côté client** — ce n'est pas un secret, mais il révèle
-   l'identifiant du compte. Combiné à un `SYNC_SECRET` qui fuiterait, il facilite l'écriture de pas.
-   Il n'est utilisé que dans [`app/page.tsx`](app/page.tsx) et [`sync-steps`](app/api/sync-steps/route.ts) :
-   déplaçable en variable serveur, à voir.
-2. **`.gitignore` trop étroit** sur les fichiers d'environnement (§7).
-3. **`sharp`/`postcss` vulnérables** en transitif — sans surface runtime ici, mais à suivre (§8).
-4. **RLS `USING (true)` pour `authenticated`** sur `workout_sets`, `training_blocks`, `user_progress` :
-   volontaire (app mono-athlète, tables sans colonne `user_id`), mais signifie que **tout compte
-   authentifié voit toutes les données**. Acceptable à un seul utilisateur ; à revoir impérativement
-   avant d'ouvrir l'app à un second athlète. Traité en Phase 4.1.
-5. **Rate limiting mémoire + base** — la couche partagée (`auth_failed_attempts`) est désormais en
-   place et vérifiée ; la couche mémoire seule serait peu fiable en serverless.
+Le plan « Option D » supposait une séparation entre route publique et routes authentifiées
+dynamiques. **Cette séparation n'existe pas dans ce dépôt** : il n'y a qu'une seule route (`/`) et
+un seul layout ([`app/layout.tsx`](app/layout.tsx)). [`app/page.tsx`](app/page.tsx) est un composant
+`'use client'` unique qui affiche l'écran de connexion ou l'app entière selon un état déterminé
+**côté client**, après coup, via `fetch('/api/auth/session')`. Le HTML servi par `/` est strictement
+identique pour un visiteur connecté ou non.
 
----
+Poser un nonce sur `/` rendrait donc **toute la page dynamique**, dans tous les cas — violation directe
+de la Contrainte 2 (`/` doit rester `x-vercel-cache: HIT`) et de la Contrainte 1 (perte du cache CDN
+= plus d'invocations Vercel, plus de risque de dépassement de quota Hobby). Le detail des 4 questions
+posées avant d'écrire du code est conservé plus haut dans la conversation ; en résumé : aucun
+`<script>` inline dans le root layout, mais la question n'est pas là — il n'y a pas de routes
+authentifiées séparées auxquelles limiter le nonce.
 
-## 11. Hors périmètre — rappel pour toi
-
-- **Vercel Firewall / WAF** : Managed Rulesets (Log → Deny), rate limiting `/api/auth/*` (5–10 req/min/IP),
-  bot management. Via le dashboard Vercel.
-- **Supabase Auth** : confirmation d'email, mot de passe ≥ 12 caractères, vérification HIBP, JWT ≤ 1 h
-  avec rotation des refresh tokens, MFA. *(Note : la politique de robustesse + HIBP est déjà appliquée
-  côté app dans `change-password`, mais pas au niveau Supabase Auth lui-même.)*
-- **HSTS preload** : soumission sur hstspreload.org — **seulement** après avoir ajouté la directive
-  `preload` (Phase 2) et vérifié que tous les sous-domaines servent bien du HTTPS. Quasi irréversible.
-- **Bascule CSP Report-Only → enforcing** : uniquement si Option A retenue.
+**Décision retenue : Option B — aucun changement de CSP.** `'unsafe-inline'` reste sur `script-src`
+et `style-src`. Justifié par le fait que la Phase 0 n'a trouvé **aucune** surface XSS exploitable
+(§5) : le vecteur que la CSP nonce neutralise n'a pas de point d'entrée identifié aujourd'hui dans
+cette app. Deux vraies voies existeraient pour revisiter ça plus tard, si le besoin apparaît :
+introduire du contenu utilisateur affiché en HTML brut (aucun aujourd'hui), ou scinder réellement
+l'app en deux routes (`/login` public + `/app` authentifié, avec redirection serveur) — une refonte
+de navigation, pas un ajout de header, hors périmètre de cet audit.
 
 ---
 
-## 12. Statut
+## 11. Risques résiduels acceptés (faute de budget ou par choix délibéré)
 
-**Phase 0 terminée. Aucun fichier applicatif modifié** (seul ce rapport a été créé).
+1. **`'unsafe-inline'` sur `script-src`/`style-src`** — accepté (§10). Aucune surface XSS identifiée
+   aujourd'hui ; à revisiter si l'app affiche un jour du contenu non maîtrisé.
+2. **RLS `USING (true)` pour `authenticated`** sur `workout_sets`, `training_blocks`, `user_progress` —
+   délibéré (app mono-athlète, tables sans colonne `user_id`), documenté dans `rls-policies.sql`.
+   Signifie que **tout compte authentifié voit et modifie toutes les données**. Acceptable à un seul
+   utilisateur ; **à revoir impérativement** avant d'ouvrir l'app à un second athlète.
+3. **`sharp`/`postcss` vulnérables** (transitifs via `next`) — sans surface runtime ici
+   (`images.unoptimized: true`, aucun usage de `next/image`). En attente d'un patch amont ; Dependabot
+   notifiera. `npm audit fix --force` reste interdit (casserait `next`).
+4. **Rate limiting best-effort par instance** (`/api/auth/*`, `/api/db`) — pas un plafond global
+   garanti sur serverless (§ commit Phase 4). Accepté : gratuit, protège l'usage réel, pas parfait
+   contre un attaquant distribué sur beaucoup d'instances.
+5. **`NEXT_PUBLIC_SYNC_USER_ID` public** — pas un secret, mais révèle l'identifiant de compte.
+   Combiné à une fuite de `SYNC_SECRET`, faciliterait l'écriture de pas. Non traité (déplacement en
+   variable serveur non demandé dans cet audit).
+6. **`<img src>` alimentés par `photo_urls`** — aucun risque XSS (`<img>` n'exécute pas `javascript:`
+   dans les navigateurs modernes), mais un compte authentifié pourrait en théorie écrire une URL
+   arbitraire via le proxy `/api/db` en contournant l'upload prévu. Impact réel : chargement d'une
+   image externe au pire, pas d'exécution de code. Non traité — écarté comme disproportionné.
+7. **HSTS sans `preload`** — délibéré, engagement quasi irréversible (retrait de la liste de
+   préchargement des navigateurs = plusieurs mois). À faire sciemment plus tard sur hstspreload.org.
 
-**En attente de ta validation, et de ta décision sur l'arbitrage Phase 1 (Option A / B / C).**
+---
+
+## 12. Hors périmètre — à faire manuellement de ton côté
+
+**Gratuit :**
+- **Vercel Firewall** (Hobby) : Attack Challenge Mode, jusqu'à 3 règles de pare-feu, 3 blocages IP —
+  configurables dans le dashboard Vercel, inclus dans Hobby.
+- **Supabase Auth dashboard** : confirmation d'email, longueur minimale de mot de passe, vérification
+  HaveIBeenPwned au niveau Supabase (déjà fait côté app dans `change-password`, pas encore au niveau
+  Supabase Auth lui-même), durée de vie du JWT, rotation des refresh tokens — tout ça est dans les
+  réglages Auth du plan Free.
+- **HSTS preload** : soumission sur hstspreload.org, uniquement après avoir ajouté `preload` toi-même
+  en toute connaissance de cause (§11.7).
+
+**Payant (donc hors de portée, mentionné pour mémoire uniquement) :**
+- **Vercel Managed Rulesets** (WAF géré) et bot management avancé : réservés aux plans payants.
+  De toute façon peu utiles ici : générateurs de faux positifs pour une app sans surface XSS identifiée.
+- **MFA Supabase Auth** : disponible sur Free en réalité (pas payant) — à activer si tu veux, non fait
+  car non demandé explicitement dans cet audit.
+- **Rate limiting Vercel natif** : payant, remplacé par la solution maison (Phase 4).
+
+---
+
+## 13. Commits de cet audit
+
+```
+2402744  Phase 0 : audit de securite (lecture seule)
+9dbdb71  Phase 1 : SQL RLS genere (audit + policies), non execute
+0e247a5  Phase 2 : headers complementaires (COOP, CORP, Permissions-Policy etendue)
+695ea40  Phase 3 : hygiene (.gitignore, Dependabot)
+7ebc690  Phase 4 : rate limiting maison, memoire, sans dependance
+```
+
+Phase 5 (CSP nonce) : aucun commit — Option B retenue, statu quo justifié en §10.
+
+**Rien n'a été poussé automatiquement** (`git push`) à aucune étape — c'est resté ton choix à
+chaque phase, conformément à la consigne.
+
+---
+
+## 14. Statut final
+
+**Phases 0 à 5 terminées.** RLS corrigé et vérifié en production, rate limiting maison en place et
+testé par rafales réelles (pas seulement lu dans le code), headers complets, hygiène git/CI faite.
+Aucune régression de rendu (`/` toujours statique), aucune dépendance payante ajoutée.
+
+Ce qui reste ouvert n'est pas un oubli mais un choix documenté : la CSP nonce (architecture ne le
+permet pas sans casser tes contraintes), et les items du §12 qui sont entre tes mains (dashboard
+Vercel / Supabase).
