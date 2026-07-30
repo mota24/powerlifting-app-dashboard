@@ -37,6 +37,9 @@ const nextConfig = {
   },
   // Ne pas annoncer le framework utilisé (X-Powered-By: Next.js).
   poweredByHeader: false,
+  // Déjà false par défaut (aucune source map générée jusqu'ici) : explicite
+  // pour ne pas dépendre d'un défaut qui pourrait changer.
+  productionBrowserSourceMaps: false,
   async headers() {
     return [
       {
@@ -48,16 +51,31 @@ const nextConfig = {
           { key: 'X-Frame-Options', value: 'DENY' },
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-          // L'app n'utilise ni caméra, ni micro, ni géolocalisation
-          // (vérifié : aucun appel à getUserMedia/navigator.geolocation) :
-          // les trois sont désactivées sans exception, pour cette origine
-          // comme pour toute page qui l'embarquerait.
-          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+          // Liste complète désactivée par défaut. screen-wake-lock=(self) est
+          // le seul exception délibérée : vérifié réellement utilisé
+          // (components/power/circuit-timer.tsx, navigator.wakeLock — garder
+          // l'écran allumé pendant une séance). fullscreen et
+          // publickey-credentials-get restent à (self) par cohérence avec le
+          // reste de la liste, bien qu'inutilisés aujourd'hui : (self) exige
+          // toujours un appel JS explicite pour avoir le moindre effet, donc
+          // aucune surface supplémentaire tant que rien ne les invoque.
+          {
+            key: 'Permissions-Policy',
+            value:
+              'accelerometer=(), ambient-light-sensor=(), autoplay=(), battery=(), camera=(), display-capture=(), encrypted-media=(), fullscreen=(self), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(), publickey-credentials-get=(self), screen-wake-lock=(self), sync-xhr=(), usb=(), xr-spatial-tracking=()',
+          },
           // Pas de "preload" : cela engage tous les sous-domaines présents
           // et futurs à servir du HTTPS, de façon quasi irréversible (retrait
           // de la liste de préchargement des navigateurs = plusieurs mois).
           // À activer plus tard si voulu, en connaissance de cause.
           { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains' },
+          // Pas d'OAuth/popup dans l'app (login identifiant + mot de passe
+          // uniquement) : same-origin strict, pas de same-origin-allow-popups.
+          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
+          // Pas de COEP : aucun besoin de SharedArrayBuffer, et ça casserait
+          // le chargement des photos Supabase Storage (CORP different-origin
+          // implicite) sans aucun bénéfice ici.
+          { key: 'Cross-Origin-Resource-Policy', value: 'same-origin' },
         ],
       },
     ]

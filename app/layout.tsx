@@ -10,13 +10,11 @@ const geistMono = Geist_Mono({ variable: '--font-geist-mono', subsets: ['latin']
 export const metadata: Metadata = {
   title: 'PowerApp ',
   description: 'PWA de Powerlifting de haut niveau : suivi RPE, 1RM estimé, plate math, échauffement et alertes de sécurité.',
-  generator: 'v0.app',
-  
-    icons: {
+  icons: {
     icon: '/icon.PNG',
     apple: '/icon.PNG',
   },
-  }
+}
 
 
 export default function RootLayout({
