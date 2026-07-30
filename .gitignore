@@ -6,8 +6,13 @@ __v0_jsx-dev-runtime.ts
 .v0-trash/
 .vercel/
 
-# Environment variables
-.env*.local
+# Environment variables — motif large : .env*.local ne couvrait que les
+# fichiers finissant EXACTEMENT par ".local" (ex: .env.local.txt, trouvé
+# dans l'historique git — vide, mais aurait pu ne pas l'être, passait au
+# travers de l'ancien motif).
+.env
+.env.*
+!.env.example
 
 # Common ignores
 node_modules

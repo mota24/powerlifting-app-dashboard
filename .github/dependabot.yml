@@ -1,0 +1,17 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    # Groupées pour limiter le nombre de PR à relire chaque semaine ;
+    # ne regroupe jamais les mises à jour "major" (changements
+    # cassants), qui doivent rester des PR individuelles, revues une
+    # par une — en particulier pour éviter un "npm audit fix --force"
+    # involontaire (cf. next -> sharp, SECURITY-AUDIT.md).
+    groups:
+      dependencies-mineures:
+        update-types:
+          - "minor"
+          - "patch"
