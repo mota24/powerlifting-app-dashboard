@@ -22,6 +22,7 @@ import CalculatorPanel from '@/components/power/calculator-panel'
 import HistoryPanel from '@/components/power/history-panel'
 import GLCalculator from '@/components/power/GLCalculator';
 import { Palmares } from '@/components/power/palmares'
+import { ThemeProvider } from './ThemeContext'
 
 // Utilisateur connecté tel que renvoyé par /api/auth/session.
 // Les jetons, eux, restent dans des cookies httpOnly : jamais côté JS.
@@ -404,151 +405,153 @@ export default function Page() {
   }
 
   return (
-    <div className="min-h-dvh bg-background pb-16 relative">
-      {showPasswordModal && <ChangePasswordModal onClose={() => setShowPasswordModal(false)} />}
-      {showCircuitTimer && <CircuitTimer onClose={() => setShowCircuitTimer(false)} />}
-      <Header />
+    <ThemeProvider session={session}>
+      <div className="min-h-dvh bg-background pb-16 relative">
+        {showPasswordModal && <ChangePasswordModal onClose={() => setShowPasswordModal(false)} />}
+        {showCircuitTimer && <CircuitTimer onClose={() => setShowCircuitTimer(false)} />}
+        <Header />
 
-      {/* z-30 : cette barre défile, elle doit passer SOUS le header collant
-          (z-50). Avec son ancien z-50 elle lui passait par-dessus, et les deux
-          se superposaient de façon illisible. */}
-      <div className="mx-auto max-w-5xl px-4 pt-4 flex justify-between items-center relative z-30 bg-background">
-        
-        <div className="flex flex-col">
-          <h2 className="text-sm font-medium text-muted-foreground capitalize">
-            {/* Vue accueil : pas de sous-titre — le calendrier et le formulaire
-                se suffisent (l'ancien "Séance & Calendrier" faisait doublon). */}
-            {vueActive === 'analytique' && "Tableau de bord"}
-            {vueActive === 'outils' && "Outils & Échauffement"}
-            {vueActive === 'calculatrice' && "Calculateur de force"}
-            {vueActive === 'historique' && "Historique des Mouvements"}
-            {vueActive === 'configuration' && "Gestion de mes Blocs"}
-            {vueActive === 'palmares' && "Palmarès"}
-          </h2>
-        </div>
-
-        <div className="flex items-center gap-2">
+        {/* z-30 : cette barre défile, elle doit passer SOUS le header collant
+            (z-50). Avec son ancien z-50 elle lui passait par-dessus, et les deux
+            se superposaient de façon illisible. */}
+        <div className="mx-auto max-w-5xl px-4 pt-4 flex justify-between items-center relative z-30 bg-background">
           
-          <button 
-            onClick={() => changerVue('accueil')} 
-            className={cn(
-              "flex items-center justify-center p-2 rounded-md border transition-colors",
-              vueActive === 'accueil' 
-                ? "bg-primary/10 border-primary/20 text-primary" 
-                : "bg-zinc-900 border-border hover:bg-zinc-800 text-slate-400 hover:text-white"
-            )}
-            title="Retour à l'accueil"
-          >
-            <Home className="size-5" />
-          </button>
+          <div className="flex flex-col">
+            <h2 className="text-sm font-medium text-muted-foreground capitalize">
+              {/* Vue accueil : pas de sous-titre — le calendrier et le formulaire
+                  se suffisent (l'ancien "Séance & Calendrier" faisait doublon). */}
+              {vueActive === 'analytique' && "Tableau de bord"}
+              {vueActive === 'outils' && "Outils & Échauffement"}
+              {vueActive === 'calculatrice' && "Calculateur de force"}
+              {vueActive === 'historique' && "Historique des Mouvements"}
+              {vueActive === 'configuration' && "Gestion de mes Blocs"}
+              {vueActive === 'palmares' && "Palmarès"}
+            </h2>
+          </div>
 
-          <div className="relative">
+          <div className="flex items-center gap-2">
+            
             <button 
-              ref={toggleBtnRef}
-              onClick={() => setMenuOuvert(!menuOuvert)} 
-              className="flex items-center justify-center p-2 rounded-md bg-zinc-900 hover:bg-zinc-800 border border-border transition-colors"
+              onClick={() => changerVue('accueil')} 
+              className={cn(
+                "flex items-center justify-center p-2 rounded-md border transition-colors",
+                vueActive === 'accueil' 
+                  ? "bg-primary/10 border-primary/20 text-primary" 
+                  : "bg-zinc-900 border-border hover:bg-zinc-800 text-slate-400 hover:text-white"
+              )}
+              title="Retour à l'accueil"
             >
-              {menuOuvert ? <X className="size-5" /> : <Menu className="size-5" />}
+              <Home className="size-5" />
             </button>
 
-            {menuOuvert && (
-              <div 
-                ref={menuRef}
-                className="absolute top-12 right-0 w-56 bg-card border border-border p-2 rounded-lg shadow-xl flex flex-col gap-1 z-50 animate-in fade-in zoom-in-95 duration-200"
+            <div className="relative">
+              <button 
+                ref={toggleBtnRef}
+                onClick={() => setMenuOuvert(!menuOuvert)} 
+                className="flex items-center justify-center p-2 rounded-md bg-zinc-900 hover:bg-zinc-800 border border-border transition-colors"
               >
-                <button onClick={() => changerVue('analytique')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'analytique' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><BarChart2 className="size-4" /> Analytique</button>
-                <button onClick={() => changerVue('outils')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'outils' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Wrench className="size-4" /> Outils</button>
-                <button onClick={() => changerVue('calculatrice')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'calculatrice' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Calculator className="size-4" /> Calculatrice</button>
-                <button onClick={() => changerVue('palmares')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'palmares' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Trophy className="size-4" /> Palmarès</button>
-                <button onClick={() => { setShowCircuitTimer(true); setMenuOuvert(false) }} className="flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors hover:bg-secondary text-foreground"><Timer className="size-4" /> Chrono Circuit</button>
+                {menuOuvert ? <X className="size-5" /> : <Menu className="size-5" />}
+              </button>
 
-                <div className="h-px bg-border my-1"></div>
-                
-                <button onClick={() => changerVue('configuration')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'configuration' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Settings className="size-4" /> Mes Blocs</button>
-                
-                <div className="h-px bg-border my-1"></div>
+              {menuOuvert && (
+                <div 
+                  ref={menuRef}
+                  className="absolute top-12 right-0 w-56 bg-card border border-border p-2 rounded-lg shadow-xl flex flex-col gap-1 z-50 animate-in fade-in zoom-in-95 duration-200"
+                >
+                  <button onClick={() => changerVue('analytique')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'analytique' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><BarChart2 className="size-4" /> Analytique</button>
+                  <button onClick={() => changerVue('outils')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'outils' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Wrench className="size-4" /> Outils</button>
+                  <button onClick={() => changerVue('calculatrice')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'calculatrice' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Calculator className="size-4" /> Calculatrice</button>
+                  <button onClick={() => changerVue('palmares')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'palmares' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Trophy className="size-4" /> Palmarès</button>
+                  <button onClick={() => { setShowCircuitTimer(true); setMenuOuvert(false) }} className="flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors hover:bg-secondary text-foreground"><Timer className="size-4" /> Chrono Circuit</button>
 
-                <button onClick={() => { setShowPasswordModal(true); setMenuOuvert(false) }} className="flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors hover:bg-secondary text-foreground">
-                  <KeyRound className="size-4" /> Mot de passe
-                </button>
+                  <div className="h-px bg-border my-1"></div>
+                  
+                  <button onClick={() => changerVue('configuration')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'configuration' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Settings className="size-4" /> Mes Blocs</button>
+                  
+                  <div className="h-px bg-border my-1"></div>
 
-                <button onClick={handleLogout} className="flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors hover:bg-red-500/10 text-red-400 font-medium">
-                  <LogOut className="size-4" /> Se déconnecter
-                </button>
-              </div>
-            )}
+                  <button onClick={() => { setShowPasswordModal(true); setMenuOuvert(false) }} className="flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors hover:bg-secondary text-foreground">
+                    <KeyRound className="size-4" /> Mot de passe
+                  </button>
+
+                  <button onClick={handleLogout} className="flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors hover:bg-red-500/10 text-red-400 font-medium">
+                    <LogOut className="size-4" /> Se déconnecter
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
+
+        <main className="mx-auto max-w-5xl space-y-6 px-4 py-4">
+          {vueActive === 'configuration' && (
+            <div className="animate-in fade-in slide-in-from-top-4 duration-500">
+              <ConfigPanel />
+            </div>
+          )}
+
+          {vueActive === 'calculatrice' && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <CalculatorPanel />
+              <GLCalculator />
+            </div>
+          )}
+
+          {vueActive === 'palmares' && (
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <Palmares initialEditId={editCompId} onInitialEditConsumed={() => setEditCompId(null)} />
+            </div>
+          )}
+
+          {vueActive === 'historique' && (
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <HistoryPanel />
+            </div>
+          )}
+
+          {vueActive === 'accueil' && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <WeekCalendar
+                dateActive={dateActive}
+                setDateActive={setDateActive}
+                blockTitle={blockInfo}
+                // Masqué au-delà du jour J : weeksOut() renvoie 0 aussi bien
+                // pour "jour J" que pour "déjà passé", sans quoi le badge
+                // resterait bloqué sur "S0" en naviguant sur des semaines
+                // largement postérieures à la compétition.
+                weeksOut={nextCompetition && toLocalDateStr(dateActive) <= nextCompetition.date ? weeksOut(toLocalDateStr(dateActive), nextCompetition.date) : null}
+              />
+              <SessionForm
+                dateActive={dateActive}
+                isRestDayMode={isRestDayMode}
+                setIsRestDayMode={setIsRestDayMode}
+                pasDuJour={pasDuJour}
+                setDateActive={setDateActive}
+                nextCompetition={nextCompetition}
+                onGoToPalmares={ouvrirResultatsCompetition}
+              />
+            </div>
+          )}
+
+          {vueActive === 'analytique' && (
+            <section className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <StatsCards />
+              <Card>
+                <CardTitle icon={LineChart} title="Progression des lifts" hint="Tonnage · Top set · e1RM · Douleur" />
+                <LiftProgressChart onSelectSession={ouvrirSeance} />
+              </Card>
+              <BodyweightTracker />
+            </section>
+          )}
+
+          {vueActive === 'outils' && (
+            <div className="grid gap-6 lg:grid-cols-2 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <PlateVisualizer />
+              <WarmupGenerator />
+            </div>
+          )}
+        </main>
       </div>
-
-      <main className="mx-auto max-w-5xl space-y-6 px-4 py-4">
-        {vueActive === 'configuration' && (
-          <div className="animate-in fade-in slide-in-from-top-4 duration-500">
-            <ConfigPanel />
-          </div>
-        )}
-
-        {vueActive === 'calculatrice' && (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <CalculatorPanel />
-            <GLCalculator />
-          </div>
-        )}
-
-        {vueActive === 'palmares' && (
-          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <Palmares initialEditId={editCompId} onInitialEditConsumed={() => setEditCompId(null)} />
-          </div>
-        )}
-
-        {vueActive === 'historique' && (
-          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <HistoryPanel />
-          </div>
-        )}
-
-        {vueActive === 'accueil' && (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <WeekCalendar
-              dateActive={dateActive}
-              setDateActive={setDateActive}
-              blockTitle={blockInfo}
-              // Masqué au-delà du jour J : weeksOut() renvoie 0 aussi bien
-              // pour "jour J" que pour "déjà passé", sans quoi le badge
-              // resterait bloqué sur "S0" en naviguant sur des semaines
-              // largement postérieures à la compétition.
-              weeksOut={nextCompetition && toLocalDateStr(dateActive) <= nextCompetition.date ? weeksOut(toLocalDateStr(dateActive), nextCompetition.date) : null}
-            />
-            <SessionForm
-              dateActive={dateActive}
-              isRestDayMode={isRestDayMode}
-              setIsRestDayMode={setIsRestDayMode}
-              pasDuJour={pasDuJour}
-              setDateActive={setDateActive}
-              nextCompetition={nextCompetition}
-              onGoToPalmares={ouvrirResultatsCompetition}
-            />
-          </div>
-        )}
-
-        {vueActive === 'analytique' && (
-          <section className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <StatsCards />
-            <Card>
-              <CardTitle icon={LineChart} title="Progression des lifts" hint="Tonnage · Top set · e1RM · Douleur" />
-              <LiftProgressChart onSelectSession={ouvrirSeance} />
-            </Card>
-            <BodyweightTracker />
-          </section>
-        )}
-
-        {vueActive === 'outils' && (
-          <div className="grid gap-6 lg:grid-cols-2 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <PlateVisualizer />
-            <WarmupGenerator />
-          </div>
-        )}
-      </main>
-    </div>
+    </ThemeProvider>
   )
 }
