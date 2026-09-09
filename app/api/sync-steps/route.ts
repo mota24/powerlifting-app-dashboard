@@ -8,6 +8,22 @@ export const dynamic = 'force-dynamic'
  * Idempotente : un seul enregistrement par (user, jour), toujours la dernière valeur.
  * Le raccourci peut donc être déclenché plusieurs fois par jour sans doublon.
  */
+/**
+ * Table jeton → compte, lue depuis SYNC_TOKENS (format "jeton:compte,jeton:compte").
+ * Le raccourci envoie un jeton opaque, jamais l'identifiant de compte :
+ * celui-ci ne doit pas transiter en clair dans une URL.
+ */
+function comptePourJeton(jeton: string): string | null {
+  const table = process.env.SYNC_TOKENS
+  if (!table) return null
+  for (const paire of table.split(',')) {
+    const separateur = paire.lastIndexOf(':')
+    if (separateur < 1) continue
+    if (paire.slice(0, separateur).trim() === jeton) return paire.slice(separateur + 1).trim() || null
+  }
+  return null
+}
+
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
 
@@ -18,17 +34,17 @@ export async function GET(req: Request) {
   }
 
   const steps = Number.parseInt(searchParams.get('steps') ?? '', 10)
-  const userId = searchParams.get('userId')?.trim()
-  if (!userId || !Number.isFinite(steps) || steps < 0 || steps > 200_000) {
+  const jeton = searchParams.get('userId')?.trim()
+  if (!jeton || !Number.isFinite(steps) || steps < 0 || steps > 200_000) {
     return NextResponse.json({ error: 'Paramètres invalides (userId, steps requis)' }, { status: 400 })
   }
 
-  // IDOR : SYNC_SECRET prouve qu'on a le droit d'écrire, mais ne dit rien sur
-  // QUI on écrit — sans ce contrôle, quiconque connaît le secret pourrait
-  // upserter des pas pour un userId arbitraire. Un seul identifiant est
-  // légitime dans cette app mono-athlète : on le compare explicitement au
-  // lieu de faire confiance à la valeur envoyée par le client.
-  if (userId !== process.env.NEXT_PUBLIC_SYNC_USER_ID) {
+  // IDOR : SYNC_SECRET est partagé par les deux téléphones, il prouve
+  // seulement qu'on a le droit d'écrire — pas POUR QUI. Le jeton, lui, est
+  // propre à un téléphone : c'est lui qui désigne le compte, et un jeton
+  // inconnu est refusé plutôt que d'écrire sur un compte arbitraire.
+  const userId = comptePourJeton(jeton)
+  if (!userId) {
     return NextResponse.json({ error: 'Identifiant non autorisé' }, { status: 403 })
   }
 

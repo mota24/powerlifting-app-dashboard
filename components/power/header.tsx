@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Flame, Shield, Trophy, Medal, Star, Crown } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useTheme } from '@/app/ThemeContext'
 
 interface HeaderProgress {
   level: number;
@@ -12,6 +13,7 @@ interface HeaderProgress {
 }
 
 export function Header() {
+  const { prenom } = useTheme()
   const [progress, setProgress] = useState<HeaderProgress>({
     level: 1,
     current_xp: 0,
@@ -46,11 +48,18 @@ export function Header() {
     <header className="sticky top-0 z-50 w-full border-b border-zinc-900 bg-zinc-950">
       <div className="mx-auto max-w-5xl px-6 h-16 flex items-center justify-between">
         
-        <div className="flex items-center gap-3">
-          <GradeIcon className={cn("size-4", gradeColor)} />
-          <span className={cn("text-[10px] font-bold uppercase tracking-widest", gradeColor)}>
-            {gradeName}
-          </span>
+        {/* Le prénom est la seule chose qui distingue les deux comptes d'un
+            coup d'œil : il reste affiché, pas seulement à la connexion. */}
+        <div className="flex items-center gap-3 min-w-0">
+          <GradeIcon className={cn("size-4 shrink-0", gradeColor)} />
+          <div className="flex flex-col min-w-0">
+            {prenom && (
+              <span className="text-sm font-black text-white leading-tight truncate">{prenom}</span>
+            )}
+            <span className={cn("text-[10px] font-bold uppercase tracking-widest", gradeColor)}>
+              {gradeName}
+            </span>
+          </div>
         </div>
 
         <div className="flex items-center gap-6">

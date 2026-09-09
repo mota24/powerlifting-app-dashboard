@@ -156,7 +156,7 @@ strict : le navigateur n'a aucun jeton *et* ne peut pas joindre Supabase directe
 |---|---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | client | ✅ acceptable |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | client | ✅ acceptable |
-| `NEXT_PUBLIC_SYNC_USER_ID` | client | ⚠️ pas un secret (simple identifiant), mais inutilement public — voir risques résiduels |
+| `SYNC_TOKENS` | serveur uniquement | ✅ remplace `NEXT_PUBLIC_SYNC_USER_ID`, qui n'est plus lu nulle part |
 | `SUPABASE_SERVICE_ROLE_KEY` | serveur uniquement | ✅ `lib/supabase-admin.ts` + 2 routes API, jamais côté client |
 | `GEMINI_API_KEY`, `SYNC_SECRET` | serveur uniquement | ✅ |
 
@@ -208,7 +208,7 @@ sortie de l'audit), soit une régression de 7 versions majeures qui détruirait 
 | Rate limit login (échecs) | 5/identifiant + 20/IP par 15 min, couche Supabase **jamais activée** (table absente) | Table `auth_failed_attempts` créée, vérifiée fonctionnelle (5 échecs → 429) | `supabase/migration_rate_limit.sql` (exécuté par toi) | +1 requête Supabase par tentative de login (déjà présent avant) | 0 — inclus Supabase Free | ✅ |
 | Rate limit débit `/api/auth/*` | aucun | 10 req/min/IP, mémoire, testé (10 passent, 11ᵉ → 429) | `lib/server/memory-rate-limit.ts` + 4 routes | négligeable (comparaisons en mémoire, zéro I/O) | 0 | ✅ |
 | Rate limit débit `/api/db` | aucun | 100 req/min/IP, mémoire, testé (100 passent, 101ᵉ → 429) | `lib/server/memory-rate-limit.ts`, `app/api/db/[...path]/route.ts` | négligeable | 0 | ✅ |
-| IDOR `/api/sync-steps` | `userId` client jamais vérifié | comparé à `NEXT_PUBLIC_SYNC_USER_ID`, testé (403 si différent) | `app/api/sync-steps/route.ts` | négligeable | 0 | ✅ (fait avant cet audit, revérifié) |
+| IDOR `/api/sync-steps` | `userId` client jamais vérifié | jeton opaque résolu côté serveur via `SYNC_TOKENS` ; jeton inconnu → 403 | `app/api/sync-steps/route.ts` | négligeable | 0 | ✅ (revu au passage multi-utilisateur) |
 | `.env.local.txt` dans l'historique git | commité le 12/06/2026, supprimé depuis | confirmé **vide**, aucune fuite | — | — | — | ✅ Vérifié, aucune action nécessaire |
 
 **Aucune route n'a changé de mode de rendu.** `/` et `/confidentialite` sont restées `○ Static`
@@ -258,9 +258,10 @@ de navigation, pas un ajout de header, hors périmètre de cet audit.
 4. **Rate limiting best-effort par instance** (`/api/auth/*`, `/api/db`) — pas un plafond global
    garanti sur serverless (§ commit Phase 4). Accepté : gratuit, protège l'usage réel, pas parfait
    contre un attaquant distribué sur beaucoup d'instances.
-5. **`NEXT_PUBLIC_SYNC_USER_ID` public** — pas un secret, mais révèle l'identifiant de compte.
-   Combiné à une fuite de `SYNC_SECRET`, faciliterait l'écriture de pas. Non traité (déplacement en
-   variable serveur non demandé dans cet audit).
+5. ~~**`NEXT_PUBLIC_SYNC_USER_ID` public**~~ — **résolu** lors du passage au multi-utilisateur.
+   La route lit désormais `SYNC_TOKENS` (serveur uniquement), qui associe un jeton opaque par
+   téléphone à un compte ; aucun identifiant de compte ne transite en clair. Reste que `SYNC_SECRET`
+   est commun aux deux téléphones : une fuite permettrait d'écrire les pas de l'un ou de l'autre.
 6. **`<img src>` alimentés par `photo_urls`** — aucun risque XSS (`<img>` n'exécute pas `javascript:`
    dans les navigateurs modernes), mais un compte authentifié pourrait en théorie écrire une URL
    arbitraire via le proxy `/api/db` en contournant l'upload prévu. Impact réel : chargement d'une

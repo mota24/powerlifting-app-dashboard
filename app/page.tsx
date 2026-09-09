@@ -22,7 +22,7 @@ import CalculatorPanel from '@/components/power/calculator-panel'
 import HistoryPanel from '@/components/power/history-panel'
 import GLCalculator from '@/components/power/GLCalculator';
 import { Palmares } from '@/components/power/palmares'
-import { ThemeProvider } from './ThemeContext'
+import { ThemeProvider, type Langue } from './ThemeContext'
 
 interface AuthUser {
   id: string;
@@ -79,19 +79,31 @@ export default function Page() {
 
   const [theme, setTheme] = useState('dark')
   const [mode, setMode] = useState<ModeApp>('powerlifting')
+  const [prenom, setPrenom] = useState<string | null>(null)
+  const [langue, setLangue] = useState<Langue>('fr')
   const estFitness = mode === 'fitness'
 
   const menuRef = useRef<HTMLDivElement>(null)
   const toggleBtnRef = useRef<HTMLButtonElement>(null)
+  const vientDeSeConnecter = useRef(false)
 
   useEffect(() => {
     if (!session?.id) return
     let cancelled = false
     const fetchProfil = async () => {
-      const { data } = await supabase.from('profiles').select('theme, mode').eq('id', session.id).single()
+      const { data } = await supabase.from('profiles').select('theme, mode, prenom, langue').eq('id', session.id).single()
       if (cancelled) return
       setTheme(data?.theme ?? 'dark')
       setMode(data?.mode === 'fitness' ? 'fitness' : 'powerlifting')
+      setPrenom(data?.prenom ?? null)
+      setLangue(data?.langue === 'ca' ? 'ca' : 'fr')
+
+      // Le prénom n'est connu qu'après cette requête : l'accueil ne peut
+      // donc pas être affiché au moment de la soumission du formulaire.
+      if (vientDeSeConnecter.current && data?.prenom) {
+        vientDeSeConnecter.current = false
+        toast(data.langue === 'ca' ? `Benvinguda, ${data.prenom} !` : `Bienvenue, ${data.prenom} !`, 'success')
+      }
     }
     fetchProfil()
     return () => { cancelled = true }
@@ -130,7 +142,9 @@ export default function Page() {
 
   useEffect(() => {
     if (!session) return;
-    const syncUserId = process.env.NEXT_PUBLIC_SYNC_USER_ID || session.email?.split('@')[0]
+    // Le compte est désigné par le préfixe d'email, comme partout ailleurs.
+    // L'ancien identifiant de synchro était commun aux deux comptes.
+    const syncUserId = session.email?.split('@')[0]
     if (!syncUserId) return;
 
     setPasDuJour(null);
@@ -169,7 +183,13 @@ export default function Page() {
       .catch(() => null)
       .then((user) => {
         if (!user) {
-          try { window.localStorage.removeItem('mota_real_prs') } catch { }
+          // Purge à la déconnexion : les records saisis à la main ne
+          // doivent pas rester visibles pour le compte suivant.
+          try {
+            for (const cle of ['mota_real_prs', 'mota_real_prs_powerlifting', 'mota_real_prs_fitness']) {
+              window.localStorage.removeItem(cle)
+            }
+          } catch { }
         }
         setSession(user)
         setLoadingAuth(false)
@@ -192,6 +212,7 @@ export default function Page() {
         throw new Error(body?.error ?? '')
       }
       const { user } = (await res.json()) as { user: AuthUser }
+      vientDeSeConnecter.current = true
       setSession(user)
       setPassword('')
     } catch (err) {
@@ -380,7 +401,7 @@ export default function Page() {
   }
 
   return (
-    <ThemeProvider theme={theme} mode={mode}>
+    <ThemeProvider theme={theme} mode={mode} prenom={prenom} langue={langue}>
       <div className="min-h-dvh bg-background pb-16 relative">
         {showPasswordModal && <ChangePasswordModal onClose={() => setShowPasswordModal(false)} />}
         {showCircuitTimer && <CircuitTimer onClose={() => setShowCircuitTimer(false)} />}
