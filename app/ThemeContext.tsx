@@ -3,9 +3,9 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 
-const ThemeContext = createContext();
+const ThemeContext = createContext<{ theme: string }>({ theme: 'dark' });
 
-export const ThemeProvider = ({ children, session }) => {
+export const ThemeProvider = ({ children, session }: { children: React.ReactNode; session: any }) => {
   const [theme, setTheme] = useState('dark');
 
   useEffect(() => {
