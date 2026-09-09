@@ -95,51 +95,151 @@
   --sidebar-ring: oklch(1 0 0);
 }
 
-/* NOUVEAU THEME ROSE POUR TA COPINE (Dark Pink) */
+/* ============================================================
+   THÈME ROSE PASTEL CLAIR (compte 2)
+   Sélecteur [data-theme='pink'] : même spécificité que .dark, mais
+   déclaré APRÈS dans ce fichier, donc il gagne. Posé sur <html> par
+   app/ThemeContext.tsx d'après la table profiles.
+   ============================================================ */
 [data-theme='pink'] {
-  --background: oklch(0 0 0); /* Reste noir absolu */
-  --foreground: oklch(1 0 0); /* Reste blanc */
-  
-  --card: oklch(0.13 0 0); /* Reste Zinc-950 */
-  --card-foreground: oklch(1 0 0);
-  
-  --popover: oklch(0.13 0 0);
-  --popover-foreground: oklch(1 0 0);
-  
-  --primary: oklch(0.65 0.25 345); /* L'accent devient Rose Vif */
-  --primary-foreground: oklch(1 0 0); /* Texte blanc sur fond rose */
-  
-  --secondary: oklch(0.21 0 0); 
-  --secondary-foreground: oklch(0.85 0.1 345); /* Texte secondaire légèrement rosé */
-  
-  --muted: oklch(0.21 0 0); 
-  --muted-foreground: oklch(0.7 0.05 345); /* Gris rosé */
-  
-  --accent: oklch(0.27 0.05 345); /* Fond au survol légèrement rosé */
-  --accent-foreground: oklch(0.65 0.25 345); /* Texte rose vif au survol */
-  
-  --destructive: oklch(0.45 0.15 20); 
-  --border: oklch(0.21 0 0); 
-  --input: oklch(0.21 0 0);
-  --ring: oklch(0.65 0.25 345); /* Focus ring en rose vif */
-  
-  --chart-1: oklch(0.65 0.25 345);
-  --chart-2: oklch(0.75 0.2 345);
-  --chart-3: oklch(0.85 0.15 345);
-  --chart-4: oklch(0.9 0.1 345);
-  --chart-5: oklch(0.95 0.05 345);
-  
+  --background: oklch(0.975 0.018 350); /* Rose pastel très clair */
+  --foreground: oklch(0.28 0.045 350); /* Prune foncé — lisible sur pastel */
+
+  --card: oklch(0.995 0.007 350); /* Blanc rosé */
+  --card-foreground: oklch(0.28 0.045 350);
+
+  --popover: oklch(0.995 0.007 350);
+  --popover-foreground: oklch(0.28 0.045 350);
+
+  --primary: oklch(0.58 0.2 350); /* Rose vif — assombri pour tenir 4.5:1 avec du texte blanc */
+  --primary-foreground: oklch(1 0 0);
+
+  --secondary: oklch(0.945 0.025 350); /* Surface secondaire rosée */
+  --secondary-foreground: oklch(0.34 0.06 350);
+
+  --muted: oklch(0.945 0.025 350);
+  --muted-foreground: oklch(0.48 0.055 350); /* Gris rosé, contraste suffisant */
+
+  --accent: oklch(0.925 0.04 350);
+  --accent-foreground: oklch(0.34 0.08 350);
+
+  --destructive: oklch(0.52 0.2 20); /* Rouge assombri pour rester lisible sur clair */
+  --border: oklch(0.895 0.03 350);
+  --input: oklch(0.92 0.028 350);
+  --ring: oklch(0.62 0.19 350);
+
+  --chart-1: oklch(0.62 0.19 350);
+  --chart-2: oklch(0.7 0.15 350);
+  --chart-3: oklch(0.78 0.12 350);
+  --chart-4: oklch(0.85 0.09 350);
+  --chart-5: oklch(0.9 0.06 350);
+
   --radius: 0.5rem;
-  
-  --sidebar: oklch(0 0 0);
-  --sidebar-foreground: oklch(1 0 0);
-  --sidebar-primary: oklch(0.65 0.25 345); /* Rose vif */
+
+  --sidebar: oklch(0.975 0.018 350);
+  --sidebar-foreground: oklch(0.28 0.045 350);
+  --sidebar-primary: oklch(0.62 0.19 350);
   --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.21 0.05 345);
-  --sidebar-accent-foreground: oklch(0.65 0.25 345);
-  --sidebar-border: oklch(0.21 0 0);
-  --sidebar-ring: oklch(0.65 0.25 345);
+  --sidebar-accent: oklch(0.925 0.04 350);
+  --sidebar-accent-foreground: oklch(0.34 0.08 350);
+  --sidebar-border: oklch(0.895 0.03 350);
+  --sidebar-ring: oklch(0.62 0.19 350);
 }
+
+/* ------------------------------------------------------------
+   Compatibilité : couleurs encore codées en dur dans les composants.
+   L'app a été écrite en thème sombre fixe (text-white, bg-zinc-900,
+   border-zinc-900…) — 381 occurrences dans 18 fichiers. Sur un fond
+   clair, un `text-white` résiduel devient invisible.
+   Plutôt que de réécrire ces 18 fichiers (gros risque de régression
+   sur SON thème sombre à lui, qui marche), on remappe ici l'intention
+   de chaque classe, uniquement sous [data-theme='pink'].
+   Le thème sombre n'est jamais touché par ce bloc.
+   ------------------------------------------------------------ */
+
+/* Texte principal : blanc → prune foncé */
+[data-theme='pink'] .text-white,
+[data-theme='pink'] .text-zinc-100 { color: oklch(0.28 0.045 350); }
+
+/* Surfaces sombres → surfaces claires rosées */
+[data-theme='pink'] .bg-black { background-color: oklch(0.975 0.018 350); }
+[data-theme='pink'] .bg-zinc-950 { background-color: oklch(0.995 0.007 350); }
+[data-theme='pink'] .bg-zinc-900 { background-color: oklch(0.955 0.022 350); }
+[data-theme='pink'] .bg-zinc-800 { background-color: oklch(0.93 0.03 350); }
+/* Gris moyens : barres du visualiseur de disques, phase « urgente » du
+   chrono. Assez soutenus pour se détacher du fond et de la carte. */
+[data-theme='pink'] .bg-zinc-700 { background-color: oklch(0.82 0.05 350); }
+[data-theme='pink'] .bg-zinc-600 { background-color: oklch(0.86 0.045 350); }
+[data-theme='pink'] .hover\:bg-zinc-900:hover { background-color: oklch(0.94 0.03 350); }
+[data-theme='pink'] .hover\:bg-zinc-800:hover { background-color: oklch(0.915 0.035 350); }
+[data-theme='pink'] .active\:bg-zinc-800:active { background-color: oklch(0.9 0.04 350); }
+
+/* Surfaces semi-transparentes sombres (overlays, modales) */
+/* Opacités remontées : sur un fond pastel, un voile à 0.5 donne un
+   gris moyen — le texte blanc qu'il porte tombait à 2.9:1. */
+[data-theme='pink'] .bg-black\/90 { background-color: oklch(0.28 0.045 350 / 0.72); }
+[data-theme='pink'] .bg-black\/95 { background-color: oklch(0.28 0.045 350 / 0.9); }
+[data-theme='pink'] .bg-black\/80 { background-color: oklch(0.28 0.045 350 / 0.8); }
+[data-theme='pink'] .bg-black\/50 { background-color: oklch(0.28 0.045 350 / 0.72); }
+[data-theme='pink'] .bg-black\/40 { background-color: oklch(0.28 0.045 350 / 0.25); }
+[data-theme='pink'] .bg-black\/10 { background-color: oklch(0.28 0.045 350 / 0.1); }
+[data-theme='pink'] .border-black\/40 { border-color: oklch(0.28 0.045 350 / 0.3); }
+[data-theme='pink'] .hover\:bg-zinc-900\/40:hover { background-color: oklch(0.94 0.03 350 / 0.6); }
+
+/* Surfaces qui restent volontairement sombres : bandeau de consentement,
+   toasts, et légendes posées sur les photos du palmarès. Le texte y était
+   blanc pour de bonnes raisons — on annule le remap ci-dessus, sinon il
+   devient prune sur fond sombre, donc illisible.
+   Les voiles de modale (bg-black/90) sont exclus : leur contenu est une
+   carte claire, dont le texte doit bien rester prune. */
+[data-theme='pink'] :is(.bg-black\/95, .bg-black\/80, .bg-black\/50) :is(.text-white, .text-zinc-100, .text-zinc-300, .text-zinc-400),
+[data-theme='pink'] :is(.bg-black\/95, .bg-black\/80, .bg-black\/50):is(.text-white, .text-zinc-100, .text-zinc-300) { color: oklch(1 0 0); }
+[data-theme='pink'] :is(.bg-black\/95, .bg-black\/80, .bg-black\/50) .hover\:text-white:hover { color: oklch(1 0 0); }
+[data-theme='pink'] :is(.bg-black\/95, .bg-black\/80) .hover\:text-zinc-300:hover { color: oklch(0.87 0 0); }
+[data-theme='pink'] .bg-zinc-900\/50 { background-color: oklch(0.955 0.022 350 / 0.7); }
+[data-theme='pink'] .bg-zinc-900\/40 { background-color: oklch(0.955 0.022 350 / 0.6); }
+[data-theme='pink'] .bg-zinc-800\/50 { background-color: oklch(0.93 0.03 350 / 0.7); }
+
+/* Bordures */
+[data-theme='pink'] .border-zinc-900 { border-color: oklch(0.895 0.03 350); }
+[data-theme='pink'] .border-zinc-800 { border-color: oklch(0.875 0.035 350); }
+[data-theme='pink'] .border-zinc-900\/60,
+[data-theme='pink'] .border-zinc-900\/50,
+[data-theme='pink'] .border-zinc-900\/80 { border-color: oklch(0.91 0.028 350); }
+[data-theme='pink'] .hover\:border-white:hover { border-color: oklch(0.62 0.19 350); }
+[data-theme='pink'] .focus\:border-white:focus { border-color: oklch(0.62 0.19 350); }
+[data-theme='pink'] .border-white { border-color: oklch(0.62 0.19 350); }
+
+/* Textes atténués : les gris zinc sont pensés pour du fond noir.
+   Sur clair ils passeraient de « discret » à « illisible ». */
+[data-theme='pink'] .text-zinc-300,
+[data-theme='pink'] .text-zinc-400 { color: oklch(0.45 0.06 350); }
+[data-theme='pink'] .text-zinc-500 { color: oklch(0.48 0.055 350); }
+[data-theme='pink'] .text-zinc-600 { color: oklch(0.52 0.05 350); }
+[data-theme='pink'] .text-zinc-700,
+[data-theme='pink'] .text-zinc-800 { color: oklch(0.55 0.05 350); }
+[data-theme='pink'] .hover\:text-white:hover { color: oklch(0.62 0.19 350); }
+[data-theme='pink'] .hover\:text-zinc-300:hover { color: oklch(0.4 0.07 350); }
+[data-theme='pink'] .placeholder\:text-zinc-600::placeholder,
+[data-theme='pink'] .placeholder\:text-zinc-700::placeholder,
+[data-theme='pink'] .placeholder\:text-zinc-800::placeholder { color: oklch(0.66 0.04 350); }
+[data-theme='pink'] .hover\:border-zinc-700:hover { border-color: oklch(0.82 0.05 350); }
+
+/* Éléments inversés (badges « B1 », onglet actif, bouton principal) :
+   bg-white + text-black en sombre → rose plein + texte blanc en rose,
+   pour garder le même niveau d'emphase visuelle. */
+[data-theme='pink'] .bg-white { background-color: oklch(0.58 0.2 350); }
+/* Uniquement sur surface inversée : un `text-black` posé sur un fond
+   coloré (phase « préparation » du chrono, jaune) doit rester noir. */
+[data-theme='pink'] .bg-white .text-black,
+[data-theme='pink'] .bg-white.text-black { color: oklch(1 0 0); }
+/* Les libellés secondaires de ces cartes inversées étaient en gris zinc :
+   sur le remplissage rose ils tombaient à 1.7:1. */
+[data-theme='pink'] .bg-white :is(.text-zinc-400, .text-zinc-500, .text-zinc-600) { color: oklch(1 0 0); }
+[data-theme='pink'] .hover\:bg-zinc-200:hover { background-color: oklch(0.56 0.2 350); }
+
+/* Barres de progression et accents pleins blancs → rose */
+[data-theme='pink'] .bg-primary { background-color: oklch(0.58 0.2 350); }
 
 @layer base {
   * {

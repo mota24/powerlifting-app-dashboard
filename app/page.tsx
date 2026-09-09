@@ -16,7 +16,7 @@ import ChangePasswordModal from '@/components/power/change-password-modal'
 import CircuitTimer from '@/components/power/circuit-timer'
 import { toast } from '@/components/power/toaster'
 import { cn } from '@/lib/utils'
-import { toLocalDateStr, weeksOut, type UpcomingCompetition } from '@/lib/powerlifting'
+import { toLocalDateStr, weeksOut, type UpcomingCompetition, type ModeApp } from '@/lib/powerlifting'
 import ConfigPanel from '@/components/power/config-panel'
 import CalculatorPanel from '@/components/power/calculator-panel'
 import HistoryPanel from '@/components/power/history-panel'
@@ -77,8 +77,25 @@ export default function Page() {
   })
   const [nextCompetition, setNextCompetition] = useState<UpcomingCompetition | null>(null)
 
+  const [theme, setTheme] = useState('dark')
+  const [mode, setMode] = useState<ModeApp>('powerlifting')
+  const estFitness = mode === 'fitness'
+
   const menuRef = useRef<HTMLDivElement>(null)
   const toggleBtnRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    if (!session?.id) return
+    let cancelled = false
+    const fetchProfil = async () => {
+      const { data } = await supabase.from('profiles').select('theme, mode').eq('id', session.id).single()
+      if (cancelled) return
+      setTheme(data?.theme ?? 'dark')
+      setMode(data?.mode === 'fitness' ? 'fitness' : 'powerlifting')
+    }
+    fetchProfil()
+    return () => { cancelled = true }
+  }, [session])
 
   useEffect(() => {
     if (!session) return
@@ -363,7 +380,7 @@ export default function Page() {
   }
 
   return (
-    <ThemeProvider session={session}>
+    <ThemeProvider theme={theme} mode={mode}>
       <div className="min-h-dvh bg-background pb-16 relative">
         {showPasswordModal && <ChangePasswordModal onClose={() => setShowPasswordModal(false)} />}
         {showCircuitTimer && <CircuitTimer onClose={() => setShowCircuitTimer(false)} />}
@@ -414,7 +431,9 @@ export default function Page() {
                   <button onClick={() => changerVue('analytique')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'analytique' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><BarChart2 className="size-4" /> Analytique</button>
                   <button onClick={() => changerVue('outils')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'outils' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Wrench className="size-4" /> Outils</button>
                   <button onClick={() => changerVue('calculatrice')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'calculatrice' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Calculator className="size-4" /> Calculatrice</button>
-                  <button onClick={() => changerVue('palmares')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'palmares' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Trophy className="size-4" /> Palmarès</button>
+                  {!estFitness && (
+                    <button onClick={() => changerVue('palmares')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'palmares' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Trophy className="size-4" /> Palmarès</button>
+                  )}
                   <button onClick={() => { setShowCircuitTimer(true); setMenuOuvert(false) }} className="flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors hover:bg-secondary text-foreground"><Timer className="size-4" /> Chrono Circuit</button>
 
                   <div className="h-px bg-border my-1"></div>
@@ -446,11 +465,11 @@ export default function Page() {
           {vueActive === 'calculatrice' && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
               <CalculatorPanel />
-              <GLCalculator />
+              {!estFitness && <GLCalculator />}
             </div>
           )}
 
-          {vueActive === 'palmares' && (
+          {vueActive === 'palmares' && !estFitness && (
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
               <Palmares initialEditId={editCompId} onInitialEditConsumed={() => setEditCompId(null)} />
             </div>
@@ -468,7 +487,7 @@ export default function Page() {
                 dateActive={dateActive}
                 setDateActive={setDateActive}
                 blockTitle={blockInfo}
-                weeksOut={nextCompetition && toLocalDateStr(dateActive) <= nextCompetition.date ? weeksOut(toLocalDateStr(dateActive), nextCompetition.date) : null}
+                weeksOut={!estFitness && nextCompetition && toLocalDateStr(dateActive) <= nextCompetition.date ? weeksOut(toLocalDateStr(dateActive), nextCompetition.date) : null}
               />
               <SessionForm
                 dateActive={dateActive}
@@ -476,7 +495,7 @@ export default function Page() {
                 setIsRestDayMode={setIsRestDayMode}
                 pasDuJour={pasDuJour}
                 setDateActive={setDateActive}
-                nextCompetition={nextCompetition}
+                nextCompetition={estFitness ? null : nextCompetition}
                 onGoToPalmares={ouvrirResultatsCompetition}
               />
             </div>

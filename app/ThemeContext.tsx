@@ -1,39 +1,30 @@
 'use client'
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import React, { createContext, useContext, useEffect } from 'react';
+import type { ModeApp } from '@/lib/powerlifting';
 
-const ThemeContext = createContext<{ theme: string }>({ theme: 'dark' });
+type EtatProfil = { theme: string; mode: ModeApp };
 
-export const ThemeProvider = ({ children, session }: { children: React.ReactNode; session: any }) => {
-  const [theme, setTheme] = useState('dark');
+const ThemeContext = createContext<EtatProfil>({ theme: 'dark', mode: 'powerlifting' });
 
+/**
+ * Applique le thème sur <html> et met le profil à disposition de l'arbre.
+ * Le profil est chargé par la page (une seule requête) et passé ici.
+ */
+export const ThemeProvider = ({
+  children,
+  theme = 'dark',
+  mode = 'powerlifting',
+}: {
+  children: React.ReactNode;
+  theme?: string;
+  mode?: ModeApp;
+}) => {
   useEffect(() => {
-    if (!session?.id) return;
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
 
-    const fetchTheme = async () => {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('theme')
-        .eq('id', session.id)
-        .single();
-        
-      if (data && data.theme) {
-        setTheme(data.theme);
-        document.documentElement.setAttribute('data-theme', data.theme);
-      } else {
-        document.documentElement.setAttribute('data-theme', 'dark');
-      }
-    };
-
-    fetchTheme();
-  }, [session]);
-
-  return (
-    <ThemeContext.Provider value={{ theme }}>
-      {children}
-    </ThemeContext.Provider>
-  );
+  return <ThemeContext.Provider value={{ theme, mode }}>{children}</ThemeContext.Provider>;
 };
 
 export const useTheme = () => useContext(ThemeContext);

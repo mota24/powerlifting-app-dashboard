@@ -168,12 +168,78 @@ export const LIFT_BENCH = ['Bench Press', 'Paused Bench', 'Close Grip Bench', 'I
 export const LIFT_DEADLIFT = ['Deadlift', 'Sumo Deadlift', 'Deficit Deadlift', 'Paused Deadlift', 'RDL', 'Block Pulls']
 export const ACCESSORIES = ['Pull-ups', 'Barbell Row', 'Lat Pulldown', 'Leg Press', 'Bulgarian Split Squat', 'Leg Extensions', 'Leg Curls', 'Bicep Curls', 'Tricep Extensions', 'Gainage (Planche)', 'Ab Rollout']
 
-export type LiftCategory = 'squat' | 'bench' | 'deadlift'
+// ————————————————————————————————————————————————
+// Catalogue FITNESS (salle, sans compétition) — compte en mode
+// 'fitness'. Volontairement en français : ce n'est pas un vocabulaire
+// de plateau de compét, c'est celui des machines d'une salle.
+// ————————————————————————————————————————————————
 
-/** Classe un nom d'exercice libre dans une catégorie SBD (ou null si accessoire) */
-export function classifyLift(name: string | null | undefined): LiftCategory | null {
+export const FIT_JAMBES = ['Presse à cuisses', 'Leg Extension', 'Leg Curl', 'Hip Thrust', 'Fentes haltères', 'Squat guidé (Smith)', 'Soulevé de terre jambes tendues', 'Abducteurs machine', 'Adducteurs machine', 'Mollets debout', 'Step-up banc']
+export const FIT_POUSSEE = ['Développé couché haltères', 'Chest Press machine', 'Développé incliné haltères', 'Écartés poulie', 'Écartés machine (Pec Deck)', 'Développé épaules machine', 'Élévations latérales', 'Extension triceps poulie', 'Dips assistés']
+export const FIT_TIRAGE = ['Tirage vertical (Lat Pulldown)', 'Rowing machine', 'Tirage horizontal poulie', 'Rowing haltère', 'Tirage nuque', 'Face Pull', 'Curl biceps haltères', 'Curl pupitre', 'Traction assistée']
+export const FIT_ACCESSOIRES = ['Gainage (Planche)', 'Crunch poulie', 'Relevé de jambes', 'Abdos machine', 'Russian Twist', 'Vélo', 'Tapis de course', 'Rameur', 'Elliptique', 'Étirements', 'Mobilité hanches']
+
+export type LiftCategory = 'squat' | 'bench' | 'deadlift'
+export type ModeApp = 'powerlifting' | 'fitness'
+
+/**
+ * Les trois catégories suivies, par mode. On réutilise volontairement
+ * les mêmes clés ('squat' | 'bench' | 'deadlift') dans les deux modes :
+ * ce sont des identifiants internes, pas des libellés. Ça évite de
+ * toucher au schéma et à toute la machinerie de stats/graphiques, seul
+ * l'affichage change.
+ */
+export const CATEGORIES_PAR_MODE: Record<ModeApp, { key: LiftCategory; label: string; court: string }[]> = {
+  powerlifting: [
+    { key: 'squat', label: 'Squat', court: 'SQ' },
+    { key: 'bench', label: 'Bench', court: 'BP' },
+    { key: 'deadlift', label: 'Deadlift', court: 'DL' },
+  ],
+  fitness: [
+    { key: 'squat', label: 'Jambes', court: 'JBS' },
+    { key: 'bench', label: 'Poussée', court: 'PUSH' },
+    { key: 'deadlift', label: 'Tirage', court: 'PULL' },
+  ],
+}
+
+/** Suggestions d'exercices du jour, par mode et par jour de semaine. */
+export function suggestionsExercices(mode: ModeApp, jourSemaine: number): string[] {
+  if (mode === 'fitness') {
+    switch (jourSemaine) {
+      case 1: return [...FIT_JAMBES, ...FIT_ACCESSOIRES]
+      case 2: return [...FIT_POUSSEE, ...FIT_ACCESSOIRES]
+      case 3: return [...FIT_TIRAGE, ...FIT_ACCESSOIRES]
+      case 4: return [...FIT_JAMBES, ...FIT_POUSSEE, ...FIT_ACCESSOIRES]
+      case 6: return [...FIT_POUSSEE, ...FIT_TIRAGE, ...FIT_ACCESSOIRES]
+      default: return [...FIT_JAMBES, ...FIT_POUSSEE, ...FIT_TIRAGE, ...FIT_ACCESSOIRES]
+    }
+  }
+  switch (jourSemaine) {
+    case 1: return [...LIFT_SQUAT, ...LIFT_BENCH, ...ACCESSORIES]
+    case 2: return [...LIFT_BENCH, ...LIFT_DEADLIFT, ...ACCESSORIES]
+    case 3: return [...LIFT_SQUAT, ...LIFT_BENCH, ...ACCESSORIES]
+    case 4: return [...LIFT_BENCH, ...ACCESSORIES]
+    case 6: return [...LIFT_SQUAT, ...LIFT_BENCH, ...LIFT_DEADLIFT]
+    default: return [...LIFT_SQUAT, ...LIFT_BENCH, ...LIFT_DEADLIFT, ...ACCESSORIES]
+  }
+}
+
+/**
+ * Classe un nom d'exercice libre dans une des trois catégories suivies.
+ * En mode fitness, l'ordre des tests compte : « leg curl » (jambes) doit
+ * être reconnu avant le « curl » générique (biceps → tirage).
+ */
+export function classifyLift(name: string | null | undefined, mode: ModeApp = 'powerlifting'): LiftCategory | null {
   if (!name) return null
   const n = name.toLowerCase()
+
+  if (mode === 'fitness') {
+    if (['leg curl', 'leg extension', 'presse', 'cuisse', 'fente', 'hip thrust', 'mollet', 'abducteur', 'adducteur', 'ischio', 'jambes tendues', 'step-up', 'squat'].some((k) => n.includes(k))) return 'squat'
+    if (['développé', 'developpe', 'chest press', 'écarté', 'ecarte', 'pec deck', 'élévation', 'elevation', 'triceps', 'dips', 'pompe'].some((k) => n.includes(k))) return 'bench'
+    if (['tirage', 'rowing', 'lat pulldown', 'traction', 'face pull', 'curl', 'biceps', 'pull-up'].some((k) => n.includes(k))) return 'deadlift'
+    return null
+  }
+
   if (n.includes('squat') && !n.includes('split')) return 'squat'
   if (['bench', 'spoto', 'larsen'].some((k) => n.includes(k))) return 'bench'
   if (['deadlift', 'rdl', 'block pull'].some((k) => n.includes(k))) return 'deadlift'

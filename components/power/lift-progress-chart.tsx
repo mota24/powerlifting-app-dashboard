@@ -3,14 +3,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ComposedChart, Bar, Line, LineChart, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { supabase } from '@/lib/supabase'
-import { classifyLift, setsTonnage, setE1RM, toLocalDateStr, type LiftCategory, type SetData } from '@/lib/powerlifting'
+import { classifyLift, setsTonnage, setE1RM, toLocalDateStr, CATEGORIES_PAR_MODE, type LiftCategory, type SetData } from '@/lib/powerlifting'
 import { cn } from '@/lib/utils'
 import { RefreshCw, HeartPulse } from 'lucide-react'
+import { useTheme } from '@/app/ThemeContext'
 
 interface ChartRow { date: string; exercise_name: string | null; tracking_data: SetData[] | null; pain_level?: number | null; }
 /** `date` = jour de la séance ciblée par le clic (celle du top set en vue hebdo). */
 interface Point { label: string; date: string; tonnage: number; topSet: number; e1rm: number; douleur: number | null; }
-const LIFTS: { key: LiftCategory; label: string }[] = [ { key: 'squat', label: 'Squat' }, { key: 'bench', label: 'Bench' }, { key: 'deadlift', label: 'Deadlift' } ]
 /** Une séance = un jour ; une semaine = volume cumulé (utile en powerlifting). */
 type Granularite = 'seance' | 'semaine'
 function mondayOf(dateStr: string): string { const [y, m, d] = dateStr.split('-').map(Number); const date = new Date(y, m - 1, d); const day = date.getDay(); date.setDate(date.getDate() - day + (day === 0 ? -6 : 1)); return toLocalDateStr(date); }
@@ -19,6 +19,8 @@ function jourMois(dateStr: string): string { const [, m, d] = dateStr.split('-')
 export function LiftProgressChart({ onSelectSession }: { onSelectSession?: (date: string) => void }) {
   const [rows, setRows] = useState<ChartRow[]>([])
   const [loading, setLoading] = useState(true)
+  const { mode } = useTheme()
+  const LIFTS = CATEGORIES_PAR_MODE[mode]
   const [lift, setLift] = useState<LiftCategory>('bench')
   const [granularite, setGranularite] = useState<Granularite>('seance')
 
@@ -40,7 +42,7 @@ export function LiftProgressChart({ onSelectSession }: { onSelectSession?: (date
     // du même jour (ex. « Bench Press » + « Bench machine ») fusionnent.
     const groupes = new Map<string, { date: string; tonnage: number; topSet: number; e1rm: number; pains: number[] }>()
     for (const row of rows) {
-      if (classifyLift(row.exercise_name) !== lift) continue
+      if (classifyLift(row.exercise_name, mode) !== lift) continue
       // Séance planifiée mais rien de réellement soulevé (colonne « réalisé »
       // vide) : on l'ignore plutôt que de la compter comme un 0.
       const validSets = (row.tracking_data ?? []).filter((set) => parseFloat(set?.weight) > 0)
@@ -67,7 +69,7 @@ export function LiftProgressChart({ onSelectSession }: { onSelectSession?: (date
       e1rm: Math.round(agg.e1rm),
       douleur: agg.pains.length ? Math.round((agg.pains.reduce((s, p) => s + p, 0) / agg.pains.length) * 10) / 10 : null,
     }))
-  }, [rows, lift, granularite])
+  }, [rows, lift, granularite, mode])
 
   // Recharts expose l'index de la catégorie survolée : plus robuste que de
   // fouiller la forme du payload, et couvre le clic n'importe où sur la colonne.
