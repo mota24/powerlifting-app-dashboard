@@ -3,8 +3,10 @@
 import { useState } from 'react'
 import { Flame } from 'lucide-react'
 import { generateWarmup } from '../../lib/powerlifting'
+import { useT } from '@/app/ThemeContext'
 
 export function WarmupGenerator() {
+  const t = useT()
   const [topSet, setTopSet] = useState(180)
   const steps = generateWarmup(topSet)
 
@@ -12,11 +14,11 @@ export function WarmupGenerator() {
     <div className="p-6 sm:p-8 bg-zinc-950 border border-zinc-900 rounded-2xl">
       <div className="flex items-center gap-3 mb-8">
         <Flame className="size-5 text-white" />
-        <h2 className="text-sm font-bold text-white uppercase tracking-widest">Échauffement</h2>
+        <h2 className="text-sm font-bold text-white uppercase tracking-widest">{t('echauffement')}</h2>
       </div>
 
       <label className="mb-6 block">
-        <span className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-zinc-500">Top Set (kg)</span>
+        <span className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-zinc-500">{t('topSetKg')}</span>
         <input type="number" step={2.5} inputMode="decimal" value={topSet} onChange={(e) => setTopSet(Number(e.target.value) || 0)} className="w-full rounded-xl bg-zinc-900 px-4 py-4 font-black text-2xl text-white outline-none focus:ring-2 focus:ring-zinc-700 tabular-nums transition-all" />
       </label>
 
@@ -26,7 +28,7 @@ export function WarmupGenerator() {
             <span className="flex size-6 items-center justify-center rounded-full bg-black font-black text-[10px] text-white shrink-0">{i + 1}</span>
             <div className="flex-1 flex items-baseline gap-2">
               <span className="font-black text-lg tabular-nums text-white">{s.weight}</span>
-              <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">{s.label}</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">{t(s.cle)}</span>
             </div>
             <span className="font-black tabular-nums text-sm text-white">×{s.reps}</span>
             <span className="w-12 text-right font-black text-[10px] text-zinc-500">{s.pct}%</span>

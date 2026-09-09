@@ -1,0 +1,366 @@
+/**
+ * Traductions de l'interface.
+ *
+ * Deux langues : français (compte 1) et catalan (compte 2). La langue vient
+ * de profiles.langue, pas du navigateur : les deux comptes peuvent tourner
+ * sur le même téléphone et doivent garder chacun la leur.
+ *
+ * `fr` fait office de référence : le type de `ca` en dérive, donc oublier une
+ * clé en catalan est une erreur de compilation, pas un texte manquant à
+ * l'écran.
+ */
+
+export type Langue = 'fr' | 'ca'
+
+const fr = {
+  // — Connexion
+  accesReserve: 'Accès Réservé',
+  saisisIdentifiants: 'Saisis tes identifiants',
+  identifiant: 'Identifiant',
+  motDePasse: 'Mot de passe',
+  seConnecter: 'Se connecter',
+  chargement: 'Chargement...',
+
+  // — Navigation
+  accueil: 'Accueil',
+  retourAccueil: "Retour à l'accueil",
+  analytique: 'Analytique',
+  outils: 'Outils',
+  calculatrice: 'Calculatrice',
+  palmares: 'Palmarès',
+  chronoCircuit: 'Chrono Circuit',
+  mesBlocs: 'Mes Blocs',
+  gestionBlocs: 'Gestion de mes Blocs',
+  seDeconnecter: 'Se déconnecter',
+
+  // — Grades (échelle de niveau)
+  gradeDebutant: 'DÉBUTANT',
+  gradeIntermediaire: 'COMPÉTITEUR',
+  gradeAvance: 'MAÎTRE',
+  gradeElite: 'ÉLITE',
+  gradeLegende: 'LÉGENDE',
+  niveauCourt: 'NIV',
+
+  // — Séance
+  nomDuMouvement: 'NOM DU MOUVEMENT',
+  prescription: 'Prescription',
+  valide: 'Validé',
+  notesEtTempo: 'Notes & Tempo',
+  exempleTempo: 'EX: TEMPO 3-1-0...',
+  reps: 'Reps',
+  poids: 'Poids',
+  rpe: 'RPE',
+  douleur: 'Douleur',
+  serieStreak: 'Série',
+  jourCourt: 'J',
+  seanceDu: 'SÉANCE DU {date}',
+  recuperation: 'RÉCUPÉRATION',
+  fatigueDetectee: 'Fatigue détectée (RPE {actuel} > {prevu}). Charges suivantes réduites !',
+  seancesInterverties: 'Séances interverties avec le {date}',
+  seanceDeplacee: 'Séance déplacée au {date}',
+  ajouter: 'Ajouter',
+  serieExtra: '+ Série Extra',
+  copierCoach: 'Copier Coach',
+  terminerSeance: 'TERMINER LA SÉANCE',
+  validerRepos: 'VALIDER LE REPOS',
+  reposActif: 'REPOS ACTIF',
+  fatigue: 'Fatigue (1-10)',
+  sommeil: 'Sommeil (h)',
+  pas: 'Pas',
+  generer: 'GÉNÉRER',
+  exempleIA: "GÉNÉRER AVEC L'IA (EX: 3X3 SQUAT 180...)",
+  autoriserIA: "Autoriser l'IA ?",
+  synchronise: 'Synchronisé',
+  attenteSync: 'EN ATTENTE DE SYNC...',
+  doubleCliquerDeplacer: 'Double-clique pour déplacer ou intervertir cette séance',
+
+  // — Fin de séance
+  missionAccomplie: 'MISSION ACCOMPLIE',
+  xpGagne: 'XP Gagné',
+  levelUp: 'LEVEL UP !',
+  fermer: 'Fermer',
+
+  // — Messages
+  dejaValide: 'Déjà validé !',
+  erreur: 'Erreur',
+  erreurChargement: 'Erreur de chargement',
+  sauvegardeImpossible: 'Sauvegarde impossible',
+  sauvegardeImpossibleAvantDate: 'Sauvegarde impossible avant le changement de date',
+  erreurChangementDate: 'Erreur lors du changement de date',
+  erreurIA: 'Erreur IA',
+  propager: 'Propager sur 4 semaines ?',
+  propage: 'Propagé',
+  effacerFutur: 'Tout effacer le futur ?',
+  reinitialise: 'Réinitialisé',
+  effacerPourRepos: 'Effacer la séance pour passer en Repos ?',
+  pasSynchronises: 'Pas synchronisés depuis le téléphone : {n} pas',
+
+  // — Poids de corps
+  poidsDeCorps: 'Poids de Corps',
+  exemplePoids: 'Ex: 80.5',
+  poidsEnregistre: 'Poids enregistré !',
+  poidsInvalide: 'Veuillez entrer un poids valide',
+  erreurSauvegarde: 'Erreur lors de la sauvegarde',
+  aucunHistoriquePoids: 'Aucun historique de poids. Saisis ton premier poids !',
+  erreurAuth: 'Erreur auth, introuvable',
+
+  // — Analytique
+  progressionLifts: 'Progression des lifts',
+  progressionCharges: 'Progression des charges',
+  indicesGraphique: 'Tonnage · Top set · e1RM · Douleur',
+  tonnage: 'Tonnage',
+  topSet: 'Top set',
+  parSeance: 'Séance',
+  parSemaine: 'Semaine',
+  recordsTitre: 'Records 1RM',
+  meilleuresCharges: 'Mes meilleures charges',
+  total: 'Total',
+  totalSBD: 'Total SBD',
+  modifier: 'Modifier',
+
+  // — Outils
+  plateMath: 'Plate Math',
+  poidsCible: 'Poids cible (kg)',
+  disquesParCote: 'Disques par côté',
+  parCote: 'Par côté',
+  echauffement: 'Échauffement',
+  topSetKg: 'Top Set (kg)',
+  calculateur1RM: 'Calculateur de 1RM',
+
+  // — Blocs
+  configuration: 'Configuration',
+  nomDuBloc: 'Nom du bloc',
+  exempleNomBloc: 'EX: RÉÉDUCATION',
+  debut: 'Début',
+  semaines: 'Semaines',
+  chargementMajuscule: 'CHARGEMENT...',
+  aucuneSeance: 'AUCUNE SÉANCE ENREGISTRÉE.',
+  supprimerBloc: 'SUPPRIMER CE BLOC DÉFINITIVEMENT ?',
+  erreurDeuxPoints: 'Erreur :',
+  erreurExport: "Erreur d'export :",
+  erreurSauvegardeDeuxPoints: 'Erreur de sauvegarde :',
+
+  // — Chrono
+  exercices: 'Exercices',
+  tours: 'Tours',
+  dureesTravail: 'Durées de travail',
+  reposInterExercice: 'Repos (Inter-exercice)',
+  reposInterTour: 'Repos (Inter-tour)',
+  dureeTotale: 'Durée totale',
+  preparation: 'Préparation',
+  termine: 'Terminé',
+  phasePreparation: 'PRÉPARATION',
+  phaseTravail: 'TRAVAIL',
+  phaseRepos: 'REPOS',
+  phaseReposLong: 'REPOS LONG',
+
+  onglletSeance: 'SÉANCE',
+  ongletRepos: 'REPOS',
+  ajouterExercice: 'Ajouter un exercice',
+  propagerBloc: 'Propager Bloc',
+  resetFutur: 'Reset Futur',
+  // Categories suivies, libelles du mode fitness
+  catJambes: 'Jambes',
+  catPoussee: 'Poussée',
+  catTirage: 'Tirage',
+  // Categories du mode powerlifting
+  catSquat: 'Squat',
+  catBench: 'Bench',
+  catDeadlift: 'Deadlift',
+  // Echauffement
+  echBarreVide: 'Barre à vide',
+  echActivation: 'Activation',
+  echMontee: 'Montée',
+  echPreTop: 'Pré-top',
+  echDernierSaut: 'Dernier saut',
+  // Calculatrice
+  laisserRpeVide: 'LAISSEZ RPE VIDE POUR ÉCHEC TOTAL (10)',
+  douleurOk: 'OK',
+  douleurGene: 'Gêne',
+  douleurDouleur: 'Douleur',
+  douleurStop: 'Stop',
+  prTheorique: 'PR THÉORIQUE ESTIMÉ',
+
+  // — Accueil
+  bienvenue: 'Bienvenue, {prenom} !',
+} as const
+
+export type CleTraduction = keyof typeof fr
+
+const ca: Record<CleTraduction, string> = {
+  accesReserve: 'Accés Restringit',
+  saisisIdentifiants: 'Introdueix les teves credencials',
+  identifiant: 'Usuari',
+  motDePasse: 'Contrasenya',
+  seConnecter: 'Inicia la sessió',
+  chargement: 'Carregant...',
+
+  accueil: 'Inici',
+  retourAccueil: "Torna a l'inici",
+  analytique: 'Analítica',
+  outils: 'Eines',
+  calculatrice: 'Calculadora',
+  palmares: 'Palmarès',
+  chronoCircuit: 'Cronòmetre de circuit',
+  mesBlocs: 'Els meus blocs',
+  gestionBlocs: 'Gestió dels meus blocs',
+  seDeconnecter: 'Tanca la sessió',
+
+  // Formes féminines : le compte catalan est celui d'Yamina.
+  gradeDebutant: 'PRINCIPIANT',
+  gradeIntermediaire: 'CONSTANT',
+  gradeAvance: 'EXPERTA',
+  gradeElite: 'ÈLIT',
+  gradeLegende: 'LLEGENDA',
+  niveauCourt: 'NIV',
+
+  nomDuMouvement: "NOM DE L'EXERCICI",
+  prescription: 'Pla',
+  valide: 'Fet',
+  notesEtTempo: 'Notes i tempo',
+  exempleTempo: 'EX.: TEMPO 3-1-0...',
+  reps: 'Reps',
+  poids: 'Pes',
+  rpe: 'RPE',
+  douleur: 'Dolor',
+  serieStreak: 'Ratxa',
+  jourCourt: 'D',
+  seanceDu: 'SESSIÓ DEL {date}',
+  recuperation: 'RECUPERACIÓ',
+  fatigueDetectee: 'Fatiga detectada (RPE {actuel} > {prevu}). Càrregues següents reduïdes!',
+  seancesInterverties: 'Sessions intercanviades amb el {date}',
+  seanceDeplacee: 'Sessió moguda al {date}',
+  ajouter: 'Afegeix',
+  serieExtra: '+ Sèrie extra',
+  copierCoach: 'Copia el pla',
+  terminerSeance: 'ACABA LA SESSIÓ',
+  validerRepos: 'VALIDA EL DESCANS',
+  reposActif: 'DESCANS ACTIU',
+  fatigue: 'Fatiga (1-10)',
+  sommeil: 'Son (h)',
+  pas: 'Passos',
+  generer: 'GENERA',
+  exempleIA: 'GENERA AMB LA IA (EX.: 3X12 PREMSA 60...)',
+  autoriserIA: 'Vols autoritzar la IA?',
+  synchronise: 'Sincronitzat',
+  attenteSync: 'PENDENT DE SINCRONITZAR...',
+  doubleCliquerDeplacer: 'Fes doble clic per moure o intercanviar aquesta sessió',
+
+  missionAccomplie: 'MISSIÓ COMPLETA',
+  xpGagne: 'XP guanyada',
+  levelUp: 'NIVELL SUPERIOR!',
+  fermer: 'Tanca',
+
+  dejaValide: 'Ja estava validat!',
+  erreur: 'Error',
+  erreurChargement: 'Error de càrrega',
+  sauvegardeImpossible: "No s'ha pogut desar",
+  sauvegardeImpossibleAvantDate: "No s'ha pogut desar abans de canviar la data",
+  erreurChangementDate: 'Error en canviar la data',
+  erreurIA: 'Error de la IA',
+  propager: 'Vols propagar-ho a 4 setmanes?',
+  propage: 'Propagat',
+  effacerFutur: 'Vols esborrar tot el futur?',
+  reinitialise: 'Reinicialitzat',
+  effacerPourRepos: 'Vols esborrar la sessió i passar a descans?',
+  pasSynchronises: 'Passos sincronitzats des del telèfon: {n} passos',
+
+  poidsDeCorps: 'Pes corporal',
+  exemplePoids: 'Ex.: 60.5',
+  poidsEnregistre: 'Pes desat!',
+  poidsInvalide: 'Introdueix un pes vàlid',
+  erreurSauvegarde: 'Error en desar',
+  aucunHistoriquePoids: 'Encara no hi ha historial. Introdueix el teu primer pes!',
+  erreurAuth: "Error d'autenticació",
+
+  progressionLifts: 'Progressió dels aixecaments',
+  progressionCharges: 'Progressió de les càrregues',
+  indicesGraphique: 'Tonatge · Sèrie màxima · e1RM · Dolor',
+  tonnage: 'Tonatge',
+  topSet: 'Sèrie màxima',
+  parSeance: 'Sessió',
+  parSemaine: 'Setmana',
+  recordsTitre: 'Rècords 1RM',
+  meilleuresCharges: 'Les meves millors càrregues',
+  total: 'Total',
+  totalSBD: 'Total SBD',
+  modifier: 'Edita',
+
+  plateMath: 'Càlcul de discos',
+  poidsCible: 'Pes objectiu (kg)',
+  disquesParCote: 'Discos per costat',
+  parCote: 'Per costat',
+  echauffement: 'Escalfament',
+  topSetKg: 'Sèrie màxima (kg)',
+  calculateur1RM: "Calculadora d'1RM",
+
+  configuration: 'Configuració',
+  nomDuBloc: 'Nom del bloc',
+  exempleNomBloc: 'EX.: REHABILITACIÓ',
+  debut: 'Inici',
+  semaines: 'Setmanes',
+  chargementMajuscule: 'CARREGANT...',
+  aucuneSeance: 'CAP SESSIÓ REGISTRADA.',
+  supprimerBloc: 'VOLS ESBORRAR AQUEST BLOC DEFINITIVAMENT?',
+  erreurDeuxPoints: 'Error:',
+  erreurExport: "Error d'exportació:",
+  erreurSauvegardeDeuxPoints: 'Error en desar:',
+
+  exercices: 'Exercicis',
+  tours: 'Rondes',
+  dureesTravail: 'Durada de treball',
+  reposInterExercice: 'Descans (entre exercicis)',
+  reposInterTour: 'Descans (entre rondes)',
+  dureeTotale: 'Durada total',
+  preparation: 'Preparació',
+  termine: 'Acabat',
+  phasePreparation: 'PREPARACIÓ',
+  phaseTravail: 'TREBALL',
+  phaseRepos: 'DESCANS',
+  phaseReposLong: 'DESCANS LLARG',
+
+  onglletSeance: 'SESSIÓ',
+  ongletRepos: 'DESCANS',
+  ajouterExercice: 'Afegeix un exercici',
+  propagerBloc: 'Propaga el bloc',
+  resetFutur: 'Esborra el futur',
+  catJambes: 'Cames',
+  catPoussee: 'Empenta',
+  catTirage: 'Tracció',
+  catSquat: 'Squat',
+  catBench: 'Bench',
+  catDeadlift: 'Deadlift',
+  echBarreVide: 'Barra buida',
+  echActivation: 'Activació',
+  echMontee: 'Progressió',
+  echPreTop: 'Pre-màxim',
+  echDernierSaut: 'Últim salt',
+  laisserRpeVide: 'DEIXA EL RPE BUIT SI HAS ARRIBAT AL FALLADA (10)',
+  douleurOk: 'OK',
+  douleurGene: 'Molèstia',
+  douleurDouleur: 'Dolor',
+  douleurStop: 'Atura',
+  prTheorique: 'RÈCORD TEÒRIC ESTIMAT',
+
+  bienvenue: 'Benvinguda, {prenom}!',
+}
+
+const DICTIONNAIRES: Record<Langue, Record<CleTraduction, string>> = { fr, ca }
+
+/** Étiquette BCP-47, pour toLocaleDateString et compagnie. */
+export const LOCALES: Record<Langue, string> = { fr: 'fr-FR', ca: 'ca-ES' }
+
+export type Traducteur = (cle: CleTraduction, valeurs?: Record<string, string | number>) => string
+
+export function traducteurPour(langue: Langue): Traducteur {
+  const dico = DICTIONNAIRES[langue] ?? fr
+  return (cle, valeurs) => {
+    let texte = dico[cle] ?? fr[cle]
+    if (valeurs) {
+      for (const [nom, valeur] of Object.entries(valeurs)) {
+        texte = texte.replaceAll(`{${nom}}`, String(valeur))
+      }
+    }
+    return texte
+  }
+}

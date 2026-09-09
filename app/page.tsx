@@ -23,6 +23,7 @@ import HistoryPanel from '@/components/power/history-panel'
 import GLCalculator from '@/components/power/GLCalculator';
 import { Palmares } from '@/components/power/palmares'
 import { ThemeProvider, type Langue } from './ThemeContext'
+import { traducteurPour, LOCALES } from '@/lib/i18n'
 
 interface AuthUser {
   id: string;
@@ -47,6 +48,7 @@ export default function Page() {
   
   const [isRestDayMode, setIsRestDayMode] = useState(false)
   const [pasDuJour, setPasDuJour] = useState<number | null>(null);
+  const [pasASignaler, setPasASignaler] = useState<number | null>(null);
   
   const [dateActive, setDateActive] = useState<Date>(() => {
     if (typeof window !== 'undefined') {
@@ -61,7 +63,7 @@ export default function Page() {
   const [menuOuvert, setMenuOuvert] = useState(false)
   const [showPasswordModal, setShowPasswordModal] = useState(false)
   const [showCircuitTimer, setShowCircuitTimer] = useState(false)
-  const [blockInfo, setBlockInfo] = useState('Chargement...')
+  const [blockInfo, setBlockInfo] = useState('...')
   
   const [vueActive, setVueActive] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -82,6 +84,9 @@ export default function Page() {
   const [prenom, setPrenom] = useState<string | null>(null)
   const [langue, setLangue] = useState<Langue>('fr')
   const estFitness = mode === 'fitness'
+  // page.tsx rend le ThemeProvider : il ne peut pas consommer son contexte,
+  // il construit donc son traducteur directement depuis son propre etat.
+  const t = traducteurPour(langue)
 
   const menuRef = useRef<HTMLDivElement>(null)
   const toggleBtnRef = useRef<HTMLButtonElement>(null)
@@ -102,7 +107,8 @@ export default function Page() {
       // donc pas être affiché au moment de la soumission du formulaire.
       if (vientDeSeConnecter.current && data?.prenom) {
         vientDeSeConnecter.current = false
-        toast(data.langue === 'ca' ? `Benvinguda, ${data.prenom} !` : `Bienvenue, ${data.prenom} !`, 'success')
+        const accueil = traducteurPour(data.langue === 'ca' ? 'ca' : 'fr')
+        toast(accueil('bienvenue', { prenom: data.prenom }), 'success')
       }
     }
     fetchProfil()
@@ -134,11 +140,19 @@ export default function Page() {
       if (stepsEnregistres) {
         const nombreDePas = parseInt(stepsEnregistres, 10);
         setPasDuJour(nombreDePas);
-        toast(`Pas synchronisés depuis l'iPhone : ${nombreDePas.toLocaleString('fr-FR')} pas`, 'success');
+        setPasASignaler(nombreDePas);
         window.history.replaceState({}, '', window.location.pathname);
       }
     }
   }, []);
+
+  // Le raccourci ouvre l'app avec ?steps=N : au montage la langue du profil
+  // n'est pas encore chargée, on attend donc de la connaître pour le message.
+  useEffect(() => {
+    if (pasASignaler === null || !session) return;
+    toast(t('pasSynchronises', { n: pasASignaler.toLocaleString(LOCALES[langue]) }), 'success');
+    setPasASignaler(null);
+  }, [pasASignaler, session, langue, t]);
 
   useEffect(() => {
     if (!session) return;
@@ -411,12 +425,11 @@ export default function Page() {
           
           <div className="flex flex-col">
             <h2 className="text-sm font-medium text-muted-foreground capitalize">
-              {vueActive === 'analytique' && "Tableau de bord"}
-              {vueActive === 'outils' && "Outils & Échauffement"}
-              {vueActive === 'calculatrice' && "Calculateur de force"}
-              {vueActive === 'historique' && "Historique des Mouvements"}
-              {vueActive === 'configuration' && "Gestion de mes Blocs"}
-              {vueActive === 'palmares' && "Palmarès"}
+              {vueActive === 'analytique' && t('analytique')}
+              {vueActive === 'outils' && t('outils')}
+              {vueActive === 'calculatrice' && t('calculatrice')}
+              {vueActive === 'configuration' && t('gestionBlocs')}
+              {vueActive === 'palmares' && t('palmares')}
             </h2>
           </div>
 
@@ -430,7 +443,7 @@ export default function Page() {
                   ? "bg-primary/10 border-primary/20 text-primary" 
                   : "bg-secondary border-border hover:bg-accent text-muted-foreground hover:text-accent-foreground"
               )}
-              title="Retour à l'accueil"
+              title={t('retourAccueil')}
             >
               <Home className="size-5" />
             </button>
@@ -449,26 +462,26 @@ export default function Page() {
                   ref={menuRef}
                   className="absolute top-12 right-0 w-56 bg-card border border-border p-2 rounded-lg shadow-xl flex flex-col gap-1 z-50 animate-in fade-in zoom-in-95 duration-200"
                 >
-                  <button onClick={() => changerVue('analytique')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'analytique' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><BarChart2 className="size-4" /> Analytique</button>
-                  <button onClick={() => changerVue('outils')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'outils' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Wrench className="size-4" /> Outils</button>
-                  <button onClick={() => changerVue('calculatrice')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'calculatrice' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Calculator className="size-4" /> Calculatrice</button>
+                  <button onClick={() => changerVue('analytique')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'analytique' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><BarChart2 className="size-4" /> {t('analytique')}</button>
+                  <button onClick={() => changerVue('outils')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'outils' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Wrench className="size-4" /> {t('outils')}</button>
+                  <button onClick={() => changerVue('calculatrice')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'calculatrice' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Calculator className="size-4" /> {t('calculatrice')}</button>
                   {!estFitness && (
-                    <button onClick={() => changerVue('palmares')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'palmares' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Trophy className="size-4" /> Palmarès</button>
+                    <button onClick={() => changerVue('palmares')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'palmares' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Trophy className="size-4" /> {t('palmares')}</button>
                   )}
-                  <button onClick={() => { setShowCircuitTimer(true); setMenuOuvert(false) }} className="flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors hover:bg-secondary text-foreground"><Timer className="size-4" /> Chrono Circuit</button>
+                  <button onClick={() => { setShowCircuitTimer(true); setMenuOuvert(false) }} className="flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors hover:bg-secondary text-foreground"><Timer className="size-4" /> {t('chronoCircuit')}</button>
 
                   <div className="h-px bg-border my-1"></div>
                   
-                  <button onClick={() => changerVue('configuration')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'configuration' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Settings className="size-4" /> Mes Blocs</button>
+                  <button onClick={() => changerVue('configuration')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'configuration' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Settings className="size-4" /> {t('mesBlocs')}</button>
                   
                   <div className="h-px bg-border my-1"></div>
 
                   <button onClick={() => { setShowPasswordModal(true); setMenuOuvert(false) }} className="flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors hover:bg-secondary text-foreground">
-                    <KeyRound className="size-4" /> Mot de passe
+                    <KeyRound className="size-4" /> {t('motDePasse')}
                   </button>
 
                   <button onClick={handleLogout} className="flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors hover:bg-destructive/10 text-destructive font-medium">
-                    <LogOut className="size-4" /> Se déconnecter
+                    <LogOut className="size-4" /> {t('seDeconnecter')}
                   </button>
                 </div>
               )}
@@ -526,7 +539,7 @@ export default function Page() {
             <section className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
               <StatsCards />
               <Card>
-                <CardTitle icon={LineChart} title="Progression des lifts" hint="Tonnage · Top set · e1RM · Douleur" />
+                <CardTitle icon={LineChart} title={estFitness ? t('progressionCharges') : t('progressionLifts')} hint={t('indicesGraphique')} />
                 <LiftProgressChart onSelectSession={ouvrirSeance} />
               </Card>
               <BodyweightTracker />

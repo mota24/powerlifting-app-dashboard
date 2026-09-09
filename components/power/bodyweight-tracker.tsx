@@ -6,6 +6,7 @@ import { Weight, Plus } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { toast } from '@/components/power/toaster'
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts'
+import { useT, useLocale } from '@/app/ThemeContext'
 
 interface BodyweightLog {
   id: string
@@ -21,6 +22,8 @@ function toLocalDateStr(d: Date): string {
 }
 
 export function BodyweightTracker() {
+  const t = useT()
+  const locale = useLocale()
   const [logs, setLogs] = useState<BodyweightLog[]>([])
   const [currentWeight, setCurrentWeight] = useState<string>('')
   const [loading, setLoading] = useState(true)
@@ -43,12 +46,12 @@ export function BodyweightTracker() {
 
   useEffect(() => {
     fetchLogs()
-  }, [])
+  }, [t])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!currentWeight || isNaN(Number(currentWeight))) {
-      toast('Veuillez entrer un poids valide', 'error')
+      toast(t('poidsInvalide'), 'error')
       return
     }
 
@@ -64,7 +67,7 @@ export function BodyweightTracker() {
 
       const syncUserId = session?.user?.email?.split('@')[0]
       if (!syncUserId) {
-        toast('Erreur auth, introuvable', 'error')
+        toast(t('erreurAuth'), 'error')
         return
       }
 
@@ -90,23 +93,23 @@ export function BodyweightTracker() {
         if (error) throw error
       }
       
-      toast('Poids enregistré !', 'success')
+      toast(t('poidsEnregistre'), 'success')
       setCurrentWeight('')
       fetchLogs()
     } catch (e) {
-      toast('Erreur lors de la sauvegarde', 'error')
+      toast(t('erreurSauvegarde'), 'error')
       console.error(e)
     }
   }
 
   const chartData = logs.map(l => ({
-    date: new Date(l.date).toLocaleDateString('fr-FR', { month: 'short', day: 'numeric' }),
+    date: new Date(l.date).toLocaleDateString(locale, { month: 'short', day: 'numeric' }),
     Poids: l.weight
   }))
 
   return (
     <Card>
-      <CardTitle icon={Weight} title="Poids de Corps (PDC)" hint="Historique et saisie" />
+      <CardTitle icon={Weight} title={t('poidsDeCorps')} hint="" />
       <div className="p-4 space-y-4">
         <form onSubmit={handleSubmit} className="flex gap-2 items-center">
           <input
@@ -114,11 +117,11 @@ export function BodyweightTracker() {
             step="0.1"
             value={currentWeight}
             onChange={(e) => setCurrentWeight(e.target.value)}
-            placeholder="Ex: 80.5"
+            placeholder={t('exemplePoids')}
             className="bg-secondary text-foreground p-2 rounded-md w-32 border border-border focus:outline-none focus:ring-1 focus:ring-primary"
           />
           <button type="submit" className="bg-primary text-primary-foreground p-2 rounded-md flex items-center gap-1 hover:bg-primary/90 transition">
-            <Plus className="size-4" /> Ajouter
+            <Plus className="size-4" /> {t('ajouter')}
           </button>
         </form>
 
@@ -140,7 +143,7 @@ export function BodyweightTracker() {
           </div>
         )}
         {!loading && logs.length === 0 && (
-          <p className="text-sm text-muted-foreground mt-4">Aucun historique de poids. Saisis ton premier poids !</p>
+          <p className="text-sm text-muted-foreground mt-4">{t('aucunHistoriquePoids')}</p>
         )}
       </div>
     </Card>

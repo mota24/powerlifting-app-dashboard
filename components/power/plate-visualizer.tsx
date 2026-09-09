@@ -3,8 +3,10 @@
 import { useState } from 'react'
 import { computePlates, BAR_WEIGHT } from '@/lib/powerlifting'
 import { Dumbbell } from 'lucide-react'
+import { useT } from '@/app/ThemeContext'
 
 export function PlateVisualizer() {
+  const t = useT()
   // La saisie est gardée en TEXTE : avec un état numérique, taper « 200 » sur
   // un champ à 0 laissait « 0200 », et vider le champ y réécrivait « 0 ».
   const [targetText, setTargetText] = useState('167.5')
@@ -22,18 +24,18 @@ export function PlateVisualizer() {
       <div className="flex items-center gap-3 mb-8">
         <Dumbbell className="size-5 text-white" />
         <div>
-          <h2 className="text-sm font-bold text-white uppercase tracking-widest">Plate Math</h2>
-          <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Disques par côté</span>
+          <h2 className="text-sm font-bold text-white uppercase tracking-widest">{t('plateMath')}</h2>
+          <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{t('disquesParCote')}</span>
         </div>
       </div>
 
       <div className="mb-8 flex items-end gap-4">
         <label className="flex-1">
-          <span className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-zinc-500">Poids cible (kg)</span>
+          <span className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-zinc-500">{t('poidsCible')}</span>
           <input type="number" step={2.5} inputMode="decimal" value={targetText} onChange={handleTargetChange} className="w-full rounded-xl bg-zinc-900 px-4 py-4 font-black text-2xl text-white outline-none focus:ring-2 focus:ring-zinc-700 tabular-nums transition-all" />
         </label>
         <div className="text-right pb-3">
-          <span className="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1">Par côté</span>
+          <span className="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1">{t('parCote')}</span>
           <span className="font-black text-3xl tabular-nums text-white">{perSide > 0 ? perSide : 0}</span>
         </div>
       </div>

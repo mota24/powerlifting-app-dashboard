@@ -1,3 +1,4 @@
+import type { CleTraduction } from './i18n'
 // Logique métier Powerlifting
 
 /**
@@ -61,13 +62,13 @@ export function computePlates(target: number, bar = BAR_WEIGHT) {
  * Chaque palier est arrondi à une charge réellement chargeable (pas de 2.5 kg).
  */
 export function generateWarmup(topSet: number) {
-  const steps = [
-    { pct: 0, reps: 8, label: 'Barre à vide' },
-    { pct: 0.4, reps: 5, label: 'Activation' },
-    { pct: 0.55, reps: 5, label: 'Montée' },
-    { pct: 0.7, reps: 3, label: 'Montée' },
-    { pct: 0.8, reps: 2, label: 'Pré-top' },
-    { pct: 0.9, reps: 1, label: 'Dernier saut' },
+  const steps: { pct: number; reps: number; cle: CleTraduction }[] = [
+    { pct: 0, reps: 8, cle: 'echBarreVide' },
+    { pct: 0.4, reps: 5, cle: 'echActivation' },
+    { pct: 0.55, reps: 5, cle: 'echMontee' },
+    { pct: 0.7, reps: 3, cle: 'echMontee' },
+    { pct: 0.8, reps: 2, cle: 'echPreTop' },
+    { pct: 0.9, reps: 1, cle: 'echDernierSaut' },
   ]
   return steps.map((s, i) => {
     const raw = s.pct === 0 ? BAR_WEIGHT : topSet * s.pct
@@ -76,7 +77,7 @@ export function generateWarmup(topSet: number) {
       weight: roundToLoadable(Math.max(BAR_WEIGHT, raw)),
       reps: s.reps,
       pct: Math.round(s.pct * 100),
-      label: s.label,
+      cle: s.cle,
     }
   })
 }
@@ -189,16 +190,16 @@ export type ModeApp = 'powerlifting' | 'fitness'
  * toucher au schéma et à toute la machinerie de stats/graphiques, seul
  * l'affichage change.
  */
-export const CATEGORIES_PAR_MODE: Record<ModeApp, { key: LiftCategory; label: string; court: string }[]> = {
+export const CATEGORIES_PAR_MODE: Record<ModeApp, { key: LiftCategory; cle: CleTraduction; court: string }[]> = {
   powerlifting: [
-    { key: 'squat', label: 'Squat', court: 'SQ' },
-    { key: 'bench', label: 'Bench', court: 'BP' },
-    { key: 'deadlift', label: 'Deadlift', court: 'DL' },
+    { key: 'squat', cle: 'catSquat', court: 'SQ' },
+    { key: 'bench', cle: 'catBench', court: 'BP' },
+    { key: 'deadlift', cle: 'catDeadlift', court: 'DL' },
   ],
   fitness: [
-    { key: 'squat', label: 'Jambes', court: 'JBS' },
-    { key: 'bench', label: 'Poussée', court: 'PUSH' },
-    { key: 'deadlift', label: 'Tirage', court: 'PULL' },
+    { key: 'squat', cle: 'catJambes', court: 'JBS' },
+    { key: 'bench', cle: 'catPoussee', court: 'PUSH' },
+    { key: 'deadlift', cle: 'catTirage', court: 'PULL' },
   ],
 }
 
@@ -250,16 +251,16 @@ export function classifyLift(name: string | null | undefined, mode: ModeApp = 'p
 // Drapeau douleur (suivi de désensibilisation — rééducation)
 // ————————————————————————————————————————————————
 
-export const PAIN_LEVELS = [
-  { value: 0, label: 'OK', emoji: '🟢' },
-  { value: 1, label: 'Gêne', emoji: '🟡' },
-  { value: 2, label: 'Douleur', emoji: '🟠' },
-  { value: 3, label: 'Stop', emoji: '🔴' },
-] as const
+export const PAIN_LEVELS: { value: number; cle: CleTraduction; emoji: string }[] = [
+  { value: 0, cle: 'douleurOk', emoji: '🟢' },
+  { value: 1, cle: 'douleurGene', emoji: '🟡' },
+  { value: 2, cle: 'douleurDouleur', emoji: '🟠' },
+  { value: 3, cle: 'douleurStop', emoji: '🔴' },
+]
 
-export function painLabel(level: number | null | undefined): string | null {
+export function painLabel(level: number | null | undefined, t: (cle: CleTraduction) => string): string | null {
   const p = PAIN_LEVELS.find((l) => l.value === level)
-  return p ? `${p.emoji} ${p.label}` : null
+  return p ? `${p.emoji} ${t(p.cle)}` : null
 }
 
 // ————————————————————————————————————————————————

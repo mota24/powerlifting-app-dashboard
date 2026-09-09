@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Play, Pause, X, RotateCcw, Minus, Plus, Flag, Volume2, VolumeX } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useT } from '@/app/ThemeContext'
+import type { CleTraduction } from '@/lib/i18n'
 
 // ————————————————————————————————————————————————
 // Générateur de son (Web Audio API)
@@ -129,14 +131,15 @@ const formatDuree = (totalSec: number) => {
 }
 
 // Couleurs professionnelles, brutes et saturées (style app élite)
-const PHASE_META: Record<PhaseKind, { label: string; bg: string; text: string; urgentBg: string }> = {
-  prep: { label: 'PRÉPARATION', bg: 'bg-yellow-500', text: 'text-black', urgentBg: 'bg-yellow-400' },
-  work: { label: 'TRAVAIL', bg: 'bg-zinc-950', text: 'text-white', urgentBg: 'bg-zinc-900' },
-  rest: { label: 'REPOS', bg: 'bg-white', text: 'text-black', urgentBg: 'bg-zinc-200' },
-  longRest: { label: 'REPOS LONG', bg: 'bg-zinc-800', text: 'text-white', urgentBg: 'bg-zinc-700' },
+const PHASE_META: Record<PhaseKind, { cle: CleTraduction; bg: string; text: string; urgentBg: string }> = {
+  prep: { cle: 'phasePreparation', bg: 'bg-yellow-500', text: 'text-black', urgentBg: 'bg-yellow-400' },
+  work: { cle: 'phaseTravail', bg: 'bg-zinc-950', text: 'text-white', urgentBg: 'bg-zinc-900' },
+  rest: { cle: 'phaseRepos', bg: 'bg-white', text: 'text-black', urgentBg: 'bg-zinc-200' },
+  longRest: { cle: 'phaseReposLong', bg: 'bg-zinc-800', text: 'text-white', urgentBg: 'bg-zinc-700' },
 }
 
 export default function CircuitTimer({ onClose }: Props) {
+  const t = useT()
   const [config, setConfig] = useState<CircuitConfig>(DEFAULT_CONFIG)
   const [status, setStatus] = useState<Status>('config')
   const [phaseIndex, setPhaseIndex] = useState(0)
@@ -343,22 +346,22 @@ export default function CircuitTimer({ onClose }: Props) {
       {status === 'config' && (
         <div className="flex-1 overflow-y-auto px-6 pb-6">
           <div className="mx-auto w-full max-w-md space-y-2">
-            <Stepper label="Préparation" unit="s" value={config.prep} min={0} max={60} step={5} onChange={(v) => patchConfig({ prep: v })} />
-            <Stepper label="Exercices" value={config.exercices} min={1} max={20} step={1} onChange={(v) => patchConfig({ exercices: v })} />
+            <Stepper label={t('preparation')} unit="s" value={config.prep} min={0} max={60} step={5} onChange={(v) => patchConfig({ prep: v })} />
+            <Stepper label={t('exercices')} value={config.exercices} min={1} max={20} step={1} onChange={(v) => patchConfig({ exercices: v })} />
 
             <div className="space-y-2 py-2">
-              <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 pl-1">Durées de travail</h3>
+              <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 pl-1">{t('dureesTravail')}</h3>
               {normalizeWorkTimes(config.workTimes, config.exercices).map((duree, i) => (
                 <Stepper key={i} label={`Exercice ${i + 1}`} unit="s" value={duree} min={WORK_MIN} max={WORK_MAX} step={5} onChange={(v) => setWorkTime(i, v)} />
               ))}
             </div>
 
-            <Stepper label="Repos (Inter-exercice)" unit="s" value={config.rest} min={0} max={3600} step={5} onChange={(v) => patchConfig({ rest: v })} />
-            <Stepper label="Tours" value={config.tours} min={1} max={20} step={1} onChange={(v) => patchConfig({ tours: v })} />
-            <Stepper label="Repos (Inter-tour)" unit="s" value={config.longRest} min={0} max={3600} step={5} onChange={(v) => patchConfig({ longRest: v })} />
+            <Stepper label={t('reposInterExercice')} unit="s" value={config.rest} min={0} max={3600} step={5} onChange={(v) => patchConfig({ rest: v })} />
+            <Stepper label={t('tours')} value={config.tours} min={1} max={20} step={1} onChange={(v) => patchConfig({ tours: v })} />
+            <Stepper label={t('reposInterTour')} unit="s" value={config.longRest} min={0} max={3600} step={5} onChange={(v) => patchConfig({ longRest: v })} />
 
             <div className="flex items-center justify-between py-6 px-2 mt-4 border-t border-zinc-900">
-              <span className="text-sm font-medium text-zinc-400">Durée totale</span>
+              <span className="text-sm font-medium text-zinc-400">{t('dureeTotale')}</span>
               <span className="text-xl font-bold text-white">{formatDuree(dureeTotale)}</span>
             </div>
 
@@ -376,7 +379,7 @@ export default function CircuitTimer({ onClose }: Props) {
       {enCours && phase && (
         <div className="flex-1 flex flex-col items-center justify-center px-4 pb-12 select-none">
           <div className={cn('text-sm font-bold uppercase tracking-[0.4em] mb-4', meta.text)}>
-            {status === 'paused' ? 'PAUSE' : meta.label}
+            {status === 'paused' ? 'PAUSE' : t(meta.cle)}
           </div>
 
           <div
@@ -419,7 +422,7 @@ export default function CircuitTimer({ onClose }: Props) {
       {status === 'finished' && (
         <div className="flex-1 flex flex-col items-center justify-center px-4 pb-8 text-center bg-black">
           <Flag className="size-10 text-white mb-6" />
-          <div className="text-2xl font-bold tracking-widest uppercase text-white mb-2">Terminé</div>
+          <div className="text-2xl font-bold tracking-widest uppercase text-white mb-2">{t('termine')}</div>
           <p className="text-zinc-500 font-medium mb-12">
             {config.tours} tours · {formatDuree(dureeTotale)}
           </p>

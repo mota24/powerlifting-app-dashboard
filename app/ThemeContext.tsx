@@ -1,9 +1,10 @@
 'use client'
 
-import React, { createContext, useContext, useEffect } from 'react';
+import React, { createContext, useContext, useEffect, useMemo } from 'react';
 import type { ModeApp } from '@/lib/powerlifting';
+import { traducteurPour, LOCALES, type Langue } from '@/lib/i18n';
 
-export type Langue = 'fr' | 'ca';
+export type { Langue };
 type EtatProfil = { theme: string; mode: ModeApp; prenom: string | null; langue: Langue };
 
 const ThemeContext = createContext<EtatProfil>({ theme: 'dark', mode: 'powerlifting', prenom: null, langue: 'fr' });
@@ -34,3 +35,12 @@ export const ThemeProvider = ({
 };
 
 export const useTheme = () => useContext(ThemeContext);
+
+/** Traducteur lié à la langue du profil courant. */
+export const useT = () => {
+  const { langue } = useContext(ThemeContext);
+  return useMemo(() => traducteurPour(langue), [langue]);
+};
+
+/** Étiquette de locale, pour les dates et les nombres. */
+export const useLocale = () => LOCALES[useContext(ThemeContext).langue];

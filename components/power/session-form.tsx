@@ -3,7 +3,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { toLocalDateStr, sessionTonnage, setsTonnage, bestE1RM, classifyLift, suggestionsExercices, ACCESSORIES, FIT_ACCESSOIRES, PAIN_LEVELS, type SetData, type LiftCategory, type UpcomingCompetition } from '@/lib/powerlifting'
-import { useTheme } from '@/app/ThemeContext'
+import { useTheme, useT, useLocale } from '@/app/ThemeContext'
 import { countryCodeToFlag } from '@/lib/countries'
 import { Activity, Check, Coffee, Plus, Trash2, X, Copy, RefreshCw, Award, Sparkles, ChevronUp, ChevronDown, Dumbbell, Trophy } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -18,7 +18,7 @@ const videSet = (): SetData => ({ reps: '', weight: '', rpe: '' })
 const creerExerciceVierge = (): ExerciceRow => ({ id: null, uid: crypto.randomUUID(), name: '', coachTracking: [videSet()], tracking: [videSet()], comments: '', painLevel: null, })
 const safeInt = (v: string, fallback = 0) => { const n = parseInt(v, 10); return Number.isFinite(n) ? n : fallback }
 const safeFloat = (v: string, fallback = 0) => { const n = parseFloat(v); return Number.isFinite(n) ? n : fallback }
-const formatDateAffichage = (dateStr: string) => { const [y, m, d] = dateStr.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('fr-FR') }
+const formatDateAffichage = (dateStr: string, locale: string) => { const [y, m, d] = dateStr.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString(locale) }
 
 export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMode, pasDuJour, setDateActive, nextCompetition, onGoToPalmares }: Props) {
   const [exercices, setExercices] = useState<ExerciceRow[]>([])
@@ -48,29 +48,32 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
   const dateFormatee = toLocalDateStr(dateActive)
   const jourSemaine = dateActive.getDay()
   const { mode } = useTheme()
+  const t = useT()
+  const locale = useLocale()
+  const estFitness = mode === 'fitness'
   const suggestionsDuJour = useMemo(() => suggestionsExercices(mode, jourSemaine), [mode, jourSemaine])
 
   const pasDuJourRef = useRef(pasDuJour)
   useEffect(() => { pasDuJourRef.current = pasDuJour; if (pasDuJour !== null) setPas(pasDuJour) }, [pasDuJour])
 
-  useEffect(() => { let cancelled = false; loadedDateRef.current = null; const chargerSeance = async () => { const { data, error } = await supabase.from('workout_sets').select('*').eq('date', dateFormatee).order('order_index', { ascending: true }); if (cancelled) return; if (error) { toast('Erreur de chargement', 'error'); return } const rows = (data ?? []) as WorkoutSetRow[]; if (rows.length > 0) { const isExplicitRest = rows.some((item) => REST_NAMES.includes(item.exercise_name ?? '')); const vraisExercices = rows.filter((item) => !REST_NAMES.includes(item.exercise_name ?? '')); if (isExplicitRest && vraisExercices.length === 0) setIsRestDayMode(true); else if (vraisExercices.length > 0) setIsRestDayMode(false); else setIsRestDayMode(jourSemaine === 0 || jourSemaine === 5); if (vraisExercices.length > 0) { setExercices(vraisExercices.map((item) => { const fallbackCoach: SetData[] = item.coach_reps ? [{ reps: String(item.coach_reps), weight: item.coach_weight != null ? String(item.coach_weight) : '', rpe: item.coach_rpe != null ? String(item.coach_rpe) : '' }] : [videSet()]; const coachTracking = item.coach_tracking_data ?? fallbackCoach; const tracking = [...(item.tracking_data ?? [videSet()])]; while (tracking.length < coachTracking.length) tracking.push(videSet()); return { id: item.id, uid: crypto.randomUUID(), name: item.exercise_name ?? '', coachTracking, tracking, comments: item.comments ?? '', painLevel: item.pain_level ?? null, } })) } else { setExercices([creerExerciceVierge()]) } const derniereLigne = rows[rows.length - 1]; setFatigue(derniereLigne.fatigue_score ?? 5); setSommeil(derniereLigne.sleep_hours ?? 8); setPas(pasDuJourRef.current ?? derniereLigne.steps_count ?? 0) } else { setIsRestDayMode(jourSemaine === 0 || jourSemaine === 5); setExercices([creerExerciceVierge()]); setFatigue(5); setSommeil(8); setPas(pasDuJourRef.current ?? 0) } loadedDateRef.current = dateFormatee }; chargerSeance(); return () => { cancelled = true } }, [dateFormatee, jourSemaine, setIsRestDayMode])
+  useEffect(() => { let cancelled = false; loadedDateRef.current = null; const chargerSeance = async () => { const { data, error } = await supabase.from('workout_sets').select('*').eq('date', dateFormatee).order('order_index', { ascending: true }); if (cancelled) return; if (error) { toast(t('erreurChargement'), 'error'); return } const rows = (data ?? []) as WorkoutSetRow[]; if (rows.length > 0) { const isExplicitRest = rows.some((item) => REST_NAMES.includes(item.exercise_name ?? '')); const vraisExercices = rows.filter((item) => !REST_NAMES.includes(item.exercise_name ?? '')); if (isExplicitRest && vraisExercices.length === 0) setIsRestDayMode(true); else if (vraisExercices.length > 0) setIsRestDayMode(false); else setIsRestDayMode(jourSemaine === 0 || jourSemaine === 5); if (vraisExercices.length > 0) { setExercices(vraisExercices.map((item) => { const fallbackCoach: SetData[] = item.coach_reps ? [{ reps: String(item.coach_reps), weight: item.coach_weight != null ? String(item.coach_weight) : '', rpe: item.coach_rpe != null ? String(item.coach_rpe) : '' }] : [videSet()]; const coachTracking = item.coach_tracking_data ?? fallbackCoach; const tracking = [...(item.tracking_data ?? [videSet()])]; while (tracking.length < coachTracking.length) tracking.push(videSet()); return { id: item.id, uid: crypto.randomUUID(), name: item.exercise_name ?? '', coachTracking, tracking, comments: item.comments ?? '', painLevel: item.pain_level ?? null, } })) } else { setExercices([creerExerciceVierge()]) } const derniereLigne = rows[rows.length - 1]; setFatigue(derniereLigne.fatigue_score ?? 5); setSommeil(derniereLigne.sleep_hours ?? 8); setPas(pasDuJourRef.current ?? derniereLigne.steps_count ?? 0) } else { setIsRestDayMode(jourSemaine === 0 || jourSemaine === 5); setExercices([creerExerciceVierge()]); setFatigue(5); setSommeil(8); setPas(pasDuJourRef.current ?? 0) } loadedDateRef.current = dateFormatee }; chargerSeance(); return () => { cancelled = true } }, [dateFormatee, jourSemaine, setIsRestDayMode, t])
   useEffect(() => { let cancelled = false; const fetchSemainePrec = async () => { const d = new Date(dateActive); d.setDate(d.getDate() - 7); const { data } = await supabase.from('workout_sets').select('tracking_data').eq('date', toLocalDateStr(d)); if (cancelled) return; const total = (data ?? []).reduce((sum, row) => sum + setsTonnage(row.tracking_data as SetData[] | null), 0); setTonnageSemainePrec(total > 0 ? Math.round(total) : null) }; fetchSemainePrec(); return () => { cancelled = true } }, [dateFormatee])
-  const handleToggleMode = () => { if (!isRestDayMode && exercices.length > 0 && exercices[0].name !== '') { if (!confirm('Effacer la séance pour passer en Repos ?')) return } setIsRestDayMode(!isRestDayMode) }
+  const handleToggleMode = () => { if (!isRestDayMode && exercices.length > 0 && exercices[0].name !== '') { if (!confirm(t('effacerPourRepos'))) return } setIsRestDayMode(!isRestDayMode) }
   const executerSauvegarde = async (dateStr: string): Promise<boolean> => { if (typeof navigator !== 'undefined' && !navigator.onLine) return false; if (isRestDayMode) { const payload = { date: dateStr, exercise_name: 'Jour de Repos', fatigue_score: fatigue, sleep_hours: sommeil, steps_count: pas }; const del = await supabase.from('workout_sets').delete().eq('date', dateStr).neq('exercise_name', 'Jour de Repos'); if (del.error) return false; const { data, error: selError } = await supabase.from('workout_sets').select('id').eq('date', dateStr).limit(1); if (selError) return false; if (data && data.length > 0) { const { error } = await supabase.from('workout_sets').update(payload).eq('id', data[0].id); return !error } const { error } = await supabase.from('workout_sets').insert([payload]); return !error } const delRest = await supabase.from('workout_sets').delete().eq('date', dateStr).in('exercise_name', REST_NAMES); if (delRest.error) return false; const snapshot = exercices; type SaveResult = { data: { id: string } | null; error: { message: string } | null }; const sauver = async (includePain: boolean): Promise<SaveResult[]> => { const buildPayload = (ex: ExerciceRow, index: number) => { const payload: Record<string, unknown> = { date: dateStr, exercise_name: ex.name || 'Exercice Non Défini', coach_tracking_data: ex.coachTracking, tracking_data: ex.tracking, comments: ex.comments || null, fatigue_score: fatigue, sleep_hours: sommeil, steps_count: pas, order_index: index, }; if (includePain) payload.pain_level = ex.painLevel; return payload }; return Promise.all(snapshot.map(async (ex, index): Promise<SaveResult> => { if (ex.id) { const { error } = await supabase.from('workout_sets').update(buildPayload(ex, index)).eq('id', ex.id); return { data: null, error } } const { data, error } = await supabase.from('workout_sets').insert([buildPayload(ex, index)]).select('id').single(); return { data: data as { id: string } | null, error } })) }; let results = await sauver(painColumnOk.current); if (painColumnOk.current && results.some((r) => r.error?.message?.includes('pain_level'))) { painColumnOk.current = false; results = await sauver(false) } const idByUid = new Map<string, string>(); snapshot.forEach((ex, i) => { const r = results[i]; if (!ex.id && r?.data?.id) idByUid.set(ex.uid, r.data.id) }); if (idByUid.size > 0) { setExercices((prev) => prev.map((ex) => { const newId = idByUid.get(ex.uid); return newId ? { ...ex, id: newId } : ex })) } return results.every((r) => !r.error) }
   useEffect(() => { if (loadedDateRef.current !== dateFormatee) return; if (!isRestDayMode && exercices.length === 0) return; const timeoutId = setTimeout(async () => { const ok = await executerSauvegarde(dateFormatee); if (ok) { setLastSaved(new Date()); if (savePendingRef.current) marquerPending(false) } else { marquerPending(true) } }, 1500); return () => clearTimeout(timeoutId) }, [exercices, fatigue, sommeil, pas, isRestDayMode, dateFormatee])
   const sauvegardeRef = useRef(executerSauvegarde); useEffect(() => { sauvegardeRef.current = executerSauvegarde })
-  useEffect(() => { setIsOnline(navigator.onLine); const onOnline = async () => { setIsOnline(true); if (!savePendingRef.current || loadedDateRef.current === null) return; const ok = await sauvegardeRef.current(loadedDateRef.current); if (ok) { marquerPending(false); setLastSaved(new Date()); toast('Synchronisé', 'success') } }; const onOffline = () => setIsOnline(false); window.addEventListener('online', onOnline); window.addEventListener('offline', onOffline); return () => { window.removeEventListener('online', onOnline); window.removeEventListener('offline', onOffline) } }, [])
-  const handleAIGeneration = async () => { if (!aiPrompt.trim()) return; let aiConsent = false; try { aiConsent = localStorage.getItem('powerapp_ai_consent') === '1' } catch { } if (!aiConsent) { const ok = confirm("Autoriser l'IA ?"); if (!ok) return; try { localStorage.setItem('powerapp_ai_consent', '1') } catch { } } setIsGenerating(true); try { const res = await fetch('/api/coach', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-ai-consent': '1' }, body: JSON.stringify({ prompt: aiPrompt }), }); if (!res.ok) throw new Error('Erreur API'); const aiData = (await res.json()) as { name: string; comments: string; coachTracking: SetData[] }[]; const newExercices: ExerciceRow[] = aiData.map((ex) => { const coachTracking = ex.coachTracking?.length ? ex.coachTracking : [videSet()]; return { id: null, uid: crypto.randomUUID(), name: ex.name, comments: ex.comments || '', coachTracking, tracking: coachTracking.map(() => videSet()), painLevel: null, } }); setExercices((prev) => prev.length === 1 && prev[0].name === '' ? newExercices : [...prev, ...newExercices]); setAiPrompt('') } catch (e) { toast('Erreur IA', 'error') } finally { setIsGenerating(false) } }
-  const validerMission = async () => { setIsValidating(true); const savedOk = await executerSauvegarde(dateFormatee); if (!savedOk) { marquerPending(true); toast('Sauvegarde impossible', 'error'); setIsValidating(false); return } try { const { data } = await supabase.from('user_progress').select('*').limit(1).single(); const progress = data as UserProgress | null; if (!progress) throw new Error('Profil introuvable'); if (progress.last_completed_date === dateFormatee) { toast('Déjà validé !', 'info'); return } const currentStreak = progress.streak_days ?? 0; let newStreak = currentStreak; const today = new Date(dateFormatee); const lastDate = progress.last_completed_date ? new Date(progress.last_completed_date) : null; if (lastDate) { const diffTime = Math.abs(today.getTime() - lastDate.getTime()); const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); if (diffDays === 1) { newStreak += 1 } else if (diffDays > 1) { let brokeStreak = false; for (let i = 1; i < diffDays; i++) { const missingDate = new Date(lastDate); missingDate.setDate(missingDate.getDate() + i); const missingDay = missingDate.getDay(); if (missingDay !== 0 && missingDay !== 5) { brokeStreak = true; break } } newStreak = brokeStreak ? 1 : newStreak + 1 } } else { newStreak = 1 } let baseXP = 0; if (isRestDayMode) { baseXP = 50 } else { baseXP += 50; if (pas >= 8000) baseXP += 25; if (sommeil >= 7.5) baseXP += 25; const hasMainLifts = exercices.some((ex) => classifyLift(ex.name, mode) !== null); if (hasMainLifts) baseXP += 50; const listeAccessoires = mode === 'fitness' ? FIT_ACCESSOIRES : ACCESSORIES; const hasAccessories = exercices.some((ex) => listeAccessoires.includes(ex.name)); if (hasAccessories) baseXP += 50 } let multiplier = 1; if (newStreak >= 7) multiplier = 1.5; else if (newStreak >= 5) multiplier = 1.25; else if (newStreak >= 3) multiplier = 1.1; const finalXP = Math.round(baseXP * multiplier); let newLevel = progress.level; let newCurrentXP = progress.current_xp + finalXP; const newTotalXP = progress.total_xp + finalXP; let xpNeeded = newLevel * 1000; let aLevelUp = false; while (newCurrentXP >= xpNeeded) { newCurrentXP -= xpNeeded; newLevel += 1; xpNeeded = newLevel * 1000; aLevelUp = true } await supabase.from('user_progress').update({ level: newLevel, current_xp: newCurrentXP, total_xp: newTotalXP, streak_days: newStreak, last_completed_date: dateFormatee, }).eq('id', progress.id); window.dispatchEvent(new Event('user-progress-updated')); setXpGained(finalXP); setNewStreakState(newStreak); setLeveledUp(aLevelUp); setShowModal(true) } catch (e) { toast('Erreur', 'error') } finally { setIsValidating(false) } }
-  const propagerSemaine1VersBloc = async () => { if (!confirm('Propager sur 4 semaines ?')) return; setIsPropagating(true); try { const savedOk = await executerSauvegarde(dateFormatee); if (!savedOk) throw new Error('Sauvegarde impossible'); const { data: semaine1Data, error: fetchError } = await supabase.from('workout_sets').select('*').eq('date', dateFormatee); if (fetchError) throw fetchError; if (!semaine1Data || semaine1Data.length === 0) throw new Error('Vide'); const deltas = [7, 14, 21, 28]; const insertions: Record<string, unknown>[] = []; for (const delta of deltas) { const dateCible = new Date(dateActive); dateCible.setDate(dateCible.getDate() + delta); const dateCibleStr = toLocalDateStr(dateCible); await supabase.from('workout_sets').delete().eq('date', dateCibleStr); for (const item of semaine1Data as WorkoutSetRow[]) { const { id: _id, ...dataToCopy } = item as WorkoutSetRow & { created_at?: string }; delete (dataToCopy as { created_at?: string }).created_at; insertions.push({ ...dataToCopy, date: dateCibleStr }) } } const { error: insertError } = await supabase.from('workout_sets').insert(insertions); if (insertError) throw insertError; toast('Propagé', 'success') } catch (e) { toast('Erreur', 'error') } finally { setIsPropagating(false) } }
-  const reinitialiserFutur = async () => { if (!confirm("Tout effacer le futur ?")) return; setIsResetting(true); try { const demain = new Date(dateActive); demain.setDate(demain.getDate() + 1); const { error } = await supabase.from('workout_sets').delete().gte('date', toLocalDateStr(demain)); if (error) throw error; toast('Réinitialisé', 'success') } catch (e) { toast('Erreur', 'error') } finally { setIsResetting(false) } }
+  useEffect(() => { setIsOnline(navigator.onLine); const onOnline = async () => { setIsOnline(true); if (!savePendingRef.current || loadedDateRef.current === null) return; const ok = await sauvegardeRef.current(loadedDateRef.current); if (ok) { marquerPending(false); setLastSaved(new Date()); toast(t('synchronise'), 'success') } }; const onOffline = () => setIsOnline(false); window.addEventListener('online', onOnline); window.addEventListener('offline', onOffline); return () => { window.removeEventListener('online', onOnline); window.removeEventListener('offline', onOffline) } }, [t])
+  const handleAIGeneration = async () => { if (!aiPrompt.trim()) return; let aiConsent = false; try { aiConsent = localStorage.getItem('powerapp_ai_consent') === '1' } catch { } if (!aiConsent) { const ok = confirm(t('autoriserIA')); if (!ok) return; try { localStorage.setItem('powerapp_ai_consent', '1') } catch { } } setIsGenerating(true); try { const res = await fetch('/api/coach', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-ai-consent': '1' }, body: JSON.stringify({ prompt: aiPrompt }), }); if (!res.ok) throw new Error('Erreur API'); const aiData = (await res.json()) as { name: string; comments: string; coachTracking: SetData[] }[]; const newExercices: ExerciceRow[] = aiData.map((ex) => { const coachTracking = ex.coachTracking?.length ? ex.coachTracking : [videSet()]; return { id: null, uid: crypto.randomUUID(), name: ex.name, comments: ex.comments || '', coachTracking, tracking: coachTracking.map(() => videSet()), painLevel: null, } }); setExercices((prev) => prev.length === 1 && prev[0].name === '' ? newExercices : [...prev, ...newExercices]); setAiPrompt('') } catch (e) { toast(t('erreurIA'), 'error') } finally { setIsGenerating(false) } }
+  const validerMission = async () => { setIsValidating(true); const savedOk = await executerSauvegarde(dateFormatee); if (!savedOk) { marquerPending(true); toast(t('sauvegardeImpossible'), 'error'); setIsValidating(false); return } try { const { data } = await supabase.from('user_progress').select('*').limit(1).single(); const progress = data as UserProgress | null; if (!progress) throw new Error('Profil introuvable'); if (progress.last_completed_date === dateFormatee) { toast(t('dejaValide'), 'info'); return } const currentStreak = progress.streak_days ?? 0; let newStreak = currentStreak; const today = new Date(dateFormatee); const lastDate = progress.last_completed_date ? new Date(progress.last_completed_date) : null; if (lastDate) { const diffTime = Math.abs(today.getTime() - lastDate.getTime()); const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); if (diffDays === 1) { newStreak += 1 } else if (diffDays > 1) { let brokeStreak = false; for (let i = 1; i < diffDays; i++) { const missingDate = new Date(lastDate); missingDate.setDate(missingDate.getDate() + i); const missingDay = missingDate.getDay(); if (missingDay !== 0 && missingDay !== 5) { brokeStreak = true; break } } newStreak = brokeStreak ? 1 : newStreak + 1 } } else { newStreak = 1 } let baseXP = 0; if (isRestDayMode) { baseXP = 50 } else { baseXP += 50; if (pas >= 8000) baseXP += 25; if (sommeil >= 7.5) baseXP += 25; const hasMainLifts = exercices.some((ex) => classifyLift(ex.name, mode) !== null); if (hasMainLifts) baseXP += 50; const listeAccessoires = mode === 'fitness' ? FIT_ACCESSOIRES : ACCESSORIES; const hasAccessories = exercices.some((ex) => listeAccessoires.includes(ex.name)); if (hasAccessories) baseXP += 50 } let multiplier = 1; if (newStreak >= 7) multiplier = 1.5; else if (newStreak >= 5) multiplier = 1.25; else if (newStreak >= 3) multiplier = 1.1; const finalXP = Math.round(baseXP * multiplier); let newLevel = progress.level; let newCurrentXP = progress.current_xp + finalXP; const newTotalXP = progress.total_xp + finalXP; let xpNeeded = newLevel * 1000; let aLevelUp = false; while (newCurrentXP >= xpNeeded) { newCurrentXP -= xpNeeded; newLevel += 1; xpNeeded = newLevel * 1000; aLevelUp = true } await supabase.from('user_progress').update({ level: newLevel, current_xp: newCurrentXP, total_xp: newTotalXP, streak_days: newStreak, last_completed_date: dateFormatee, }).eq('id', progress.id); window.dispatchEvent(new Event('user-progress-updated')); setXpGained(finalXP); setNewStreakState(newStreak); setLeveledUp(aLevelUp); setShowModal(true) } catch (e) { toast(t('erreur'), 'error') } finally { setIsValidating(false) } }
+  const propagerSemaine1VersBloc = async () => { if (!confirm(t('propager'))) return; setIsPropagating(true); try { const savedOk = await executerSauvegarde(dateFormatee); if (!savedOk) throw new Error('Sauvegarde impossible'); const { data: semaine1Data, error: fetchError } = await supabase.from('workout_sets').select('*').eq('date', dateFormatee); if (fetchError) throw fetchError; if (!semaine1Data || semaine1Data.length === 0) throw new Error('Vide'); const deltas = [7, 14, 21, 28]; const insertions: Record<string, unknown>[] = []; for (const delta of deltas) { const dateCible = new Date(dateActive); dateCible.setDate(dateCible.getDate() + delta); const dateCibleStr = toLocalDateStr(dateCible); await supabase.from('workout_sets').delete().eq('date', dateCibleStr); for (const item of semaine1Data as WorkoutSetRow[]) { const { id: _id, ...dataToCopy } = item as WorkoutSetRow & { created_at?: string }; delete (dataToCopy as { created_at?: string }).created_at; insertions.push({ ...dataToCopy, date: dateCibleStr }) } } const { error: insertError } = await supabase.from('workout_sets').insert(insertions); if (insertError) throw insertError; toast(t('propage'), 'success') } catch (e) { toast(t('erreur'), 'error') } finally { setIsPropagating(false) } }
+  const reinitialiserFutur = async () => { if (!confirm(t('effacerFutur'))) return; setIsResetting(true); try { const demain = new Date(dateActive); demain.setDate(demain.getDate() + 1); const { error } = await supabase.from('workout_sets').delete().gte('date', toLocalDateStr(demain)); if (error) throw error; toast(t('reinitialise'), 'success') } catch (e) { toast(t('erreur'), 'error') } finally { setIsResetting(false) } }
 
   const handleSwapDate = async (newDateStr: string) => {
     if (newDateStr === dateFormatee || isSwappingDate) return
     setIsSwappingDate(true)
     try {
       const savedOk = await executerSauvegarde(dateFormatee)
-      if (!savedOk) { toast('Sauvegarde impossible avant le changement de date', 'error'); return }
+      if (!savedOk) { toast(t('sauvegardeImpossibleAvantDate'), 'error'); return }
 
       const { data: rowsB, error: fetchBError } = await supabase.from('workout_sets').select('id').eq('date', newDateStr)
       if (fetchBError) throw fetchBError
@@ -87,17 +90,17 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
         }
         const { error: errB } = await supabase.from('workout_sets').update({ date: dateFormatee }).in('id', idsB)
         if (errB) throw errB
-        toast(`Séances interverties avec le ${formatDateAffichage(newDateStr)}`, 'success')
+        toast(t('seancesInterverties', { date: formatDateAffichage(newDateStr, locale) }), 'success')
       } else {
         const { error } = await supabase.from('workout_sets').update({ date: newDateStr }).eq('date', dateFormatee)
         if (error) throw error
-        toast(`Séance déplacée au ${formatDateAffichage(newDateStr)}`, 'success')
+        toast(t('seanceDeplacee', { date: formatDateAffichage(newDateStr, locale) }), 'success')
       }
 
       const [annee, mois, jour] = newDateStr.split('-').map(Number)
       setDateActive(new Date(annee, mois - 1, jour))
     } catch (e) {
-      toast('Erreur lors du changement de date', 'error')
+      toast(t('erreurChangementDate'), 'error')
     } finally {
       setIsSwappingDate(false)
     }
@@ -115,7 +118,7 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
       newList[setIndex] = { ...newList[setIndex], [champ]: valeur };
       ex[list] = newList;
       
-      if (list === 'tracking' && champ === 'rpe' && valeur !== '') {
+      if (mode !== 'fitness' && list === 'tracking' && champ === 'rpe' && valeur !== '') {
         const actualRpe = parseFloat(valeur);
         const coachRpe = parseFloat(ex.coachTracking[setIndex]?.rpe || '0');
         
@@ -139,7 +142,7 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
             }
           }
           if (didDrop) {
-            toast(`Fatigue détectée (RPE ${actualRpe} > ${coachRpe}). Charges suivantes réduites !`, 'info');
+            toast(t('fatigueDetectee', { actuel: actualRpe, prevu: coachRpe }), 'info');
           }
         }
       }
@@ -147,7 +150,7 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
       newExercices[exIndex] = ex;
       return newExercices;
     });
-  }, [])
+  }, [mode, t])
   const ajouterSerie = useCallback((exIndex: number, list: 'coachTracking' | 'tracking') => { setExercices((prev) => prev.map((ex, i) => { if (i !== exIndex) return ex; if (list === 'coachTracking') return { ...ex, coachTracking: [...ex.coachTracking, videSet()], tracking: [...ex.tracking, videSet()] }; return { ...ex, tracking: [...ex.tracking, videSet()] } })) }, [])
   const supprimerSerie = useCallback((exIndex: number, list: 'coachTracking' | 'tracking', setIndex: number) => { setExercices((prev) => prev.map((ex, i) => { if (i !== exIndex) return ex; if (list === 'coachTracking') { const coachTracking = ex.coachTracking.filter((_, j) => j !== setIndex); const tracking = ex.tracking.length > coachTracking.length ? ex.tracking.filter((_, j) => j !== setIndex) : ex.tracking; return { ...ex, coachTracking, tracking } } return { ...ex, tracking: ex.tracking.filter((_, j) => j !== setIndex) } })) }, [])
   const copierCoach = useCallback((exIndex: number) => { setExercices((prev) => prev.map((ex, i) => { if (i !== exIndex) return ex; const tracking: SetData[] = ex.coachTracking.map((cSet, j) => ({ reps: cSet.reps, weight: cSet.weight, rpe: ex.tracking[j]?.rpe ?? '', })); if (ex.tracking.length > ex.coachTracking.length) { tracking.push(...ex.tracking.slice(ex.coachTracking.length)) } return { ...ex, tracking } })) }, [])
@@ -202,11 +205,11 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
           ) : (
             <h2
               onDoubleClick={() => !isSwappingDate && setIsEditingDate(true)}
-              title="Double-clique pour déplacer ou intervertir cette séance"
+              title={t('doubleCliquerDeplacer')}
               className="text-xl font-black text-foreground uppercase tracking-widest flex items-center gap-3 cursor-pointer select-none"
             >
               {isRestDayMode ? <Coffee className="size-5" /> : <Activity className="size-5" />}
-              {isRestDayMode ? 'RÉCUPÉRATION' : `SÉANCE DU ${dateActive.toLocaleDateString('fr-FR')}`}
+              {isRestDayMode ? t('recuperation') : t('seanceDu', { date: dateActive.toLocaleDateString(locale) })}
               {isSwappingDate && <RefreshCw className="size-4 animate-spin text-muted-foreground" />}
             </h2>
           )}
@@ -214,10 +217,10 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
 
         <div className="flex items-center gap-4 bg-secondary p-1 rounded-xl w-full sm:w-auto justify-center">
           <button onClick={handleToggleMode} className={cn("px-6 py-3 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all", !isRestDayMode ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground")}>
-            SÉANCE
+            {t('onglletSeance')}
           </button>
           <button onClick={handleToggleMode} className={cn("px-6 py-3 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all", isRestDayMode ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground")}>
-            REPOS
+            {t('ongletRepos')}
           </button>
         </div>
       </div>
@@ -226,13 +229,13 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
         <div className="space-y-6 animate-in fade-in">
           <div className="p-8 rounded-2xl border border-border bg-card flex flex-col items-center text-center space-y-4">
             <Coffee className="size-8 text-foreground mb-2" />
-            <h2 className="text-2xl font-black uppercase tracking-widest text-foreground">REPOS ACTIF</h2>
+            <h2 className="text-2xl font-black uppercase tracking-widest text-foreground">{t('reposActif')}</h2>
           </div>
 
           <DailyMetrics fatigue={fatigue} sommeil={sommeil} pas={pas} setFatigue={setFatigue} setSommeil={setSommeil} setPas={setPas} />
 
           <button onClick={validerMission} disabled={isValidating} className="w-full p-6 rounded-full font-black text-sm uppercase tracking-widest bg-primary hover:opacity-90 text-primary-foreground transition-all flex justify-center items-center gap-3">
-            {isValidating ? <RefreshCw className="size-5 animate-spin" /> : <><Award className="size-5" /> VALIDER LE REPOS</>}
+            {isValidating ? <RefreshCw className="size-5 animate-spin" /> : <><Award className="size-5" /> {t('validerRepos')}</>}
           </button>
         </div>
       ) : (
@@ -241,10 +244,10 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
         <div className="flex flex-col sm:flex-row gap-3 p-2 bg-card border border-border rounded-2xl">
           <div className="flex-1 flex items-center gap-3 bg-secondary px-4 py-3 rounded-xl">
             <Sparkles className="size-4 text-foreground shrink-0" />
-            <input type="text" maxLength={1000} placeholder="GÉNÉRER AVEC L'IA (EX: 3X3 SQUAT 180...)" value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handleAIGeneration() }} className="w-full bg-transparent text-foreground outline-none placeholder:text-muted-foreground text-[10px] uppercase font-bold tracking-widest" disabled={isGenerating} />
+            <input type="text" maxLength={1000} placeholder={t('exempleIA')} value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handleAIGeneration() }} className="w-full bg-transparent text-foreground outline-none placeholder:text-muted-foreground text-[10px] uppercase font-bold tracking-widest" disabled={isGenerating} />
           </div>
           <button onClick={handleAIGeneration} disabled={isGenerating || !aiPrompt.trim()} className="px-8 py-3 bg-primary hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed text-primary-foreground text-[10px] uppercase tracking-widest font-black rounded-xl transition-colors">
-            {isGenerating ? <RefreshCw className="size-4 animate-spin" /> : 'GÉNÉRER'}
+            {isGenerating ? <RefreshCw className="size-4 animate-spin" /> : t('generer')}
           </button>
         </div>
 
@@ -255,17 +258,17 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
         ))}
 
         <button onClick={ajouterExercice} className="w-full py-6 border border-border hover:border-ring hover:bg-card text-muted-foreground hover:text-foreground rounded-2xl flex items-center justify-center gap-2 transition-colors text-[10px] font-bold uppercase tracking-widest">
-          <Plus className="size-4" /> Ajouter un exercice
+          <Plus className="size-4" /> {t('ajouterExercice')}
         </button>
 
         <DailyMetrics fatigue={fatigue} sommeil={sommeil} pas={pas} setFatigue={setFatigue} setSommeil={setSommeil} setPas={setPas} />
 
         <div className="p-6 rounded-2xl border border-border bg-card flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
-            <Dumbbell className="size-4 text-foreground" /> Tonnage
+            <Dumbbell className="size-4 text-foreground" /> {t('tonnage')}
           </span>
           <div className="flex items-baseline gap-3">
-            <span className="text-4xl font-black tabular-nums text-foreground">{tonnageJour.toLocaleString('fr-FR')}</span>
+            <span className="text-4xl font-black tabular-nums text-foreground">{tonnageJour.toLocaleString(locale)}</span>
             {deltaTonnage !== null && tonnageJour > 0 && (
               <span className="text-[10px] font-bold text-muted-foreground">
                 {deltaTonnage >= 0 ? '+' : ''}{deltaTonnage}% VS S-1
@@ -276,20 +279,20 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
 
         <div className="space-y-4 pt-4">
           <div className="h-4 flex items-center justify-center text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-            {savePending ? <span className="text-foreground">EN ATTENTE DE SYNC...</span> : lastSaved && `SÉCURISÉ À ${lastSaved.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
+            {savePending ? <span className="text-foreground">{t('attenteSync')}</span> : lastSaved && `SÉCURISÉ À ${lastSaved.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <button onClick={propagerSemaine1VersBloc} disabled={isPropagating} className="py-4 bg-card hover:bg-accent text-foreground rounded-xl font-bold uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 border border-border transition-colors">
-              <Copy className="size-4" /> Propager Bloc
+              <Copy className="size-4" /> {t('propagerBloc')}
             </button>
             <button onClick={reinitialiserFutur} disabled={isResetting} className="py-4 bg-card hover:bg-accent text-destructive rounded-xl font-bold uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 border border-border transition-colors">
-              <Trash2 className="size-4" /> Reset Futur
+              <Trash2 className="size-4" /> {t('resetFutur')}
             </button>
           </div>
 
           <button onClick={validerMission} disabled={isValidating} className="w-full p-6 rounded-full font-black text-sm uppercase tracking-widest bg-primary hover:opacity-90 text-primary-foreground transition-all flex justify-center items-center gap-3">
-            {isValidating ? <RefreshCw className="size-5 animate-spin" /> : <><Award className="size-5" /> TERMINER LA SÉANCE</>}
+            {isValidating ? <RefreshCw className="size-5 animate-spin" /> : <><Award className="size-5" /> {t('terminerSeance')}</>}
           </button>
         </div>
       </div>
@@ -306,14 +309,14 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
           <div className="bg-card border border-border rounded-2xl p-8 max-w-sm w-full space-y-8 shadow-2xl">
             <div className="text-center space-y-4">
               <Award className="size-12 mx-auto text-foreground" />
-              <h2 className="text-3xl font-black text-foreground tracking-widest">MISSION ACCOMPLIE</h2>
+              <h2 className="text-3xl font-black text-foreground tracking-widest">{t('missionAccomplie')}</h2>
             </div>
             <div className="bg-secondary rounded-xl p-6 space-y-4">
-              <div className="flex justify-between items-center"><span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">XP Gagné</span><span className="text-xl font-black text-foreground tabular-nums">+{xpGained}</span></div>
-              <div className="flex justify-between items-center"><span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Série</span><span className="text-lg font-black text-foreground tabular-nums">{newStreakState} J</span></div>
+              <div className="flex justify-between items-center"><span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t('xpGagne')}</span><span className="text-xl font-black text-foreground tabular-nums">+{xpGained}</span></div>
+              <div className="flex justify-between items-center"><span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t('serieStreak')}</span><span className="text-lg font-black text-foreground tabular-nums">{newStreakState} {t('jourCourt')}</span></div>
             </div>
-            {leveledUp && (<div className="text-foreground text-center font-black uppercase tracking-widest">LEVEL UP !</div>)}
-            <button onClick={() => setShowModal(false)} className="w-full py-4 bg-primary hover:opacity-90 text-primary-foreground rounded-full font-black text-xs uppercase tracking-widest transition-colors">Fermer</button>
+            {leveledUp && (<div className="text-foreground text-center font-black uppercase tracking-widest">{t('levelUp')}</div>)}
+            <button onClick={() => setShowModal(false)} className="w-full py-4 bg-primary hover:opacity-90 text-primary-foreground rounded-full font-black text-xs uppercase tracking-widest transition-colors">{t('fermer')}</button>
           </div>
         </div>
       )}
@@ -322,24 +325,25 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
 }
 
 function DailyMetrics({ fatigue, sommeil, pas, setFatigue, setSommeil, setPas }: { fatigue: number; sommeil: number; pas: number; setFatigue: (v: number) => void; setSommeil: (v: number) => void; setPas: (v: number) => void; }) {
+  const t = useT()
   return (
     <div className="p-6 sm:p-8 rounded-2xl border border-border bg-card">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="flex flex-col">
-          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3 ml-1">Fatigue (1-10)</span>
+          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3 ml-1">{t('fatigue')}</span>
           <div className="flex items-center gap-4 bg-secondary p-4 rounded-xl border border-border">
             <input type="range" min="1" max="10" value={fatigue} onChange={(e) => setFatigue(safeInt(e.target.value, 5))} className="w-full accent-primary" />
             <span className="text-xl font-black text-foreground tabular-nums">{fatigue}</span>
           </div>
         </div>
         <div className="flex flex-col">
-          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3 ml-1">Sommeil (h)</span>
+          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3 ml-1">{t('sommeil')}</span>
           <div className="bg-secondary p-4 rounded-xl border border-border">
             <input type="number" step="0.5" inputMode="decimal" value={sommeil} onChange={(e) => setSommeil(safeFloat(e.target.value))} className="w-full bg-transparent text-xl font-black tabular-nums text-foreground outline-none" />
           </div>
         </div>
         <div className="flex flex-col">
-          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3 ml-1">Pas</span>
+          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3 ml-1">{t('pas')}</span>
           <div className="bg-secondary p-4 rounded-xl border border-border">
             <input type="number" inputMode="decimal" value={pas} onChange={(e) => setPas(safeInt(e.target.value))} className="w-full bg-transparent text-xl font-black tabular-nums text-foreground outline-none" />
           </div>
@@ -353,12 +357,16 @@ interface ExerciseCardProps { ex: ExerciceRow; exIndex: number; isLast: boolean;
 
 const ExerciseCard = memo(function ExerciseCard({ ex, exIndex, isLast, listId, onPatch, onUpdateSerie, onAjouterSerie, onSupprimerSerie, onDeplacer, onSupprimer, onCopierCoach, onValiderSerie }: ExerciseCardProps) {
   const { mode } = useTheme()
+  const t = useT()
+  // Pas de RPE en mode fitness : c'est un outil d'autorégulation de
+  // powerlifteur, hors sujet pour de la muscu en salle sans compétition.
+  const avecRpe = mode !== 'fitness'
   const e1rmJour = classifyLift(ex.name, mode) ? bestE1RM(ex.tracking) : 0
   return (
     <div className="p-4 sm:p-6 rounded-2xl border border-border bg-card space-y-6">
       <div className="flex items-center gap-1.5 sm:gap-3 w-full max-w-full">
         <div className="shrink-0 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-lg font-black tabular-nums">{exIndex + 1}</div>
-        <input list={listId} placeholder="NOM DU MOUVEMENT" className="flex-1 min-w-0 p-3 bg-input border border-border rounded-xl text-foreground text-sm font-black uppercase tracking-widest outline-none focus:border-ring focus:ring-1 focus:ring-ring placeholder:text-muted-foreground transition-colors truncate" value={ex.name} onChange={(e) => onPatch(exIndex, { name: e.target.value })} />
+        <input list={listId} placeholder={t('nomDuMouvement')} className="flex-1 min-w-0 p-3 bg-input border border-border rounded-xl text-foreground text-sm font-black uppercase tracking-widest outline-none focus:border-ring focus:ring-1 focus:ring-ring placeholder:text-muted-foreground transition-colors truncate" value={ex.name} onChange={(e) => onPatch(exIndex, { name: e.target.value })} />
 
         <div className="shrink-0 flex items-center bg-secondary border border-border rounded-xl">
           <button onClick={() => onDeplacer(exIndex, 'up')} disabled={exIndex === 0} className="p-3 text-muted-foreground hover:text-foreground disabled:opacity-20 transition-colors border-r border-border"><ChevronUp className="size-4" /></button>
@@ -369,41 +377,41 @@ const ExerciseCard = memo(function ExerciseCard({ ex, exIndex, isLast, listId, o
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="p-4 rounded-xl border border-border bg-background flex flex-col h-full">
-          <h3 className="text-[10px] font-bold text-muted-foreground mb-4 uppercase tracking-widest">Prescription</h3>
-          <div className="grid grid-cols-[auto_1fr_1fr_1fr_auto] gap-2 mb-2 px-1">
-            <div className="w-6"></div><div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest text-center">Reps</div><div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest text-center">Poids</div><div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest text-center">RPE</div><div className="w-9"></div>
+          <h3 className="text-[10px] font-bold text-muted-foreground mb-4 uppercase tracking-widest">{t('prescription')}</h3>
+          <div className={cn('grid gap-2 mb-2 px-1', avecRpe ? 'grid-cols-[auto_1fr_1fr_1fr_auto]' : 'grid-cols-[auto_1fr_1fr_auto]')}>
+            <div className="w-6"></div><div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest text-center">{t('reps')}</div><div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest text-center">{t('poids')}</div>{avecRpe && <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest text-center">{t('rpe')}</div>}<div className="w-9"></div>
           </div>
           <div className="space-y-2 flex-1">
             {ex.coachTracking.map((set, setIndex) => (
-              <div key={setIndex} className="grid grid-cols-[auto_1fr_1fr_1fr_auto] gap-2 items-center">
+              <div key={setIndex} className={cn('grid gap-2 items-center', avecRpe ? 'grid-cols-[auto_1fr_1fr_1fr_auto]' : 'grid-cols-[auto_1fr_1fr_auto]')}>
                 <span className="w-6 text-[10px] font-bold text-muted-foreground text-center uppercase tracking-widest">S{setIndex + 1}</span>
                 <input type="text" value={set.reps} onChange={(e) => onUpdateSerie(exIndex, 'coachTracking', setIndex, 'reps', e.target.value)} className="w-full p-3 bg-secondary rounded-lg text-foreground text-sm font-black text-center outline-none focus:bg-accent tabular-nums" />
                 <input type="text" value={set.weight} onChange={(e) => onUpdateSerie(exIndex, 'coachTracking', setIndex, 'weight', e.target.value)} className="w-full p-3 bg-secondary rounded-lg text-foreground text-sm font-black text-center outline-none focus:bg-accent tabular-nums" />
-                <input type="text" value={set.rpe} onChange={(e) => onUpdateSerie(exIndex, 'coachTracking', setIndex, 'rpe', e.target.value)} className="w-full p-3 bg-secondary rounded-lg text-foreground text-sm font-black text-center outline-none focus:bg-accent tabular-nums" />
+                {avecRpe && <input type="text" value={set.rpe} onChange={(e) => onUpdateSerie(exIndex, 'coachTracking', setIndex, 'rpe', e.target.value)} className="w-full p-3 bg-secondary rounded-lg text-foreground text-sm font-black text-center outline-none focus:bg-accent tabular-nums" />}
                 <button onClick={() => onSupprimerSerie(exIndex, 'coachTracking', setIndex)} className="h-11 w-9 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"><X className="size-4" /></button>
               </div>
             ))}
           </div>
-          <button onClick={() => onAjouterSerie(exIndex, 'coachTracking')} className="mt-4 w-full py-3 bg-secondary text-muted-foreground hover:text-foreground text-[10px] font-bold uppercase tracking-widest rounded-lg transition-colors">Ajouter</button>
+          <button onClick={() => onAjouterSerie(exIndex, 'coachTracking')} className="mt-4 w-full py-3 bg-secondary text-muted-foreground hover:text-foreground text-[10px] font-bold uppercase tracking-widest rounded-lg transition-colors">{t('ajouter')}</button>
         </div>
 
         <div className="p-4 rounded-xl border border-border bg-background flex flex-col h-full">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-[10px] font-bold text-foreground uppercase tracking-widest">Validé</h3>
+            <h3 className="text-[10px] font-bold text-foreground uppercase tracking-widest">{t('valide')}</h3>
             {e1rmJour > 0 && <span className="text-[10px] font-black text-foreground tabular-nums tracking-widest">E1RM: {Math.round(e1rmJour)}</span>}
           </div>
-          <div className="grid grid-cols-[auto_1fr_1fr_1fr_auto_auto] gap-1.5 mb-2 px-1">
-            <div className="w-5"></div><div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest text-center">Reps</div><div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest text-center">Poids</div><div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest text-center">RPE</div><div className="w-9"></div><div className="w-9"></div>
+          <div className={cn('grid gap-1.5 mb-2 px-1', avecRpe ? 'grid-cols-[auto_1fr_1fr_1fr_auto_auto]' : 'grid-cols-[auto_1fr_1fr_auto_auto]')}>
+            <div className="w-5"></div><div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest text-center">{t('reps')}</div><div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest text-center">{t('poids')}</div>{avecRpe && <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest text-center">{t('rpe')}</div>}<div className="w-9"></div><div className="w-9"></div>
           </div>
           <div className="space-y-2 flex-1">
             {ex.tracking.map((set, setIndex) => {
               const coach = ex.coachTracking[setIndex]; const coachRemplie = !!coach && (coach.reps !== '' || coach.weight !== ''); const serieFaite = coachRemplie && set.reps === coach.reps && set.weight === coach.weight
               return (
-                <div key={setIndex} className="grid grid-cols-[auto_1fr_1fr_1fr_auto_auto] gap-1.5 items-center">
+                <div key={setIndex} className={cn('grid gap-1.5 items-center', avecRpe ? 'grid-cols-[auto_1fr_1fr_1fr_auto_auto]' : 'grid-cols-[auto_1fr_1fr_auto_auto]')}>
                   <span className="w-5 text-[10px] font-bold text-muted-foreground text-center uppercase tracking-widest">S{setIndex + 1}</span>
                   <input type="text" inputMode="decimal" enterKeyHint="next" value={set.reps} onChange={(e) => onUpdateSerie(exIndex, 'tracking', setIndex, 'reps', e.target.value)} className="w-full p-3 bg-secondary rounded-lg text-foreground text-sm font-black text-center outline-none focus:bg-accent tabular-nums focus:ring-1 focus:ring-ring" />
                   <input type="text" inputMode="decimal" enterKeyHint="next" value={set.weight} onChange={(e) => onUpdateSerie(exIndex, 'tracking', setIndex, 'weight', e.target.value)} className="w-full p-3 bg-secondary rounded-lg text-foreground text-sm font-black text-center outline-none focus:bg-accent tabular-nums focus:ring-1 focus:ring-ring" />
-                  <input type="text" inputMode="decimal" enterKeyHint="done" value={set.rpe} onChange={(e) => onUpdateSerie(exIndex, 'tracking', setIndex, 'rpe', e.target.value)} className="w-full p-3 bg-secondary rounded-lg text-foreground text-sm font-black text-center outline-none focus:bg-accent tabular-nums focus:ring-1 focus:ring-ring" />
+                  {avecRpe && <input type="text" inputMode="decimal" enterKeyHint="done" value={set.rpe} onChange={(e) => onUpdateSerie(exIndex, 'tracking', setIndex, 'rpe', e.target.value)} className="w-full p-3 bg-secondary rounded-lg text-foreground text-sm font-black text-center outline-none focus:bg-accent tabular-nums focus:ring-1 focus:ring-ring" />}
                   <button onClick={() => onValiderSerie(exIndex, setIndex)} disabled={!coachRemplie} className={cn('h-11 w-9 flex items-center justify-center rounded-lg transition-colors disabled:opacity-20', serieFaite ? 'bg-primary text-primary-foreground' : 'bg-secondary text-muted-foreground hover:text-foreground')}><Check className="size-4" /></button>
                   <button onClick={() => onSupprimerSerie(exIndex, 'tracking', setIndex)} className="h-11 w-9 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"><X className="size-4" /></button>
                 </div>
@@ -411,22 +419,22 @@ const ExerciseCard = memo(function ExerciseCard({ ex, exIndex, isLast, listId, o
             })}
           </div>
           <div className="mt-4 flex gap-2">
-            <button onClick={() => onCopierCoach(exIndex)} className="flex-1 py-3 bg-secondary hover:bg-accent text-foreground text-[10px] font-bold uppercase tracking-widest rounded-lg transition-colors">Copier Coach</button>
-            <button onClick={() => onAjouterSerie(exIndex, 'tracking')} className="flex-1 py-3 bg-secondary hover:bg-accent text-foreground text-[10px] font-bold uppercase tracking-widest rounded-lg transition-colors">+ Série Extra</button>
+            <button onClick={() => onCopierCoach(exIndex)} className="flex-1 py-3 bg-secondary hover:bg-accent text-foreground text-[10px] font-bold uppercase tracking-widest rounded-lg transition-colors">{t('copierCoach')}</button>
+            <button onClick={() => onAjouterSerie(exIndex, 'tracking')} className="flex-1 py-3 bg-secondary hover:bg-accent text-foreground text-[10px] font-bold uppercase tracking-widest rounded-lg transition-colors">{t('serieExtra')}</button>
           </div>
         </div>
       </div>
 
       <div className="pt-2 border-t border-border">
-        <span className="block text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2 ml-1">Notes & Tempo</span>
-        <input placeholder="EX: TEMPO 3-1-0..." value={ex.comments} onChange={(e) => onPatch(exIndex, { comments: e.target.value })} className="w-full p-4 bg-secondary border border-border rounded-xl text-xs font-bold uppercase tracking-widest text-foreground outline-none focus:ring-1 focus:ring-ring focus:border-ring placeholder:text-muted-foreground" />
+        <span className="block text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2 ml-1">{t('notesEtTempo')}</span>
+        <input placeholder={t('exempleTempo')} value={ex.comments} onChange={(e) => onPatch(exIndex, { comments: e.target.value })} className="w-full p-4 bg-secondary border border-border rounded-xl text-xs font-bold uppercase tracking-widest text-foreground outline-none focus:ring-1 focus:ring-ring focus:border-ring placeholder:text-muted-foreground" />
       </div>
 
       <div className="flex flex-wrap items-center gap-2 pt-1">
-        <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mr-2 ml-1">Douleur</span>
+        <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mr-2 ml-1">{t('douleur')}</span>
         {PAIN_LEVELS.map((p) => (
           <button key={p.value} onClick={() => onPatch(exIndex, { painLevel: ex.painLevel === p.value ? null : p.value })} className={cn('px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest border transition-colors', ex.painLevel === p.value ? 'bg-primary text-primary-foreground border-primary' : 'border-border bg-secondary text-muted-foreground hover:text-foreground')}>
-            {p.emoji} {p.label}
+            {p.emoji} {t(p.cle)}
           </button>
         ))}
       </div>

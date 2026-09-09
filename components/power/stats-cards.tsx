@@ -5,10 +5,11 @@ import { supabase } from '@/lib/supabase'
 import { calculateIPFGL, classifyLift, setE1RM, toLocalDateStr, CATEGORIES_PAR_MODE, type SetData } from '@/lib/powerlifting'
 import { Trophy, Edit2, Check, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useTheme } from '@/app/ThemeContext'
+import { useTheme, useT } from '@/app/ThemeContext'
 
 export function StatsCards() {
   const { mode } = useTheme()
+  const t = useT()
   const estFitness = mode === 'fitness'
   // Clé séparée par mode : sur un navigateur partagé, les records de
   // l'un ne doivent pas s'afficher chez l'autre.
@@ -80,7 +81,7 @@ export function StatsCards() {
       <div className="flex items-center justify-between border-b border-zinc-900/50 pb-4">
         <div className="flex items-center gap-3">
           <Trophy className="size-4 text-white" />
-          <h2 className="text-xs font-bold text-white uppercase tracking-widest">{estFitness ? 'Mes meilleures charges' : 'Records 1RM'}</h2>
+          <h2 className="text-xs font-bold text-white uppercase tracking-widest">{estFitness ? t('meilleuresCharges') : t('recordsTitre')}</h2>
         </div>
         
         {isEditing ? (
@@ -90,13 +91,13 @@ export function StatsCards() {
           </div>
         ) : (
           <button onClick={() => setIsEditing(true)} className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-zinc-500 hover:text-white transition-colors">
-            <Edit2 className="size-3" /> Modifier
+            <Edit2 className="size-3" /> {t('modifier')}
           </button>
         )}
       </div>
 
       <div className={cn('grid grid-cols-2 gap-4', estFitness ? 'md:grid-cols-4' : 'md:grid-cols-5')}>
-        {categories.map(({ key: lift, label }) => {
+        {categories.map(({ key: lift, cle }) => {
           const reel = realPrs[lift]
           const theorique = theoPrs[lift]
           // Un maximum THÉORIQUE ne peut pas être inférieur à une barre
@@ -105,7 +106,7 @@ export function StatsCards() {
           const depasseLePr = theorique > reel
           return (
             <div key={lift} className="p-4 bg-zinc-900 rounded-xl">
-              <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-3">{label}</h3>
+              <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-3">{t(cle)}</h3>
               {isEditing ? (
                 <input type="number" value={tempPrs[lift]} onChange={(e) => setTempPrs({ ...tempPrs, [lift]: parseInt(e.target.value) || 0 })} className="w-full bg-black p-3 rounded-lg border border-zinc-800 text-white font-black tabular-nums outline-none mb-1 text-lg" />
               ) : (
@@ -119,7 +120,7 @@ export function StatsCards() {
         })}
         
         <div className="p-4 bg-white rounded-xl text-black flex flex-col justify-between">
-          <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-3">{estFitness ? 'Total' : 'Total SBD'}</h3>
+          <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-3">{estFitness ? t('total') : t('totalSBD')}</h3>
           <div className="text-3xl font-black tabular-nums mb-1">{totalReel}</div>
           <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">
             e1RM: <span className="text-black">{totalTheo} kg</span>

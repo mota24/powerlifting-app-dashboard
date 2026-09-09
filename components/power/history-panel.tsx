@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { painLabel, LIFT_SQUAT, LIFT_BENCH, LIFT_DEADLIFT, ACCESSORIES, type SetData } from '@/lib/powerlifting'
 import { History, Search, RefreshCw, MessageSquare } from 'lucide-react'
+import { useT } from '@/app/ThemeContext'
 
 // ... (Mêmes constantes et interfaces que ton code actuel) ...
 const TOUS_LES_EXERCICES = [...LIFT_SQUAT, ...LIFT_BENCH, ...LIFT_DEADLIFT, ...ACCESSORIES]
@@ -13,6 +14,7 @@ interface HistoryEntry { id: string; date: string; exercice: string; sets: strin
 function formatDate(d: string): string { const [y, m, day] = d.split('-').map(Number); return new Date(y, m - 1, day).toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: '2-digit', year: '2-digit', }) }
 
 export default function HistoryPanel() {
+  const t = useT()
   const [recherche, setRecherche] = useState('')
   const [entries, setEntries] = useState<HistoryEntry[]>([])
   const [loading, setLoading] = useState(false)
@@ -31,7 +33,7 @@ export default function HistoryPanel() {
           if (!row.exercise_name || REST_NAMES.includes(row.exercise_name)) continue
           const sets = (row.tracking_data ?? []).filter((s) => s.reps?.trim() && s.weight?.trim()).map((s) => `${s.reps}×${s.weight} kg${s.rpe?.trim() ? ` @${s.rpe}` : ''}`).join(' · ')
           if (!sets) continue
-          result.push({ id: row.id, date: row.date, exercice: row.exercise_name, sets, douleur: painLabel(row.pain_level), comments: row.comments })
+          result.push({ id: row.id, date: row.date, exercice: row.exercise_name, sets, douleur: painLabel(row.pain_level, t), comments: row.comments })
         }
         setEntries(result)
       }

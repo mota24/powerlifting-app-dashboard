@@ -5,12 +5,17 @@ import { supabase } from '../../lib/supabase'
 import { toLocalDateStr, setsTonnage, painLabel, weeksOut, type SetData, type UpcomingCompetition } from '../../lib/powerlifting'
 import { countryCodeToFlag } from '../../lib/countries'
 import { Plus, Trash2, Calendar, Settings, RefreshCw, Download, Tag, Trophy } from 'lucide-react'
+import { useT, useTheme, useLocale } from '@/app/ThemeContext'
 
 interface TrainingBlock { id: string; block_number: number; start_date: string; duration_weeks: number; name?: string; }
 const parseLocalDate = (dateStr: string): Date => { const [annee, mois, jour] = dateStr.split('-').map(Number); return new Date(annee, mois - 1, jour) }
 const numeroSemaineDansBloc = (debutBloc: string, date: string): number => { const diffJours = Math.round((parseLocalDate(date).getTime() - parseLocalDate(debutBloc).getTime()) / 86_400_000); return Math.floor(diffJours / 7) + 1 }
 
 export default function ConfigPanel() {
+  const t = useT()
+  const { mode } = useTheme()
+  const locale = useLocale()
+  const estFitness = mode === 'fitness'
   const [blocks, setBlocks] = useState<TrainingBlock[]>([])
   const [loading, setLoading] = useState(true)
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
@@ -46,13 +51,13 @@ export default function ConfigPanel() {
     const today = new Date().toISOString().split('T')[0]
     const { data, error } = await supabase.from('training_blocks').insert([{ block_number: nextNumber, start_date: today, duration_weeks: 4, name: 'NOUVEAU BLOC' }]).select()
     if (data) setBlocks([...blocks, data[0]])
-    if (error) alert("Erreur : " + error.message)
+    if (error) alert(t('erreurDeuxPoints') + ' ' + error.message)
   }
 
   const supprimerBloc = async (id: string) => {
-    if (!confirm("SUPPRIMER CE BLOC DÉFINITIVEMENT ?")) return
+    if (!confirm(t('supprimerBloc'))) return
     const { error } = await supabase.from('training_blocks').delete().eq('id', id)
-    if (error) { alert('Erreur : ' + error.message); return }
+    if (error) { alert(t('erreurDeuxPoints') + ' ' + error.message); return }
     setBlocks((prev) => prev.filter(b => b.id !== id))
   }
 
@@ -65,7 +70,7 @@ export default function ConfigPanel() {
     clearTimeout(debounceRef.current[key])
     debounceRef.current[key] = setTimeout(async () => {
       const { error } = await supabase.from('training_blocks').update({ [field]: value }).eq('id', id)
-      if (error) alert('Erreur de sauvegarde : ' + error.message)
+      if (error) alert(t('erreurSauvegardeDeuxPoints') + ' ' + error.message)
     }, 800)
   }
 
@@ -88,7 +93,7 @@ export default function ConfigPanel() {
         .order('order_index', { ascending: true })
         
       if (error) throw error; 
-      if (!allData || allData.length === 0) { alert("AUCUNE SÉANCE ENREGISTRÉE."); return }
+      if (!allData || allData.length === 0) { alert(t('aucuneSeance')); return }
 
       // 2. Le scan intelligent : on cherche le dernier jour où un chiffre a été écrit (par le coach ou l'athlète)
       let derniereDateRemplie = block.start_date;
@@ -119,17 +124,17 @@ export default function ConfigPanel() {
       for (const [date, lignes] of parJour) {
         const numSemaine = numeroSemaineDansBloc(block.start_date, date)
         if (numSemaine !== semaineAffichee) { semaineAffichee = numSemaine; contenu += `\n━━━━━━━━━━ SEMAINE ${numSemaine} / ${block.duration_weeks} ━━━━━━━━━━\n\n` }
-        const nomJour = parseLocalDate(date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase()
+        const nomJour = parseLocalDate(date).toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase()
         const ref = lignes[lignes.length - 1]
         const metriques = `Fatigue ${ref.fatigue_score ?? '-'}/10 · Sommeil ${ref.sleep_hours ?? '-'} h · ${ref.steps_count ?? '-'} pas`
         const exercicesDuJour = lignes.filter((r) => r.exercise_name !== 'Jour de Repos' && r.exercise_name !== 'Repos')
         if (exercicesDuJour.length === 0) { contenu += `📅 ${nomJour} (${date}) — JOUR DE REPOS\n   ${metriques}\n\n`; continue }
         const tonnageDuJour = Math.round(exercicesDuJour.reduce((sum, r) => sum + setsTonnage(r.tracking_data as SetData[] | null), 0))
-        contenu += `📅 ${nomJour} (${date})\n   ${metriques}${tonnageDuJour > 0 ? ` · Tonnage ${tonnageDuJour.toLocaleString('fr-FR')} kg` : ''}\n`
+        contenu += `📅 ${nomJour} (${date})\n   ${metriques}${tonnageDuJour > 0 ? ` · Tonnage ${tonnageDuJour.toLocaleString(locale)} kg` : ''}\n`
         const rienRempli = exercicesDuJour.every((r) => { const athlete = Array.isArray(r.tracking_data) ? r.tracking_data : []; return !athlete.some((s: any) => (s.reps && s.reps.toString().trim() !== '') || (s.weight && s.weight.toString().trim() !== '')) })
         if (rienRempli) { contenu += `   ⚠ SÉANCE NON RENSEIGNÉE PAR L'ATHLÈTE\n` }
         exercicesDuJour.forEach((row, idx) => {
-          const douleur = painLabel(row.pain_level)
+          const douleur = painLabel(row.pain_level, t)
           contenu += `\n   ${idx + 1}. ${row.exercise_name || 'Exercice sans nom'}${douleur ? `   [Douleur : ${douleur}]` : ''}\n`
           const coachData = Array.isArray(row.coach_tracking_data) ? row.coach_tracking_data : []
           const athleteData = Array.isArray(row.tracking_data) ? row.tracking_data : []
@@ -148,17 +153,17 @@ export default function ConfigPanel() {
       const safeName = block.name ? `_${block.name.replace(/[^a-z0-9]/gi, '_')}` : ''
       lien.download = `Bloc_${block.block_number}${safeName}_export_${aujourdhuiStr}.txt`
       document.body.appendChild(lien); lien.click(); document.body.removeChild(lien); URL.revokeObjectURL(url)
-    } catch (err: any) { alert("Erreur d'export : " + err.message) } finally { setDownloadingId(null) }
+    } catch (err: any) { alert(t('erreurExport') + ' ' + err.message) } finally { setDownloadingId(null) }
   }
 
-  if (loading) return <div className="p-8 text-center text-[10px] font-bold uppercase tracking-widest text-zinc-500 animate-pulse">CHARGEMENT...</div>
+  if (loading) return <div className="p-8 text-center text-[10px] font-bold uppercase tracking-widest text-zinc-500 animate-pulse">{t('chargementMajuscule')}</div>
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-3">
           <Settings className="size-5 text-white" />
-          <h2 className="text-sm font-bold text-white uppercase tracking-widest">Configuration</h2>
+          <h2 className="text-sm font-bold text-white uppercase tracking-widest">{t('configuration')}</h2>
         </div>
         <button onClick={fetchBlocks} className="p-2 text-zinc-500 hover:text-white hover:bg-zinc-900 rounded-lg transition-colors">
           <RefreshCw className="size-4" />
@@ -185,13 +190,13 @@ export default function ConfigPanel() {
             </div>
 
             <div className="flex flex-col w-full xl:w-auto">
-              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-1.5 mb-2"><Tag className="size-3" /> Nom du bloc</span>
+              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-1.5 mb-2"><Tag className="size-3" /> {t('nomDuBloc')}</span>
               <input 
                 type="text" 
                 list="block-names"
                 value={block.name || ''} 
                 onChange={(e) => updateBlock(block.id, 'name', e.target.value)}
-                placeholder="EX: RÉÉDUCATION"
+                placeholder={t('exempleNomBloc')}
                 className="bg-black border border-zinc-800 rounded-xl p-3 text-xs font-bold text-white uppercase tracking-widest outline-none focus:border-white w-full xl:w-48 transition-colors"
               />
               <datalist id="block-names">
@@ -204,7 +209,7 @@ export default function ConfigPanel() {
             </div>
 
             <div className="flex flex-col w-full xl:w-auto">
-              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-1.5 mb-2"><Calendar className="size-3" /> Début</span>
+              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-1.5 mb-2"><Calendar className="size-3" /> {t('debut')}</span>
               <input 
                 type="date" 
                 value={block.start_date} 
@@ -214,7 +219,7 @@ export default function ConfigPanel() {
             </div>
 
             <div className="flex flex-col w-full xl:w-auto">
-              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">Semaines</span>
+              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">{t('semaines')}</span>
               <input 
                 type="number" 
                 value={block.duration_weeks} 
@@ -235,7 +240,7 @@ export default function ConfigPanel() {
           </div>
         ))}
 
-        {nextCompetition && (
+        {nextCompetition && !estFitness && (
           // flex-col + text-center sur mobile, ligne normale à partir de sm :
           // sans ça, une fois les deux blocs empilés par flex-wrap, la date
           // et le sous-titre restaient collés à gauche au lieu d'être
@@ -257,7 +262,7 @@ export default function ConfigPanel() {
             </div>
             <div className="shrink-0">
               <div className="font-mono text-lg font-black tabular-nums text-white">
-                {parseLocalDate(nextCompetition.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                {parseLocalDate(nextCompetition.date).toLocaleDateString(locale, { day: '2-digit', month: 'short', year: 'numeric' })}
               </div>
               <div className="font-mono text-[10px] font-bold uppercase tracking-widest text-zinc-400">
                 {(() => { const s = weeksOut(toLocalDateStr(new Date()), nextCompetition.date); return s > 0 ? `S-${s}` : 'S0' })()}

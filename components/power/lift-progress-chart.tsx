@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { classifyLift, setsTonnage, setE1RM, toLocalDateStr, CATEGORIES_PAR_MODE, type LiftCategory, type SetData } from '@/lib/powerlifting'
 import { cn } from '@/lib/utils'
 import { RefreshCw, HeartPulse } from 'lucide-react'
-import { useTheme } from '@/app/ThemeContext'
+import { useTheme, useT, useLocale } from '@/app/ThemeContext'
 
 interface ChartRow { date: string; exercise_name: string | null; tracking_data: SetData[] | null; pain_level?: number | null; }
 /** `date` = jour de la séance ciblée par le clic (celle du top set en vue hebdo). */
@@ -20,6 +20,8 @@ export function LiftProgressChart({ onSelectSession }: { onSelectSession?: (date
   const [rows, setRows] = useState<ChartRow[]>([])
   const [loading, setLoading] = useState(true)
   const { mode } = useTheme()
+  const t = useT()
+  const locale = useLocale()
   const LIFTS = CATEGORIES_PAR_MODE[mode]
   const [lift, setLift] = useState<LiftCategory>('bench')
   const [granularite, setGranularite] = useState<Granularite>('seance')
@@ -62,14 +64,14 @@ export function LiftProgressChart({ onSelectSession }: { onSelectSession?: (date
     return Array.from(groupes.entries()).sort(([a], [b]) => (a < b ? -1 : 1)).map(([cle, agg]) => ({
       // En vue hebdo le libellé est préfixé : « sem. 20/07 » ne peut pas se
       // lire comme la date d'une séance (le lundi n'en est souvent pas une).
-      label: granularite === 'semaine' ? `sem. ${jourMois(cle)}` : jourMois(cle),
+      label: granularite === 'semaine' ? `${t('parSemaine').toLowerCase()} ${jourMois(cle)}` : jourMois(cle),
       date: agg.date,
       tonnage: Math.round(agg.tonnage),
       topSet: agg.topSet,
       e1rm: Math.round(agg.e1rm),
       douleur: agg.pains.length ? Math.round((agg.pains.reduce((s, p) => s + p, 0) / agg.pains.length) * 10) / 10 : null,
     }))
-  }, [rows, lift, granularite, mode])
+  }, [rows, lift, granularite, mode, t])
 
   // Recharts expose l'index de la catégorie survolée : plus robuste que de
   // fouiller la forme du payload, et couvre le clic n'importe où sur la colonne.
@@ -100,15 +102,15 @@ export function LiftProgressChart({ onSelectSession }: { onSelectSession?: (date
                 lift === l.key ? 'bg-white text-black shadow-sm' : 'text-zinc-500 hover:text-white'
               )}
             >
-              {l.label}
+              {t(l.cle)}
             </button>
           ))}
         </div>
 
         <div className="flex bg-zinc-900 p-1 rounded-xl w-fit">
           {([
-            { key: 'seance', label: 'Par séance' },
-            { key: 'semaine', label: 'Par semaine' },
+            { key: 'seance', label: t('parSeance') },
+            { key: 'semaine', label: t('parSemaine') },
           ] as const).map((g) => (
             <button
               key={g.key}
@@ -126,7 +128,7 @@ export function LiftProgressChart({ onSelectSession }: { onSelectSession?: (date
 
       {points.length === 0 ? (
         <div className="h-[300px] flex items-center justify-center text-[10px] uppercase tracking-widest font-bold text-zinc-600">
-          AUCUNE DONNÉE VALIDÉE
+          {t('aucuneSeance')}
         </div>
       ) : (
         <>
@@ -139,9 +141,9 @@ export function LiftProgressChart({ onSelectSession }: { onSelectSession?: (date
                     affichait « 2t » deux fois de suite sur l'axe. */}
                 <YAxis yAxisId="tonnage" stroke="#71717a" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v: number) => `${(v / 1000).toFixed(1)}t`} />
                 <YAxis yAxisId="topset" orientation="right" stroke="#ffffff" fontSize={10} tickLine={false} axisLine={false} domain={['dataMin - 10', 'auto']} />
-                <Tooltip contentStyle={{ backgroundColor: '#09090b', borderColor: '#27272a', borderRadius: '12px', color: '#ffffff', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }} itemStyle={{ fontWeight: '900' }} formatter={(value, name) => name === 'Tonnage' ? [`${Number(value).toLocaleString('fr-FR')} kg`, name] : [`${value} kg`, name]} />
-                <Bar yAxisId="tonnage" dataKey="tonnage" name="Tonnage" fill="#3f3f46" radius={[4, 4, 0, 0]} />
-                <Line yAxisId="topset" type="monotone" dataKey="topSet" name="Top set" stroke="#ffffff" strokeWidth={3} dot={{ r: 4, fill: '#ffffff', strokeWidth: 0 }} activeDot={{ r: 6 }} connectNulls />
+                <Tooltip contentStyle={{ backgroundColor: '#09090b', borderColor: '#27272a', borderRadius: '12px', color: '#ffffff', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }} itemStyle={{ fontWeight: '900' }} formatter={(value, name) => name === t('tonnage') ? [`${Number(value).toLocaleString(locale)} kg`, name] : [`${value} kg`, name]} />
+                <Bar yAxisId="tonnage" dataKey="tonnage" name={t('tonnage')} fill="#3f3f46" radius={[4, 4, 0, 0]} />
+                <Line yAxisId="topset" type="monotone" dataKey="topSet" name={t('topSet')} stroke="#ffffff" strokeWidth={3} dot={{ r: 4, fill: '#ffffff', strokeWidth: 0 }} activeDot={{ r: 6 }} connectNulls />
                 <Line yAxisId="topset" type="monotone" dataKey="e1rm" name="e1RM" stroke="#a1a1aa" strokeWidth={2} strokeDasharray="4 4" dot={false} activeDot={{ r: 4 }} connectNulls />
               </ComposedChart>
             </ResponsiveContainer>
@@ -158,7 +160,7 @@ export function LiftProgressChart({ onSelectSession }: { onSelectSession?: (date
           {showPain && (
             <div className="pt-6 border-t border-zinc-900">
               <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-4 flex items-center gap-2">
-                <HeartPulse className="size-3 text-white" /> Douleur Moyenne
+                <HeartPulse className="size-3 text-white" /> {t('douleur')}
               </h3>
               <div className="h-[120px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
@@ -167,7 +169,7 @@ export function LiftProgressChart({ onSelectSession }: { onSelectSession?: (date
                     <XAxis dataKey="label" stroke="#71717a" fontSize={10} tickLine={false} axisLine={false} />
                     <YAxis domain={[0, 3]} ticks={[0, 1, 2, 3]} stroke="#71717a" fontSize={10} tickLine={false} axisLine={false} />
                     <Tooltip contentStyle={{ backgroundColor: '#09090b', borderColor: '#27272a', borderRadius: '12px', color: '#ffffff' }} />
-                    <Line type="monotone" dataKey="douleur" name="Douleur" stroke="#ffffff" strokeWidth={2} dot={{ r: 3, fill: '#ffffff', strokeWidth: 0 }} connectNulls />
+                    <Line type="monotone" dataKey="douleur" name={t('douleur')} stroke="#ffffff" strokeWidth={2} dot={{ r: 3, fill: '#ffffff', strokeWidth: 0 }} connectNulls />
                   </LineChart>
                 </ResponsiveContainer>
               </div>

@@ -3,10 +3,12 @@
 import { useState } from 'react'
 import { Calculator, Scale, Hash, Battery, Dumbbell } from 'lucide-react'
 import { averageE1RM, roundToLoadable } from '@/lib/powerlifting'
+import { useT } from '@/app/ThemeContext'
 
 const WORK_PERCENTAGES = [0.9, 0.85, 0.8] as const
 
 export default function CalculatorPanel() {
+  const t = useT()
   const [weight, setWeight] = useState('')
   const [reps, setReps] = useState('')
   const [rpe, setRpe] = useState('')
@@ -22,7 +24,7 @@ export default function CalculatorPanel() {
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex items-center gap-3 mb-6">
         <Calculator className="size-5 text-white" />
-        <h2 className="text-xs font-bold text-white uppercase tracking-widest">Calculateur de 1RM</h2>
+        <h2 className="text-xs font-bold text-white uppercase tracking-widest">{t('calculateur1RM')}</h2>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -30,7 +32,7 @@ export default function CalculatorPanel() {
           <div className="grid grid-cols-3 gap-3">
             <div className="flex flex-col space-y-2">
               <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center justify-center gap-1">
-                <Scale className="size-3 text-white" /> Poids
+                <Scale className="size-3 text-white" /> {t('poids')}
               </label>
               <input
                 type="number"
@@ -44,7 +46,7 @@ export default function CalculatorPanel() {
 
             <div className="flex flex-col space-y-2">
               <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center justify-center gap-1">
-                <Hash className="size-3 text-white" /> Reps
+                <Hash className="size-3 text-white" /> {t('reps')}
               </label>
               <input
                 type="number"
@@ -58,7 +60,7 @@ export default function CalculatorPanel() {
 
             <div className="flex flex-col space-y-2">
               <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center justify-center gap-1">
-                <Battery className="size-3 text-white" /> RPE
+                <Battery className="size-3 text-white" /> {t('rpe')}
               </label>
               <input
                 type="number"
@@ -73,13 +75,13 @@ export default function CalculatorPanel() {
           </div>
           
           <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 text-center">
-            LAISSEZ RPE VIDE POUR ÉCHEC TOTAL (10)
+            {t('laisserRpeVide')}
           </p>
         </div>
 
         <div className="p-6 rounded-2xl border border-zinc-900 bg-black flex flex-col items-center justify-center text-center min-h-[160px]">
           <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-4">
-            PR THÉORIQUE ESTIMÉ
+            {t('prTheorique')}
           </span>
           
           <div className="text-6xl font-black text-white tabular-nums tracking-tighter">

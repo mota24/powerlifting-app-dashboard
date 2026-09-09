@@ -3,6 +3,7 @@
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useEffect, useRef } from 'react'
+import { useLocale } from '@/app/ThemeContext'
 
 interface WeekCalendarProps {
   dateActive: Date;
@@ -11,13 +12,12 @@ interface WeekCalendarProps {
   weeksOut?: number | null;
 }
 
-const WEEK_PROGRAM = [
-  { id: 1, dayName: 'Lun' }, { id: 2, dayName: 'Mar' }, { id: 3, dayName: 'Mer' },
-  { id: 4, dayName: 'Jeu' }, { id: 5, dayName: 'Ven' }, { id: 6, dayName: 'Sam' }, { id: 0, dayName: 'Dim' }, 
-]
 
 export function WeekCalendar({ dateActive, setDateActive, blockTitle, weeksOut }: WeekCalendarProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Les abréviations de jours viennent de la locale du profil plutôt que
+  // d'une liste figée en français.
+  const locale = useLocale();
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -71,7 +71,6 @@ export function WeekCalendar({ dateActive, setDateActive, blockTitle, weeksOut }
       <div ref={scrollRef} className="flex border-b border-border overflow-x-auto pb-2 scroll-smooth" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
         {joursSemaine.map((dateObj, index) => {
           const estSelectionne = dateActive.toDateString() === dateObj.toDateString()
-          const infoJour = WEEK_PROGRAM.find(p => p.id === dateObj.getDay())
           
           return (
             <button
@@ -85,7 +84,7 @@ export function WeekCalendar({ dateActive, setDateActive, blockTitle, weeksOut }
                   : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
               )}
             >
-              <span className="text-[10px] font-bold uppercase tracking-widest mb-1">{infoJour?.dayName}</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest mb-1">{dateObj.toLocaleDateString(locale, { weekday: 'short' }).replace('.', '')}</span>
               <span className={cn("text-xl font-black tabular-nums", estSelectionne ? "text-primary" : "")}>{dateObj.getDate()}</span>
             </button>
           )
