@@ -24,8 +24,6 @@ import GLCalculator from '@/components/power/GLCalculator';
 import { Palmares } from '@/components/power/palmares'
 import { ThemeProvider } from './ThemeContext'
 
-// Utilisateur connecté tel que renvoyé par /api/auth/session.
-// Les jetons, eux, restent dans des cookies httpOnly : jamais côté JS.
 interface AuthUser {
   id: string;
   email: string | null;
@@ -50,8 +48,6 @@ export default function Page() {
   const [isRestDayMode, setIsRestDayMode] = useState(false)
   const [pasDuJour, setPasDuJour] = useState<number | null>(null);
   
-  // ?date=YYYY-MM-DD ouvre directement une séance (lien partageable, et
-  // cible de la navigation depuis le graphique de progression).
   const [dateActive, setDateActive] = useState<Date>(() => {
     if (typeof window !== 'undefined') {
       const param = new URLSearchParams(window.location.search).get('date')
@@ -75,8 +71,6 @@ export default function Page() {
     return 'accueil';
   });
 
-  // ?editComp=<id> ouvre directement le formulaire d'une compétition dans le
-  // Palmarès (cible du bouton "Saisir mes résultats" de l'écran Jour J).
   const [editCompId, setEditCompId] = useState<string | null>(() => {
     if (typeof window !== 'undefined') return new URLSearchParams(window.location.search).get('editComp')
     return null
@@ -87,9 +81,6 @@ export default function Page() {
   const toggleBtnRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
-    // Dépend de `session` : au premier rendu, la session n'a pas encore fini
-    // de se charger (cf. l'effet plus bas) et la requête échouerait — sans
-    // quoi elle ne serait jamais rejouée une fois l'utilisateur authentifié.
     if (!session) return
     let cancelled = false
     const fetchNextCompetition = async () => {
@@ -114,9 +105,7 @@ export default function Page() {
       if (stepsEnregistres) {
         const nombreDePas = parseInt(stepsEnregistres, 10);
         setPasDuJour(nombreDePas);
-
         toast(`Pas synchronisés depuis l'iPhone : ${nombreDePas.toLocaleString('fr-FR')} pas`, 'success');
-
         window.history.replaceState({}, '', window.location.pathname);
       }
     }
@@ -124,21 +113,14 @@ export default function Page() {
 
   useEffect(() => {
     if (!session) return;
-
-    // Identifiant de sync : celui que le raccourci iPhone envoie en `userId`.
-    // Configurable via NEXT_PUBLIC_SYNC_USER_ID, sinon dérivé de l'identifiant
-    // de connexion (partie locale de l'email fantôme).
     const syncUserId = process.env.NEXT_PUBLIC_SYNC_USER_ID || session.email?.split('@')[0]
     if (!syncUserId) return;
 
-    // Reset immédiat : pendant la navigation entre jours, on n'affiche jamais
-    // les pas d'une autre journée en attendant la réponse réseau.
     setPasDuJour(null);
     let cancelled = false;
 
     const fetchStepsForSelectedDate = async () => {
       const dateStr = toLocalDateStr(dateActive);
-
       const { data, error } = await supabase
         .from('seances_pas')
         .select('pas')
@@ -148,7 +130,7 @@ export default function Page() {
 
       if (cancelled) return;
       if (error) {
-        console.error("Erreur de récupération des pas (seances_pas) :", error);
+        console.error("Erreur de récupération des pas :", error);
       } else {
         setPasDuJour(data?.pas ?? null);
       }
@@ -159,25 +141,18 @@ export default function Page() {
   }, [session, dateActive]);
 
   useEffect(() => {
-    // Purge des sessions héritées de l'ancien stockage localStorage : plus
-    // aucun jeton ne doit rester lisible par le JavaScript de la page.
     try {
       for (const key of Object.keys(window.localStorage)) {
         if (key.startsWith('sb-')) window.localStorage.removeItem(key)
       }
-    } catch { /* stockage inaccessible (navigation privée) : rien à purger */ }
+    } catch { }
 
     fetch('/api/auth/session')
       .then(async (res) => (res.ok ? ((await res.json()) as { user: AuthUser | null }).user : null))
       .catch(() => null)
       .then((user) => {
-        // mota_real_prs (records réels) survit normalement d'une session à
-        // l'autre pour l'utilisateur légitime — mais si AUCUNE session
-        // valide n'est confirmée ici (déconnecté, jeton expiré, ou
-        // simplement quelqu'un d'autre sur ce navigateur), il ne doit pas
-        // rester lisible sans authentification : purge défensive.
         if (!user) {
-          try { window.localStorage.removeItem('mota_real_prs') } catch { /* stockage inaccessible */ }
+          try { window.localStorage.removeItem('mota_real_prs') } catch { }
         }
         setSession(user)
         setLoadingAuth(false)
@@ -196,7 +171,6 @@ export default function Page() {
         body: JSON.stringify({ identifiant, password }),
       })
       if (!res.ok) {
-        // Message précis du serveur (ex. blocage temporaire après trop d'échecs)
         const body = (await res.json().catch(() => null)) as { error?: string } | null
         throw new Error(body?.error ?? '')
       }
@@ -212,10 +186,7 @@ export default function Page() {
 
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {})
-    // Sans ça, les vrais records (squat/bench/deadlift) restaient lisibles
-    // dans le localStorage après déconnexion, sans jamais repasser par le
-    // login — lisible par quiconque a accès à ce navigateur ensuite.
-    try { window.localStorage.removeItem('mota_real_prs') } catch { /* stockage inaccessible */ }
+    try { window.localStorage.removeItem('mota_real_prs') } catch { }
     setSession(null)
   }
 
@@ -225,12 +196,6 @@ export default function Page() {
     window.history.pushState({}, '', `?page=${vue}`);
   }
 
-  /**
-   * Ouvre la séance d'un jour donné (clic sur un point du graphique de
-   * progression). Une séance est identifiée par sa DATE : les lignes
-   * workout_sets sont une par exercice, l'id de l'une d'elles ne désigne
-   * donc pas la séance entière.
-   */
   const ouvrirSeance = (dateStr: string) => {
     const [annee, mois, jour] = dateStr.split('-').map(Number)
     setDateActive(new Date(annee, mois - 1, jour))
@@ -240,9 +205,6 @@ export default function Page() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  /** Bouton "Saisir mes résultats" de l'écran Jour J : bascule sur le
-   * Palmarès et signale à quelle compétition ouvrir directement le
-   * formulaire d'édition. */
   const ouvrirResultatsCompetition = (competitionId: string) => {
     setVueActive('palmares')
     setEditCompId(competitionId)
@@ -274,8 +236,6 @@ export default function Page() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  // Les blocs sont chargés à la connexion et au retour de la vue Configuration
-  // (plus de re-fetch réseau à chaque changement de jour dans le calendrier).
   const [blocks, setBlocks] = useState<TrainingBlockRow[] | null>(null)
 
   useEffect(() => {
@@ -316,9 +276,7 @@ export default function Page() {
     if (activeBlock) {
       const startDate = new Date(activeBlock.start_date)
       startDate.setHours(0, 0, 0, 0)
-
       const duration = activeBlock.duration_weeks || 5
-
       const diffTime = Math.abs(targetDate.getTime() - startDate.getTime())
       const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
       const currentWeek = Math.floor(diffDays / 7) + 1
@@ -338,7 +296,7 @@ export default function Page() {
   if (loadingAuth) {
     return (
       <div className="min-h-dvh flex items-center justify-center bg-background">
-        <RefreshCw className="size-8 text-white animate-spin" />
+        <RefreshCw className="size-8 text-foreground animate-spin" />
       </div>
     )
   }
@@ -346,26 +304,26 @@ export default function Page() {
   if (!session) {
     return (
       <div className="min-h-dvh bg-background flex flex-col items-center justify-center p-4 relative overflow-hidden">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-white/5 blur-[120px] rounded-full pointer-events-none"></div>
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-foreground/5 blur-[120px] rounded-full pointer-events-none"></div>
 
-        <div className="w-full max-w-sm p-8 rounded-2xl border border-zinc-900 bg-zinc-950/80 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-300 relative z-10">
+        <div className="w-full max-w-sm p-8 rounded-2xl border border-border bg-card/80 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-300 relative z-10">
           <div className="flex flex-col items-center mb-8">
-            <div className="p-4 bg-zinc-900 text-white rounded-full mb-4 ring-1 ring-zinc-800">
+            <div className="p-4 bg-secondary text-foreground rounded-full mb-4 ring-1 ring-border">
               <Lock className="size-8" />
             </div>
-            <h1 className="text-2xl font-black text-white">Accès Réservé</h1>
-            <p className="text-sm text-zinc-500 mt-1">Saisis tes identifiants</p>
+            <h1 className="text-2xl font-black text-foreground">Accès Réservé</h1>
+            <p className="text-sm text-muted-foreground mt-1">Saisis tes identifiants</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-5">
             {authError && (
-              <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-bold rounded-lg text-center">
+              <div className="p-3 bg-destructive/10 border border-destructive/20 text-destructive text-xs font-bold rounded-lg text-center">
                 {authError}
               </div>
             )}
 
             <div className="space-y-2">
-              <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
+              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
                 <User className="size-3" /> Identifiant
               </label>
               <input
@@ -373,20 +331,20 @@ export default function Page() {
                 placeholder="Ex: 1"
                 value={identifiant}
                 onChange={(e) => setIdentifiant(e.target.value)}
-                className="w-full p-3 bg-black border border-zinc-800 rounded-lg text-white font-bold outline-none focus:border-white transition-colors placeholder:text-zinc-700"
+                className="w-full p-3 bg-input border border-border rounded-lg text-foreground font-bold outline-none focus:border-ring focus:ring-1 focus:ring-ring transition-colors placeholder:text-muted-foreground"
                 required
               />
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
+              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
                 <Lock className="size-3" /> Mot de passe
               </label>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full p-3 bg-black border border-zinc-800 rounded-lg text-white font-bold outline-none focus:border-white transition-colors"
+                className="w-full p-3 bg-input border border-border rounded-lg text-foreground font-bold outline-none focus:border-ring focus:ring-1 focus:ring-ring transition-colors"
                 required
               />
             </div>
@@ -394,7 +352,7 @@ export default function Page() {
             <button
               type="submit"
               disabled={isLoggingIn}
-              className="w-full py-4 mt-4 bg-white hover:bg-zinc-200 text-black font-black rounded-xl transition-all shadow-[0_0_20px_rgba(255,255,255,0.15)] flex justify-center items-center gap-2"
+              className="w-full py-4 mt-4 bg-primary hover:opacity-90 text-primary-foreground font-black rounded-xl transition-all shadow-[0_0_20px_rgba(255,255,255,0.1)] flex justify-center items-center gap-2"
             >
               {isLoggingIn ? <RefreshCw className="size-5 animate-spin" /> : "DÉVERROUILLER"}
             </button>
@@ -411,15 +369,10 @@ export default function Page() {
         {showCircuitTimer && <CircuitTimer onClose={() => setShowCircuitTimer(false)} />}
         <Header />
 
-        {/* z-30 : cette barre défile, elle doit passer SOUS le header collant
-            (z-50). Avec son ancien z-50 elle lui passait par-dessus, et les deux
-            se superposaient de façon illisible. */}
         <div className="mx-auto max-w-5xl px-4 pt-4 flex justify-between items-center relative z-30 bg-background">
           
           <div className="flex flex-col">
             <h2 className="text-sm font-medium text-muted-foreground capitalize">
-              {/* Vue accueil : pas de sous-titre — le calendrier et le formulaire
-                  se suffisent (l'ancien "Séance & Calendrier" faisait doublon). */}
               {vueActive === 'analytique' && "Tableau de bord"}
               {vueActive === 'outils' && "Outils & Échauffement"}
               {vueActive === 'calculatrice' && "Calculateur de force"}
@@ -437,7 +390,7 @@ export default function Page() {
                 "flex items-center justify-center p-2 rounded-md border transition-colors",
                 vueActive === 'accueil' 
                   ? "bg-primary/10 border-primary/20 text-primary" 
-                  : "bg-zinc-900 border-border hover:bg-zinc-800 text-slate-400 hover:text-white"
+                  : "bg-secondary border-border hover:bg-accent text-muted-foreground hover:text-accent-foreground"
               )}
               title="Retour à l'accueil"
             >
@@ -448,7 +401,7 @@ export default function Page() {
               <button 
                 ref={toggleBtnRef}
                 onClick={() => setMenuOuvert(!menuOuvert)} 
-                className="flex items-center justify-center p-2 rounded-md bg-zinc-900 hover:bg-zinc-800 border border-border transition-colors"
+                className="flex items-center justify-center p-2 rounded-md bg-secondary hover:bg-accent border border-border transition-colors text-foreground"
               >
                 {menuOuvert ? <X className="size-5" /> : <Menu className="size-5" />}
               </button>
@@ -474,7 +427,7 @@ export default function Page() {
                     <KeyRound className="size-4" /> Mot de passe
                   </button>
 
-                  <button onClick={handleLogout} className="flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors hover:bg-red-500/10 text-red-400 font-medium">
+                  <button onClick={handleLogout} className="flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors hover:bg-destructive/10 text-destructive font-medium">
                     <LogOut className="size-4" /> Se déconnecter
                   </button>
                 </div>
@@ -515,10 +468,6 @@ export default function Page() {
                 dateActive={dateActive}
                 setDateActive={setDateActive}
                 blockTitle={blockInfo}
-                // Masqué au-delà du jour J : weeksOut() renvoie 0 aussi bien
-                // pour "jour J" que pour "déjà passé", sans quoi le badge
-                // resterait bloqué sur "S0" en naviguant sur des semaines
-                // largement postérieures à la compétition.
                 weeksOut={nextCompetition && toLocalDateStr(dateActive) <= nextCompetition.date ? weeksOut(toLocalDateStr(dateActive), nextCompetition.date) : null}
               />
               <SessionForm
