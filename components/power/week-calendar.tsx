@@ -8,7 +8,6 @@ interface WeekCalendarProps {
   dateActive: Date;
   setDateActive: (date: Date) => void;
   blockTitle?: string;
-  /** Semaines avant la prochaine compétition (0 = semaine du jour J), null si aucune compétition à venir. */
   weeksOut?: number | null;
 }
 
@@ -54,34 +53,22 @@ export function WeekCalendar({ dateActive, setDateActive, blockTitle, weeksOut }
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        {/* <label> plutôt qu'un onClick + showPicker()/click() JS : un clic
-            sur un <label> associé à un contrôle l'active nativement dans le
-            navigateur (y compris l'ouverture du picker natif), quelle que
-            soit la plateforme — showPicker()/click() déclenchés en script
-            ne sont pas fiables sur mobile (silencieusement no-op sur
-            certains Safari iOS). L'input reste invisible mais n'a plus
-            pointer-events-none : c'est lui qui doit recevoir le tap. Le
-            reste (icône, texte) garde pointer-events-none pour laisser le
-            tap "traverser" jusqu'à l'input en dessous. */}
-        <label className="relative flex min-w-0 cursor-pointer items-center gap-2 p-2 -ml-2 rounded-lg hover:bg-zinc-900 active:bg-zinc-800 transition-colors text-left min-h-11">
+        <label className="relative flex min-w-0 cursor-pointer items-center gap-2 p-2 -ml-2 rounded-lg hover:bg-accent active:bg-secondary transition-colors text-left min-h-11">
           <input type="date" value={localDateFormatee} onChange={(e) => { if (e.target.value) setDateActive(new Date(e.target.value)) }} className="absolute inset-0 h-full w-full opacity-0" tabIndex={-1} aria-hidden="true" />
-          <Calendar className="size-4 text-white pointer-events-none shrink-0" />
-          {/* Même typographie que le titre pour "S-N" : une seule phrase
-              cohérente ("BLOC 1 | SEMAINE 1 / 4 | S-11"), plus de badge à
-              fond distinct. */}
-          <span className="min-w-0 truncate text-sm font-bold uppercase tracking-widest text-white pointer-events-none">
+          <Calendar className="size-4 text-foreground pointer-events-none shrink-0" />
+          <span className="min-w-0 truncate text-sm font-bold uppercase tracking-widest text-foreground pointer-events-none">
             {blockTitle || "CALENDRIER"}
             {weeksOut != null && ` | ${weeksOut > 0 ? `S-${weeksOut}` : 'S0'}`}
           </span>
         </label>
 
         <div className="flex items-center gap-1">
-          <button onClick={() => changerSemaine(-7)} className="p-2 hover:bg-zinc-900 rounded-lg text-zinc-500 hover:text-white transition-colors"><ChevronLeft className="size-4"/></button>
-          <button onClick={() => changerSemaine(7)} className="p-2 hover:bg-zinc-900 rounded-lg text-zinc-500 hover:text-white transition-colors"><ChevronRight className="size-4"/></button>
+          <button onClick={() => changerSemaine(-7)} className="p-2 hover:bg-accent rounded-lg text-muted-foreground hover:text-foreground transition-colors"><ChevronLeft className="size-4"/></button>
+          <button onClick={() => changerSemaine(7)} className="p-2 hover:bg-accent rounded-lg text-muted-foreground hover:text-foreground transition-colors"><ChevronRight className="size-4"/></button>
         </div>
       </div>
 
-      <div ref={scrollRef} className="flex border-b border-zinc-900 overflow-x-auto pb-2 scroll-smooth" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+      <div ref={scrollRef} className="flex border-b border-border overflow-x-auto pb-2 scroll-smooth" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
         {joursSemaine.map((dateObj, index) => {
           const estSelectionne = dateActive.toDateString() === dateObj.toDateString()
           const infoJour = WEEK_PROGRAM.find(p => p.id === dateObj.getDay())
@@ -94,12 +81,12 @@ export function WeekCalendar({ dateActive, setDateActive, blockTitle, weeksOut }
               className={cn(
                 "px-5 py-3 flex flex-col items-center min-w-[3.5rem] transition-colors whitespace-nowrap border-b-2",
                 estSelectionne
-                  ? "border-white text-white"
-                  : "border-transparent text-zinc-600 hover:text-zinc-300 hover:border-zinc-800"
+                  ? "border-primary text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
               )}
             >
               <span className="text-[10px] font-bold uppercase tracking-widest mb-1">{infoJour?.dayName}</span>
-              <span className={cn("text-xl font-black tabular-nums", estSelectionne ? "text-white" : "")}>{dateObj.getDate()}</span>
+              <span className={cn("text-xl font-black tabular-nums", estSelectionne ? "text-primary" : "")}>{dateObj.getDate()}</span>
             </button>
           )
         })}

@@ -17,8 +17,6 @@ const videSet = (): SetData => ({ reps: '', weight: '', rpe: '' })
 const creerExerciceVierge = (): ExerciceRow => ({ id: null, uid: crypto.randomUUID(), name: '', coachTracking: [videSet()], tracking: [videSet()], comments: '', painLevel: null, })
 const safeInt = (v: string, fallback = 0) => { const n = parseInt(v, 10); return Number.isFinite(n) ? n : fallback }
 const safeFloat = (v: string, fallback = 0) => { const n = parseFloat(v); return Number.isFinite(n) ? n : fallback }
-// Affiche une date 'YYYY-MM-DD' sans repasser par un Date() qui la lirait en
-// UTC (décalage d'un jour possible selon le fuseau du navigateur).
 const formatDateAffichage = (dateStr: string) => { const [y, m, d] = dateStr.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('fr-FR') }
 
 export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMode, pasDuJour, setDateActive, nextCompetition, onGoToPalmares }: Props) {
@@ -65,21 +63,10 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
   const propagerSemaine1VersBloc = async () => { if (!confirm('Propager sur 4 semaines ?')) return; setIsPropagating(true); try { const savedOk = await executerSauvegarde(dateFormatee); if (!savedOk) throw new Error('Sauvegarde impossible'); const { data: semaine1Data, error: fetchError } = await supabase.from('workout_sets').select('*').eq('date', dateFormatee); if (fetchError) throw fetchError; if (!semaine1Data || semaine1Data.length === 0) throw new Error('Vide'); const deltas = [7, 14, 21, 28]; const insertions: Record<string, unknown>[] = []; for (const delta of deltas) { const dateCible = new Date(dateActive); dateCible.setDate(dateCible.getDate() + delta); const dateCibleStr = toLocalDateStr(dateCible); await supabase.from('workout_sets').delete().eq('date', dateCibleStr); for (const item of semaine1Data as WorkoutSetRow[]) { const { id: _id, ...dataToCopy } = item as WorkoutSetRow & { created_at?: string }; delete (dataToCopy as { created_at?: string }).created_at; insertions.push({ ...dataToCopy, date: dateCibleStr }) } } const { error: insertError } = await supabase.from('workout_sets').insert(insertions); if (insertError) throw insertError; toast('Propagé', 'success') } catch (e) { toast('Erreur', 'error') } finally { setIsPropagating(false) } }
   const reinitialiserFutur = async () => { if (!confirm("Tout effacer le futur ?")) return; setIsResetting(true); try { const demain = new Date(dateActive); demain.setDate(demain.getDate() + 1); const { error } = await supabase.from('workout_sets').delete().gte('date', toLocalDateStr(demain)); if (error) throw error; toast('Réinitialisé', 'success') } catch (e) { toast('Erreur', 'error') } finally { setIsResetting(false) } }
 
-  /**
-   * Double-clic sur l'en-tête : déplace ou intervertit la séance affichée
-   * avec une autre date. `newDateStr` vient directement de la value d'un
-   * <input type="date"> — déjà au format YYYY-MM-DD LOCAL, sans passer par
-   * un objet Date. C'est volontaire : reconstruire un Date avec
-   * `new Date(newDateStr)` le lirait en UTC minuit et ferait sauter d'un
-   * jour selon le fuseau du navigateur. On reste en chaîne de bout en bout,
-   * comme le fait déjà toLocalDateStr ailleurs dans ce fichier.
-   */
   const handleSwapDate = async (newDateStr: string) => {
     if (newDateStr === dateFormatee || isSwappingDate) return
     setIsSwappingDate(true)
     try {
-      // Les modifications en cours (debounce de 1.5s) doivent être en base
-      // avant de bouger quoi que ce soit, sinon elles seraient perdues.
       const savedOk = await executerSauvegarde(dateFormatee)
       if (!savedOk) { toast('Sauvegarde impossible avant le changement de date', 'error'); return }
 
@@ -87,11 +74,6 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
       if (fetchBError) throw fetchBError
 
       if (rowsB && rowsB.length > 0) {
-        // Cas 1 — une séance existe déjà à la date cible : on intervertit.
-        // Les ids des deux côtés sont capturés AVANT toute écriture ; sans
-        // ça, la première UPDATE (A → B) ferait qu'une requête ultérieure
-        // "WHERE date = B" récupérerait aussi les lignes qu'on vient de
-        // déplacer, et la seconde UPDATE écraserait tout sur la même date.
         const { data: rowsA, error: fetchAError } = await supabase.from('workout_sets').select('id').eq('date', dateFormatee)
         if (fetchAError) throw fetchAError
         const idsA = (rowsA ?? []).map((r) => r.id)
@@ -105,7 +87,6 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
         if (errB) throw errB
         toast(`Séances interverties avec le ${formatDateAffichage(newDateStr)}`, 'success')
       } else {
-        // Cas 2 — rien à la date cible : simple déplacement.
         const { error } = await supabase.from('workout_sets').update({ date: newDateStr }).eq('date', dateFormatee)
         if (error) throw error
         toast(`Séance déplacée au ${formatDateAffichage(newDateStr)}`, 'success')
@@ -132,14 +113,13 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
       newList[setIndex] = { ...newList[setIndex], [champ]: valeur };
       ex[list] = newList;
       
-      // Auto-RPE Logic (Fatigue Drop)
       if (list === 'tracking' && champ === 'rpe' && valeur !== '') {
         const actualRpe = parseFloat(valeur);
         const coachRpe = parseFloat(ex.coachTracking[setIndex]?.rpe || '0');
         
         if (!isNaN(actualRpe) && !isNaN(coachRpe) && coachRpe > 0 && actualRpe > coachRpe) {
           const rpeDiff = actualRpe - coachRpe;
-          const dropPercentage = rpeDiff * 0.05; // 5% per point
+          const dropPercentage = rpeDiff * 0.05;
           let didDrop = false;
 
           for (let i = setIndex + 1; i < ex.tracking.length; i++) {
@@ -179,19 +159,16 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
   const deltaTonnage = tonnageSemainePrec ? Math.round(((tonnageJour - tonnageSemainePrec) / tonnageSemainePrec) * 100) : null
   const listId = `liste-exos-${jourSemaine}`
 
-  // Jour J : ni séance standard, ni repos — un écran dédié qui remplace tout
-  // le reste. Comparaison de chaînes 'YYYY-MM-DD' directe, sans passer par
-  // un objet Date des deux côtés (même convention que le reste du fichier).
   if (nextCompetition && nextCompetition.date === dateFormatee) {
     const drapeau = countryCodeToFlag(nextCompetition.country_code)
     return (
-      <div className="flex flex-col items-center gap-6 rounded-2xl border border-zinc-900 bg-zinc-950 p-10 sm:p-16 text-center animate-in fade-in duration-500">
-        <Trophy className="size-12 text-white" />
+      <div className="flex flex-col items-center gap-6 rounded-2xl border border-border bg-card p-10 sm:p-16 text-center animate-in fade-in duration-500">
+        <Trophy className="size-12 text-foreground" />
         <div>
-          <h2 className="text-3xl sm:text-4xl font-black text-white uppercase tracking-widest">Comp Day</h2>
-          <p className="mt-3 text-sm font-bold text-zinc-400 uppercase tracking-widest">{nextCompetition.name}</p>
+          <h2 className="text-3xl sm:text-4xl font-black text-foreground uppercase tracking-widest">Comp Day</h2>
+          <p className="mt-3 text-sm font-bold text-muted-foreground uppercase tracking-widest">{nextCompetition.name}</p>
           {(nextCompetition.level || drapeau) && (
-            <div className="mt-3 flex items-center justify-center gap-2 font-mono text-xs font-bold uppercase tracking-widest text-zinc-500">
+            <div className="mt-3 flex items-center justify-center gap-2 font-mono text-xs font-bold uppercase tracking-widest text-muted-foreground">
               {nextCompetition.level && <span>{nextCompetition.level}</span>}
               {drapeau && <span className="text-base leading-none tracking-normal">{drapeau}</span>}
             </div>
@@ -199,7 +176,7 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
         </div>
         <button
           onClick={() => onGoToPalmares(nextCompetition.id)}
-          className="rounded-xl bg-white px-6 py-3 text-[11px] font-bold uppercase tracking-widest text-black transition-colors hover:bg-zinc-200"
+          className="rounded-xl bg-primary px-6 py-3 text-[11px] font-bold uppercase tracking-widest text-primary-foreground transition-colors hover:opacity-90"
         >
           Saisir mes résultats
         </button>
@@ -207,12 +184,9 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
     )
   }
 
-  // --- RENDU BRUTALISTE ---
   return (
     <div className="space-y-6 animate-in fade-in pb-10">
-
-      {/* Header Mode */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-zinc-950 p-6 rounded-2xl border border-zinc-900 gap-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-card p-6 rounded-2xl border border-border gap-6">
         <div>
           {isEditingDate ? (
             <input
@@ -221,26 +195,26 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
               defaultValue={dateFormatee}
               onChange={(e) => { const v = e.target.value; setIsEditingDate(false); if (v) handleSwapDate(v) }}
               onBlur={() => setIsEditingDate(false)}
-              className="bg-black border border-zinc-800 rounded-lg px-3 py-2 font-mono text-lg font-black text-white outline-none focus:ring-2 focus:ring-zinc-700 tabular-nums [color-scheme:dark]"
+              className="bg-input border border-border rounded-lg px-3 py-2 font-mono text-lg font-black text-foreground outline-none focus:ring-2 focus:ring-ring tabular-nums [color-scheme:dark]"
             />
           ) : (
             <h2
               onDoubleClick={() => !isSwappingDate && setIsEditingDate(true)}
               title="Double-clique pour déplacer ou intervertir cette séance"
-              className="text-xl font-black text-white uppercase tracking-widest flex items-center gap-3 cursor-pointer select-none"
+              className="text-xl font-black text-foreground uppercase tracking-widest flex items-center gap-3 cursor-pointer select-none"
             >
               {isRestDayMode ? <Coffee className="size-5" /> : <Activity className="size-5" />}
               {isRestDayMode ? 'RÉCUPÉRATION' : `SÉANCE DU ${dateActive.toLocaleDateString('fr-FR')}`}
-              {isSwappingDate && <RefreshCw className="size-4 animate-spin text-zinc-500" />}
+              {isSwappingDate && <RefreshCw className="size-4 animate-spin text-muted-foreground" />}
             </h2>
           )}
         </div>
 
-        <div className="flex items-center gap-4 bg-zinc-900 p-1 rounded-xl w-full sm:w-auto justify-center">
-          <button onClick={handleToggleMode} className={cn("px-6 py-3 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all", !isRestDayMode ? "bg-white text-black shadow-sm" : "text-zinc-500")}>
+        <div className="flex items-center gap-4 bg-secondary p-1 rounded-xl w-full sm:w-auto justify-center">
+          <button onClick={handleToggleMode} className={cn("px-6 py-3 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all", !isRestDayMode ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground")}>
             SÉANCE
           </button>
-          <button onClick={handleToggleMode} className={cn("px-6 py-3 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all", isRestDayMode ? "bg-white text-black shadow-sm" : "text-zinc-500")}>
+          <button onClick={handleToggleMode} className={cn("px-6 py-3 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all", isRestDayMode ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground")}>
             REPOS
           </button>
         </div>
@@ -248,27 +222,26 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
 
       {isRestDayMode ? (
         <div className="space-y-6 animate-in fade-in">
-          <div className="p-8 rounded-2xl border border-zinc-900 bg-zinc-950 flex flex-col items-center text-center space-y-4">
-            <Coffee className="size-8 text-white mb-2" />
-            <h2 className="text-2xl font-black uppercase tracking-widest text-white">REPOS ACTIF</h2>
+          <div className="p-8 rounded-2xl border border-border bg-card flex flex-col items-center text-center space-y-4">
+            <Coffee className="size-8 text-foreground mb-2" />
+            <h2 className="text-2xl font-black uppercase tracking-widest text-foreground">REPOS ACTIF</h2>
           </div>
 
           <DailyMetrics fatigue={fatigue} sommeil={sommeil} pas={pas} setFatigue={setFatigue} setSommeil={setSommeil} setPas={setPas} />
 
-          <button onClick={validerMission} disabled={isValidating} className="w-full p-6 rounded-full font-black text-sm uppercase tracking-widest bg-white hover:bg-zinc-200 text-black transition-all flex justify-center items-center gap-3">
+          <button onClick={validerMission} disabled={isValidating} className="w-full p-6 rounded-full font-black text-sm uppercase tracking-widest bg-primary hover:opacity-90 text-primary-foreground transition-all flex justify-center items-center gap-3">
             {isValidating ? <RefreshCw className="size-5 animate-spin" /> : <><Award className="size-5" /> VALIDER LE REPOS</>}
           </button>
         </div>
       ) : (
 
       <div className="space-y-6 animate-in fade-in">
-        {/* IA Assistant */}
-        <div className="flex flex-col sm:flex-row gap-3 p-2 bg-zinc-950 border border-zinc-900 rounded-2xl">
-          <div className="flex-1 flex items-center gap-3 bg-zinc-900 px-4 py-3 rounded-xl">
-            <Sparkles className="size-4 text-white shrink-0" />
-            <input type="text" maxLength={1000} placeholder="GÉNÉRER AVEC L'IA (EX: 3X3 SQUAT 180...)" value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handleAIGeneration() }} className="w-full bg-transparent text-white outline-none placeholder:text-zinc-600 text-[10px] uppercase font-bold tracking-widest" disabled={isGenerating} />
+        <div className="flex flex-col sm:flex-row gap-3 p-2 bg-card border border-border rounded-2xl">
+          <div className="flex-1 flex items-center gap-3 bg-secondary px-4 py-3 rounded-xl">
+            <Sparkles className="size-4 text-foreground shrink-0" />
+            <input type="text" maxLength={1000} placeholder="GÉNÉRER AVEC L'IA (EX: 3X3 SQUAT 180...)" value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handleAIGeneration() }} className="w-full bg-transparent text-foreground outline-none placeholder:text-muted-foreground text-[10px] uppercase font-bold tracking-widest" disabled={isGenerating} />
           </div>
-          <button onClick={handleAIGeneration} disabled={isGenerating || !aiPrompt.trim()} className="px-8 py-3 bg-white hover:bg-zinc-200 disabled:opacity-50 disabled:cursor-not-allowed text-black text-[10px] uppercase tracking-widest font-black rounded-xl transition-colors">
+          <button onClick={handleAIGeneration} disabled={isGenerating || !aiPrompt.trim()} className="px-8 py-3 bg-primary hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed text-primary-foreground text-[10px] uppercase tracking-widest font-black rounded-xl transition-colors">
             {isGenerating ? <RefreshCw className="size-4 animate-spin" /> : 'GÉNÉRER'}
           </button>
         </div>
@@ -279,20 +252,20 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
           <ExerciseCard key={ex.uid} ex={ex} exIndex={exIndex} isLast={exIndex === exercices.length - 1} listId={listId} onPatch={patchExercice} onUpdateSerie={updateSerie} onAjouterSerie={ajouterSerie} onSupprimerSerie={supprimerSerie} onDeplacer={deplacerExercice} onSupprimer={supprimerExercice} onCopierCoach={copierCoach} onValiderSerie={validerSerieCoach} />
         ))}
 
-        <button onClick={ajouterExercice} className="w-full py-6 border border-zinc-800 hover:border-white hover:bg-zinc-950 text-zinc-500 hover:text-white rounded-2xl flex items-center justify-center gap-2 transition-colors text-[10px] font-bold uppercase tracking-widest">
+        <button onClick={ajouterExercice} className="w-full py-6 border border-border hover:border-ring hover:bg-card text-muted-foreground hover:text-foreground rounded-2xl flex items-center justify-center gap-2 transition-colors text-[10px] font-bold uppercase tracking-widest">
           <Plus className="size-4" /> Ajouter un exercice
         </button>
 
         <DailyMetrics fatigue={fatigue} sommeil={sommeil} pas={pas} setFatigue={setFatigue} setSommeil={setSommeil} setPas={setPas} />
 
-        <div className="p-6 rounded-2xl border border-zinc-900 bg-zinc-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-2">
-            <Dumbbell className="size-4 text-white" /> Tonnage
+        <div className="p-6 rounded-2xl border border-border bg-card flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+            <Dumbbell className="size-4 text-foreground" /> Tonnage
           </span>
           <div className="flex items-baseline gap-3">
-            <span className="text-4xl font-black tabular-nums text-white">{tonnageJour.toLocaleString('fr-FR')}</span>
+            <span className="text-4xl font-black tabular-nums text-foreground">{tonnageJour.toLocaleString('fr-FR')}</span>
             {deltaTonnage !== null && tonnageJour > 0 && (
-              <span className="text-[10px] font-bold text-zinc-500">
+              <span className="text-[10px] font-bold text-muted-foreground">
                 {deltaTonnage >= 0 ? '+' : ''}{deltaTonnage}% VS S-1
               </span>
             )}
@@ -300,20 +273,20 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
         </div>
 
         <div className="space-y-4 pt-4">
-          <div className="h-4 flex items-center justify-center text-[10px] font-bold uppercase tracking-widest text-zinc-600">
-            {savePending ? <span className="text-white">EN ATTENTE DE SYNC...</span> : lastSaved && `SÉCURISÉ À ${lastSaved.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
+          <div className="h-4 flex items-center justify-center text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+            {savePending ? <span className="text-foreground">EN ATTENTE DE SYNC...</span> : lastSaved && `SÉCURISÉ À ${lastSaved.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <button onClick={propagerSemaine1VersBloc} disabled={isPropagating} className="py-4 bg-zinc-950 hover:bg-zinc-900 text-white rounded-xl font-bold uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 border border-zinc-900 transition-colors">
+            <button onClick={propagerSemaine1VersBloc} disabled={isPropagating} className="py-4 bg-card hover:bg-accent text-foreground rounded-xl font-bold uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 border border-border transition-colors">
               <Copy className="size-4" /> Propager Bloc
             </button>
-            <button onClick={reinitialiserFutur} disabled={isResetting} className="py-4 bg-zinc-950 hover:bg-zinc-900 text-red-500 rounded-xl font-bold uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 border border-zinc-900 transition-colors">
+            <button onClick={reinitialiserFutur} disabled={isResetting} className="py-4 bg-card hover:bg-accent text-destructive rounded-xl font-bold uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 border border-border transition-colors">
               <Trash2 className="size-4" /> Reset Futur
             </button>
           </div>
 
-          <button onClick={validerMission} disabled={isValidating} className="w-full p-6 rounded-full font-black text-sm uppercase tracking-widest bg-white hover:bg-zinc-200 text-black transition-all flex justify-center items-center gap-3">
+          <button onClick={validerMission} disabled={isValidating} className="w-full p-6 rounded-full font-black text-sm uppercase tracking-widest bg-primary hover:opacity-90 text-primary-foreground transition-all flex justify-center items-center gap-3">
             {isValidating ? <RefreshCw className="size-5 animate-spin" /> : <><Award className="size-5" /> TERMINER LA SÉANCE</>}
           </button>
         </div>
@@ -321,24 +294,24 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
       )}
 
       {(!isOnline || savePending) && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 px-6 py-3 rounded-full border border-zinc-800 bg-black text-white text-[10px] font-bold uppercase tracking-widest shadow-xl whitespace-nowrap">
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 px-6 py-3 rounded-full border border-border bg-background text-foreground text-[10px] font-bold uppercase tracking-widest shadow-xl whitespace-nowrap">
           HORS LIGNE — SYNC EN ATTENTE
         </div>
       )}
 
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 px-4">
-          <div className="bg-zinc-950 border border-zinc-900 rounded-2xl p-8 max-w-sm w-full space-y-8 shadow-2xl">
+          <div className="bg-card border border-border rounded-2xl p-8 max-w-sm w-full space-y-8 shadow-2xl">
             <div className="text-center space-y-4">
-              <Award className="size-12 mx-auto text-white" />
-              <h2 className="text-3xl font-black text-white tracking-widest">MISSION ACCOMPLIE</h2>
+              <Award className="size-12 mx-auto text-foreground" />
+              <h2 className="text-3xl font-black text-foreground tracking-widest">MISSION ACCOMPLIE</h2>
             </div>
-            <div className="bg-zinc-900 rounded-xl p-6 space-y-4">
-              <div className="flex justify-between items-center"><span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">XP Gagné</span><span className="text-xl font-black text-white tabular-nums">+{xpGained}</span></div>
-              <div className="flex justify-between items-center"><span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Série</span><span className="text-lg font-black text-white tabular-nums">{newStreakState} J</span></div>
+            <div className="bg-secondary rounded-xl p-6 space-y-4">
+              <div className="flex justify-between items-center"><span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">XP Gagné</span><span className="text-xl font-black text-foreground tabular-nums">+{xpGained}</span></div>
+              <div className="flex justify-between items-center"><span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Série</span><span className="text-lg font-black text-foreground tabular-nums">{newStreakState} J</span></div>
             </div>
-            {leveledUp && (<div className="text-white text-center font-black uppercase tracking-widest">LEVEL UP !</div>)}
-            <button onClick={() => setShowModal(false)} className="w-full py-4 bg-white hover:bg-zinc-200 text-black rounded-full font-black text-xs uppercase tracking-widest transition-colors">Fermer</button>
+            {leveledUp && (<div className="text-foreground text-center font-black uppercase tracking-widest">LEVEL UP !</div>)}
+            <button onClick={() => setShowModal(false)} className="w-full py-4 bg-primary hover:opacity-90 text-primary-foreground rounded-full font-black text-xs uppercase tracking-widest transition-colors">Fermer</button>
           </div>
         </div>
       )}
@@ -348,25 +321,25 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
 
 function DailyMetrics({ fatigue, sommeil, pas, setFatigue, setSommeil, setPas }: { fatigue: number; sommeil: number; pas: number; setFatigue: (v: number) => void; setSommeil: (v: number) => void; setPas: (v: number) => void; }) {
   return (
-    <div className="p-6 sm:p-8 rounded-2xl border border-zinc-900 bg-zinc-950">
+    <div className="p-6 sm:p-8 rounded-2xl border border-border bg-card">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="flex flex-col">
-          <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-3 ml-1">Fatigue (1-10)</span>
-          <div className="flex items-center gap-4 bg-zinc-900 p-4 rounded-xl border border-zinc-800">
-            <input type="range" min="1" max="10" value={fatigue} onChange={(e) => setFatigue(safeInt(e.target.value, 5))} className="w-full accent-white" />
-            <span className="text-xl font-black text-white tabular-nums">{fatigue}</span>
+          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3 ml-1">Fatigue (1-10)</span>
+          <div className="flex items-center gap-4 bg-secondary p-4 rounded-xl border border-border">
+            <input type="range" min="1" max="10" value={fatigue} onChange={(e) => setFatigue(safeInt(e.target.value, 5))} className="w-full accent-primary" />
+            <span className="text-xl font-black text-foreground tabular-nums">{fatigue}</span>
           </div>
         </div>
         <div className="flex flex-col">
-          <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-3 ml-1">Sommeil (h)</span>
-          <div className="bg-zinc-900 p-4 rounded-xl border border-zinc-800">
-            <input type="number" step="0.5" inputMode="decimal" value={sommeil} onChange={(e) => setSommeil(safeFloat(e.target.value))} className="w-full bg-transparent text-xl font-black tabular-nums text-white outline-none" />
+          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3 ml-1">Sommeil (h)</span>
+          <div className="bg-secondary p-4 rounded-xl border border-border">
+            <input type="number" step="0.5" inputMode="decimal" value={sommeil} onChange={(e) => setSommeil(safeFloat(e.target.value))} className="w-full bg-transparent text-xl font-black tabular-nums text-foreground outline-none" />
           </div>
         </div>
         <div className="flex flex-col">
-          <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-3 ml-1">Pas</span>
-          <div className="bg-zinc-900 p-4 rounded-xl border border-zinc-800">
-            <input type="number" inputMode="decimal" value={pas} onChange={(e) => setPas(safeInt(e.target.value))} className="w-full bg-transparent text-xl font-black tabular-nums text-white outline-none" />
+          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3 ml-1">Pas</span>
+          <div className="bg-secondary p-4 rounded-xl border border-border">
+            <input type="number" inputMode="decimal" value={pas} onChange={(e) => setPas(safeInt(e.target.value))} className="w-full bg-transparent text-xl font-black tabular-nums text-foreground outline-none" />
           </div>
         </div>
       </div>
@@ -379,85 +352,77 @@ interface ExerciseCardProps { ex: ExerciceRow; exIndex: number; isLast: boolean;
 const ExerciseCard = memo(function ExerciseCard({ ex, exIndex, isLast, listId, onPatch, onUpdateSerie, onAjouterSerie, onSupprimerSerie, onDeplacer, onSupprimer, onCopierCoach, onValiderSerie }: ExerciseCardProps) {
   const e1rmJour = classifyLift(ex.name) ? bestE1RM(ex.tracking) : 0
   return (
-    <div className="p-4 sm:p-6 rounded-2xl border border-zinc-900 bg-zinc-950 space-y-6">
-
-      {/* w-full max-w-full : le conteneur ne pousse jamais au-delà de sa
-          carte. Sans min-w-0, un <input> flex-1 refuse de descendre sous sa
-          largeur intrinsèque par défaut (~20 caractères) et pousse le reste
-          (flèches, poubelle) hors de l'écran sur mobile — shrink-0 sur les
-          éléments fixes garantit qu'eux seuls ne rétrécissent jamais. */}
+    <div className="p-4 sm:p-6 rounded-2xl border border-border bg-card space-y-6">
       <div className="flex items-center gap-1.5 sm:gap-3 w-full max-w-full">
-        <div className="shrink-0 bg-white text-black px-4 py-2 rounded-lg text-lg font-black tabular-nums">{exIndex + 1}</div>
-        <input list={listId} placeholder="NOM DU MOUVEMENT" className="flex-1 min-w-0 p-3 bg-zinc-900 border border-zinc-800 rounded-xl text-white text-sm font-black uppercase tracking-widest outline-none focus:border-white placeholder:text-zinc-600 transition-colors truncate" value={ex.name} onChange={(e) => onPatch(exIndex, { name: e.target.value })} />
+        <div className="shrink-0 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-lg font-black tabular-nums">{exIndex + 1}</div>
+        <input list={listId} placeholder="NOM DU MOUVEMENT" className="flex-1 min-w-0 p-3 bg-input border border-border rounded-xl text-foreground text-sm font-black uppercase tracking-widest outline-none focus:border-ring focus:ring-1 focus:ring-ring placeholder:text-muted-foreground transition-colors truncate" value={ex.name} onChange={(e) => onPatch(exIndex, { name: e.target.value })} />
 
-        <div className="shrink-0 flex items-center bg-zinc-900 border border-zinc-800 rounded-xl">
-          <button onClick={() => onDeplacer(exIndex, 'up')} disabled={exIndex === 0} className="p-3 text-zinc-500 hover:text-white disabled:opacity-20 transition-colors border-r border-zinc-800"><ChevronUp className="size-4" /></button>
-          <button onClick={() => onDeplacer(exIndex, 'down')} disabled={isLast} className="p-3 text-zinc-500 hover:text-white disabled:opacity-20 transition-colors"><ChevronDown className="size-4" /></button>
+        <div className="shrink-0 flex items-center bg-secondary border border-border rounded-xl">
+          <button onClick={() => onDeplacer(exIndex, 'up')} disabled={exIndex === 0} className="p-3 text-muted-foreground hover:text-foreground disabled:opacity-20 transition-colors border-r border-border"><ChevronUp className="size-4" /></button>
+          <button onClick={() => onDeplacer(exIndex, 'down')} disabled={isLast} className="p-3 text-muted-foreground hover:text-foreground disabled:opacity-20 transition-colors"><ChevronDown className="size-4" /></button>
         </div>
-        <button onClick={() => onSupprimer(exIndex, ex.id)} className="shrink-0 p-3 text-zinc-500 hover:text-red-500 bg-zinc-900 border border-zinc-800 rounded-xl transition-colors"><Trash2 className="size-4" /></button>
+        <button onClick={() => onSupprimer(exIndex, ex.id)} className="shrink-0 p-3 text-muted-foreground hover:text-destructive bg-secondary border border-border rounded-xl transition-colors"><Trash2 className="size-4" /></button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Prescription */}
-        <div className="p-4 rounded-xl border border-zinc-800 bg-black flex flex-col h-full">
-          <h3 className="text-[10px] font-bold text-zinc-500 mb-4 uppercase tracking-widest">Prescription</h3>
+        <div className="p-4 rounded-xl border border-border bg-background flex flex-col h-full">
+          <h3 className="text-[10px] font-bold text-muted-foreground mb-4 uppercase tracking-widest">Prescription</h3>
           <div className="grid grid-cols-[auto_1fr_1fr_1fr_auto] gap-2 mb-2 px-1">
-            <div className="w-6"></div><div className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest text-center">Reps</div><div className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest text-center">Poids</div><div className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest text-center">RPE</div><div className="w-9"></div>
+            <div className="w-6"></div><div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest text-center">Reps</div><div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest text-center">Poids</div><div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest text-center">RPE</div><div className="w-9"></div>
           </div>
           <div className="space-y-2 flex-1">
             {ex.coachTracking.map((set, setIndex) => (
               <div key={setIndex} className="grid grid-cols-[auto_1fr_1fr_1fr_auto] gap-2 items-center">
-                <span className="w-6 text-[10px] font-bold text-zinc-600 text-center uppercase tracking-widest">S{setIndex + 1}</span>
-                <input type="text" value={set.reps} onChange={(e) => onUpdateSerie(exIndex, 'coachTracking', setIndex, 'reps', e.target.value)} className="w-full p-3 bg-zinc-900 rounded-lg text-zinc-300 text-sm font-black text-center outline-none focus:bg-zinc-800 tabular-nums" />
-                <input type="text" value={set.weight} onChange={(e) => onUpdateSerie(exIndex, 'coachTracking', setIndex, 'weight', e.target.value)} className="w-full p-3 bg-zinc-900 rounded-lg text-white text-sm font-black text-center outline-none focus:bg-zinc-800 tabular-nums" />
-                <input type="text" value={set.rpe} onChange={(e) => onUpdateSerie(exIndex, 'coachTracking', setIndex, 'rpe', e.target.value)} className="w-full p-3 bg-zinc-900 rounded-lg text-zinc-300 text-sm font-black text-center outline-none focus:bg-zinc-800 tabular-nums" />
-                <button onClick={() => onSupprimerSerie(exIndex, 'coachTracking', setIndex)} className="h-11 w-9 flex items-center justify-center text-zinc-600 hover:text-white transition-colors"><X className="size-4" /></button>
+                <span className="w-6 text-[10px] font-bold text-muted-foreground text-center uppercase tracking-widest">S{setIndex + 1}</span>
+                <input type="text" value={set.reps} onChange={(e) => onUpdateSerie(exIndex, 'coachTracking', setIndex, 'reps', e.target.value)} className="w-full p-3 bg-secondary rounded-lg text-foreground text-sm font-black text-center outline-none focus:bg-accent tabular-nums" />
+                <input type="text" value={set.weight} onChange={(e) => onUpdateSerie(exIndex, 'coachTracking', setIndex, 'weight', e.target.value)} className="w-full p-3 bg-secondary rounded-lg text-foreground text-sm font-black text-center outline-none focus:bg-accent tabular-nums" />
+                <input type="text" value={set.rpe} onChange={(e) => onUpdateSerie(exIndex, 'coachTracking', setIndex, 'rpe', e.target.value)} className="w-full p-3 bg-secondary rounded-lg text-foreground text-sm font-black text-center outline-none focus:bg-accent tabular-nums" />
+                <button onClick={() => onSupprimerSerie(exIndex, 'coachTracking', setIndex)} className="h-11 w-9 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"><X className="size-4" /></button>
               </div>
             ))}
           </div>
-          <button onClick={() => onAjouterSerie(exIndex, 'coachTracking')} className="mt-4 w-full py-3 bg-zinc-900 text-zinc-500 hover:text-white text-[10px] font-bold uppercase tracking-widest rounded-lg transition-colors">Ajouter</button>
+          <button onClick={() => onAjouterSerie(exIndex, 'coachTracking')} className="mt-4 w-full py-3 bg-secondary text-muted-foreground hover:text-foreground text-[10px] font-bold uppercase tracking-widest rounded-lg transition-colors">Ajouter</button>
         </div>
 
-        {/* Validé */}
-        <div className="p-4 rounded-xl border border-zinc-800 bg-black flex flex-col h-full">
+        <div className="p-4 rounded-xl border border-border bg-background flex flex-col h-full">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-[10px] font-bold text-white uppercase tracking-widest">Validé</h3>
-            {e1rmJour > 0 && <span className="text-[10px] font-black text-white tabular-nums tracking-widest">E1RM: {Math.round(e1rmJour)}</span>}
+            <h3 className="text-[10px] font-bold text-foreground uppercase tracking-widest">Validé</h3>
+            {e1rmJour > 0 && <span className="text-[10px] font-black text-foreground tabular-nums tracking-widest">E1RM: {Math.round(e1rmJour)}</span>}
           </div>
           <div className="grid grid-cols-[auto_1fr_1fr_1fr_auto_auto] gap-1.5 mb-2 px-1">
-            <div className="w-5"></div><div className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest text-center">Reps</div><div className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest text-center">Poids</div><div className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest text-center">RPE</div><div className="w-9"></div><div className="w-9"></div>
+            <div className="w-5"></div><div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest text-center">Reps</div><div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest text-center">Poids</div><div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest text-center">RPE</div><div className="w-9"></div><div className="w-9"></div>
           </div>
           <div className="space-y-2 flex-1">
             {ex.tracking.map((set, setIndex) => {
               const coach = ex.coachTracking[setIndex]; const coachRemplie = !!coach && (coach.reps !== '' || coach.weight !== ''); const serieFaite = coachRemplie && set.reps === coach.reps && set.weight === coach.weight
               return (
                 <div key={setIndex} className="grid grid-cols-[auto_1fr_1fr_1fr_auto_auto] gap-1.5 items-center">
-                  <span className="w-5 text-[10px] font-bold text-zinc-600 text-center uppercase tracking-widest">S{setIndex + 1}</span>
-                  <input type="text" inputMode="decimal" enterKeyHint="next" value={set.reps} onChange={(e) => onUpdateSerie(exIndex, 'tracking', setIndex, 'reps', e.target.value)} className="w-full p-3 bg-zinc-900 rounded-lg text-white text-sm font-black text-center outline-none focus:bg-zinc-800 tabular-nums focus:ring-1 focus:ring-white" />
-                  <input type="text" inputMode="decimal" enterKeyHint="next" value={set.weight} onChange={(e) => onUpdateSerie(exIndex, 'tracking', setIndex, 'weight', e.target.value)} className="w-full p-3 bg-zinc-900 rounded-lg text-white text-sm font-black text-center outline-none focus:bg-zinc-800 tabular-nums focus:ring-1 focus:ring-white" />
-                  <input type="text" inputMode="decimal" enterKeyHint="done" value={set.rpe} onChange={(e) => onUpdateSerie(exIndex, 'tracking', setIndex, 'rpe', e.target.value)} className="w-full p-3 bg-zinc-900 rounded-lg text-white text-sm font-black text-center outline-none focus:bg-zinc-800 tabular-nums focus:ring-1 focus:ring-white" />
-                  <button onClick={() => onValiderSerie(exIndex, setIndex)} disabled={!coachRemplie} className={cn('h-11 w-9 flex items-center justify-center rounded-lg transition-colors disabled:opacity-20', serieFaite ? 'bg-white text-black' : 'bg-zinc-900 text-zinc-500 hover:text-white')}><Check className="size-4" /></button>
-                  <button onClick={() => onSupprimerSerie(exIndex, 'tracking', setIndex)} className="h-11 w-9 flex items-center justify-center text-zinc-600 hover:text-white transition-colors"><X className="size-4" /></button>
+                  <span className="w-5 text-[10px] font-bold text-muted-foreground text-center uppercase tracking-widest">S{setIndex + 1}</span>
+                  <input type="text" inputMode="decimal" enterKeyHint="next" value={set.reps} onChange={(e) => onUpdateSerie(exIndex, 'tracking', setIndex, 'reps', e.target.value)} className="w-full p-3 bg-secondary rounded-lg text-foreground text-sm font-black text-center outline-none focus:bg-accent tabular-nums focus:ring-1 focus:ring-ring" />
+                  <input type="text" inputMode="decimal" enterKeyHint="next" value={set.weight} onChange={(e) => onUpdateSerie(exIndex, 'tracking', setIndex, 'weight', e.target.value)} className="w-full p-3 bg-secondary rounded-lg text-foreground text-sm font-black text-center outline-none focus:bg-accent tabular-nums focus:ring-1 focus:ring-ring" />
+                  <input type="text" inputMode="decimal" enterKeyHint="done" value={set.rpe} onChange={(e) => onUpdateSerie(exIndex, 'tracking', setIndex, 'rpe', e.target.value)} className="w-full p-3 bg-secondary rounded-lg text-foreground text-sm font-black text-center outline-none focus:bg-accent tabular-nums focus:ring-1 focus:ring-ring" />
+                  <button onClick={() => onValiderSerie(exIndex, setIndex)} disabled={!coachRemplie} className={cn('h-11 w-9 flex items-center justify-center rounded-lg transition-colors disabled:opacity-20', serieFaite ? 'bg-primary text-primary-foreground' : 'bg-secondary text-muted-foreground hover:text-foreground')}><Check className="size-4" /></button>
+                  <button onClick={() => onSupprimerSerie(exIndex, 'tracking', setIndex)} className="h-11 w-9 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"><X className="size-4" /></button>
                 </div>
               )
             })}
           </div>
           <div className="mt-4 flex gap-2">
-            <button onClick={() => onCopierCoach(exIndex)} className="flex-1 py-3 bg-zinc-900 hover:bg-zinc-800 text-white text-[10px] font-bold uppercase tracking-widest rounded-lg transition-colors">Copier Coach</button>
-            <button onClick={() => onAjouterSerie(exIndex, 'tracking')} className="flex-1 py-3 bg-zinc-900 hover:bg-zinc-800 text-white text-[10px] font-bold uppercase tracking-widest rounded-lg transition-colors">+ Série Extra</button>
+            <button onClick={() => onCopierCoach(exIndex)} className="flex-1 py-3 bg-secondary hover:bg-accent text-foreground text-[10px] font-bold uppercase tracking-widest rounded-lg transition-colors">Copier Coach</button>
+            <button onClick={() => onAjouterSerie(exIndex, 'tracking')} className="flex-1 py-3 bg-secondary hover:bg-accent text-foreground text-[10px] font-bold uppercase tracking-widest rounded-lg transition-colors">+ Série Extra</button>
           </div>
         </div>
       </div>
 
-      <div className="pt-2 border-t border-zinc-900">
-        <span className="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2 ml-1">Notes & Tempo</span>
-        <input placeholder="EX: TEMPO 3-1-0..." value={ex.comments} onChange={(e) => onPatch(exIndex, { comments: e.target.value })} className="w-full p-4 bg-zinc-900 border border-zinc-800 rounded-xl text-xs font-bold uppercase tracking-widest text-white outline-none focus:border-white placeholder:text-zinc-600" />
+      <div className="pt-2 border-t border-border">
+        <span className="block text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2 ml-1">Notes & Tempo</span>
+        <input placeholder="EX: TEMPO 3-1-0..." value={ex.comments} onChange={(e) => onPatch(exIndex, { comments: e.target.value })} className="w-full p-4 bg-secondary border border-border rounded-xl text-xs font-bold uppercase tracking-widest text-foreground outline-none focus:ring-1 focus:ring-ring focus:border-ring placeholder:text-muted-foreground" />
       </div>
 
       <div className="flex flex-wrap items-center gap-2 pt-1">
-        <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mr-2 ml-1">Douleur</span>
+        <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mr-2 ml-1">Douleur</span>
         {PAIN_LEVELS.map((p) => (
-          <button key={p.value} onClick={() => onPatch(exIndex, { painLevel: ex.painLevel === p.value ? null : p.value })} className={cn('px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest border transition-colors', ex.painLevel === p.value ? 'bg-white text-black border-white' : 'border-zinc-800 bg-zinc-900 text-zinc-500 hover:text-white')}>
+          <button key={p.value} onClick={() => onPatch(exIndex, { painLevel: ex.painLevel === p.value ? null : p.value })} className={cn('px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest border transition-colors', ex.painLevel === p.value ? 'bg-primary text-primary-foreground border-primary' : 'border-border bg-secondary text-muted-foreground hover:text-foreground')}>
             {p.emoji} {p.label}
           </button>
         ))}
