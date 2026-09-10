@@ -241,7 +241,7 @@ function LigneEntree({ entree, t, locale, onGrammes, onSupprimer }: {
           onBlur={valider}
           onKeyDown={(ev) => { if (ev.key === 'Enter') (ev.target as HTMLInputElement).blur() }}
           aria-label={t('grammes')}
-          className="h-10 w-16 bg-transparent text-right text-sm font-black tabular-nums text-foreground outline-none"
+          className="h-10 w-16 bg-transparent text-right text-base font-black tabular-nums text-foreground outline-none"
         />
         <span className="text-xs font-bold text-muted-foreground">g</span>
       </label>
@@ -266,6 +266,26 @@ function FenetreAjout({ langue, t, locale, recents: alimentsRecents, onFermer, o
 }) {
   const [onglet, setOnglet] = useState<Onglet>('scanner')
   const [choisi, setChoisi] = useState<Aliment | null>(null)
+  const [zoneVisible, setZoneVisible] = useState(lireZoneVisible)
+
+  useEffect(() => {
+    const vue = window.visualViewport
+    if (!vue) return
+    const suivre = () => setZoneVisible({ haut: vue.offsetTop, hauteur: vue.height })
+    vue.addEventListener('resize', suivre)
+    vue.addEventListener('scroll', suivre)
+    return () => {
+      vue.removeEventListener('resize', suivre)
+      vue.removeEventListener('scroll', suivre)
+    }
+  }, [])
+
+  // Page figée derrière la fenêtre : sinon iOS la fait défiler quand le clavier s'ouvre.
+  useEffect(() => {
+    const precedent = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = precedent }
+  }, [])
 
   useEffect(() => {
     const surTouche = (e: KeyboardEvent) => { if (e.key === 'Escape') onFermer() }
@@ -280,9 +300,18 @@ function FenetreAjout({ langue, t, locale, recents: alimentsRecents, onFermer, o
     { cle: 'manuel', icone: PenLine, libelle: t('ongletManuel') },
   ]
 
+  // Hauteur et position calées sur la zone réellement visible : quand le
+  // clavier s'ouvre sur mobile, la fenêtre reste au-dessus de lui au lieu de
+  // passer dessous et de faire défiler la page.
   return (
-    <div role="dialog" aria-modal="true" aria-label={t('ajouterAliment')} className="fixed inset-0 z-[100] flex items-end justify-center bg-black/90 sm:items-center sm:p-4">
-      <div className="flex max-h-[92dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-2xl border border-border bg-card sm:rounded-2xl">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={t('ajouterAliment')}
+      style={zoneVisible ? { top: zoneVisible.haut, height: zoneVisible.hauteur } : undefined}
+      className={cn('fixed inset-x-0 z-[100] flex items-end justify-center overflow-hidden bg-black/90 pt-6 sm:items-center sm:p-4', !zoneVisible && 'inset-y-0')}
+    >
+      <div className="flex max-h-full w-full max-w-lg flex-col overflow-hidden rounded-t-2xl border border-border bg-card sm:max-h-[92dvh] sm:rounded-2xl">
         <header className="flex items-center justify-between border-b border-border p-4">
           <h2 className="text-sm font-black uppercase tracking-widest text-foreground">{choisi ? t('quantite') : t('ajouterAliment')}</h2>
           <button onClick={onFermer} aria-label={t('fermer')} className="flex size-10 items-center justify-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground">
@@ -321,6 +350,11 @@ function FenetreAjout({ langue, t, locale, recents: alimentsRecents, onFermer, o
       </div>
     </div>
   )
+}
+
+function lireZoneVisible(): { haut: number; hauteur: number } | null {
+  if (typeof window === 'undefined' || !window.visualViewport) return null
+  return { haut: window.visualViewport.offsetTop, hauteur: window.visualViewport.height }
 }
 
 type EtatScanner = 'demarrage' | 'lecture' | 'recherche' | 'refus' | 'camera' | 'introuvable' | 'erreur'
@@ -439,7 +473,7 @@ function Scanner({ langue, t, onTrouve }: { langue: Langue; t: Traducteur; onTro
           inputMode="numeric"
           placeholder={t('codeBarres')}
           aria-label={t('codeBarres')}
-          className="h-12 min-w-0 flex-1 rounded-xl bg-secondary px-3 text-sm font-bold tabular-nums text-foreground outline-none"
+          className="h-12 min-w-0 flex-1 rounded-xl bg-secondary px-3 text-base font-bold tabular-nums text-foreground outline-none"
         />
         <button type="submit" className="h-12 shrink-0 rounded-xl border border-border px-4 text-xs font-black uppercase tracking-widest text-foreground hover:bg-secondary">
           {t('chercher')}
@@ -488,7 +522,7 @@ function Recherche({ langue, t, locale, onChoisir }: { langue: Langue; t: Traduc
           onChange={(e) => setTexte(e.target.value)}
           placeholder={t('rechercheAliment')}
           aria-label={t('ongletRecherche')}
-          className="h-12 min-w-0 flex-1 bg-transparent text-sm font-bold text-foreground outline-none placeholder:text-muted-foreground"
+          className="h-12 min-w-0 flex-1 bg-transparent text-base font-bold text-foreground outline-none placeholder:text-muted-foreground"
         />
       </label>
       {assezLong && etat === 'recherche' && <p className="text-center text-sm text-muted-foreground">{t('rechercheEnCours')}</p>}
@@ -538,7 +572,8 @@ function SaisieManuelle({ t, onValider }: { t: Traducteur; onValider: (aliment: 
   const k = Number.parseFloat(kcal.replace(',', '.'))
   const p = Number.parseFloat(prot.replace(',', '.'))
   const valide = nom.trim().length > 0 && Number.isFinite(k) && k >= 0 && k <= 1000 && Number.isFinite(p) && p >= 0 && p <= 100
-  const classeChamp = 'h-12 w-full rounded-xl bg-secondary px-3 text-sm font-bold text-foreground outline-none'
+  // 16 px minimum : en dessous, Safari iOS zoome toute la page quand le champ prend le focus.
+  const classeChamp = 'h-12 w-full rounded-xl bg-secondary px-3 text-base font-bold text-foreground outline-none'
 
   return (
     <form
