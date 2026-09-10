@@ -83,6 +83,14 @@ const fr = {
   // — Messages
   dejaValide: 'Déjà validé !',
   validationJourMeme: 'On ne peut valider que la séance du jour même.',
+  // Annulation des suppressions
+  annuler: 'Annuler',
+  restaure: 'Restauré',
+  restaurationImpossible: 'Restauration impossible',
+  exerciceSupprime: 'Exercice supprimé',
+  blocSupprime: 'Bloc supprimé',
+  futurEfface: 'Séances futures effacées',
+  exerciceSansNom: 'Exercice Non Défini',
   erreur: 'Erreur',
   erreurChargement: 'Erreur de chargement',
   sauvegardeImpossible: 'Sauvegarde impossible',
@@ -92,7 +100,6 @@ const fr = {
   propager: 'Propager sur 4 semaines ?',
   propage: 'Propagé',
   effacerFutur: 'Tout effacer le futur ?',
-  reinitialise: 'Réinitialisé',
   effacerPourRepos: 'Effacer la séance pour passer en Repos ?',
   pasSynchronises: 'Pas synchronisés depuis le téléphone : {n} pas',
 
@@ -324,6 +331,13 @@ const ca: Record<CleTraduction, string> = {
 
   dejaValide: 'Ja estava validat!',
   validationJourMeme: 'Només es pot validar la sessió del mateix dia.',
+  annuler: 'Desfés',
+  restaure: 'Restaurat',
+  restaurationImpossible: "No s'ha pogut restaurar",
+  exerciceSupprime: 'Exercici eliminat',
+  blocSupprime: 'Bloc eliminat',
+  futurEfface: 'Sessions futures esborrades',
+  exerciceSansNom: 'Exercici sense nom',
   erreur: 'Error',
   erreurChargement: 'Error de càrrega',
   sauvegardeImpossible: "No s'ha pogut desar",
@@ -333,7 +347,6 @@ const ca: Record<CleTraduction, string> = {
   propager: 'Vols propagar-ho a 4 setmanes?',
   propage: 'Propagat',
   effacerFutur: 'Vols esborrar tot el futur?',
-  reinitialise: 'Reinicialitzat',
   effacerPourRepos: 'Vols esborrar la sessió i passar a descans?',
   pasSynchronises: 'Passos sincronitzats des del telèfon: {n} passos',
 

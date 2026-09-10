@@ -6,6 +6,8 @@ import { toLocalDateStr, setsTonnage, painLabel, weeksOut, type SetData, type Up
 import { countryCodeToFlag } from '../../lib/countries'
 import { Plus, Trash2, Calendar, Settings, RefreshCw, Download, Tag, Trophy } from 'lucide-react'
 import { useT, useTheme, useLocale } from '@/app/ThemeContext'
+import { toast } from '@/components/power/toaster'
+import { proposerAnnulation } from '@/lib/annulation'
 
 interface TrainingBlock { id: string; block_number: number; start_date: string; duration_weeks: number; name?: string; }
 const parseLocalDate = (dateStr: string): Date => { const [annee, mois, jour] = dateStr.split('-').map(Number); return new Date(annee, mois - 1, jour) }
@@ -56,9 +58,25 @@ export default function ConfigPanel() {
 
   const supprimerBloc = async (id: string) => {
     if (!confirm(t('supprimerBloc'))) return
+    const copie = blocks.find((b) => b.id === id)
     const { error } = await supabase.from('training_blocks').delete().eq('id', id)
     if (error) { alert(t('erreurDeuxPoints') + ' ' + error.message); return }
     setBlocks((prev) => prev.filter(b => b.id !== id))
+    if (!copie) return
+    proposerAnnulation({
+      message: t('blocSupprime'),
+      libelleBouton: t('annuler'),
+      annuler: async () => {
+        const { error: erreurRestauration } = await supabase.from('training_blocks').insert([copie])
+        if (erreurRestauration) {
+          toast(t('restaurationImpossible'), 'error')
+          return false
+        }
+        await fetchBlocks()
+        toast(t('restaure'), 'success')
+        return true
+      },
+    })
   }
 
   const debounceRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})

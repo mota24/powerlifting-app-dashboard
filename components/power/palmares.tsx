@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Card, CardTitle } from '@/components/power/card'
 import { supabase } from '@/lib/supabase'
 import { toast } from '@/components/power/toaster'
+import { proposerAnnulation } from '@/lib/annulation'
 import { calculateIPFGL } from '@/lib/powerlifting'
 import { COUNTRIES, countryCodeToFlag, countryName } from '@/lib/countries'
 import { cn } from '@/lib/utils'
@@ -352,12 +353,33 @@ export function Palmares({ initialEditId, onInitialEditConsumed }: PalmaresProps
 
   const handleDelete = async (id: string) => {
     if (!confirm('Supprimer cette compétition ?')) return
+    // Copie complète (chargée via select('*')) : c'est elle qu'on réinsère si
+    // la suppression est annulée. Les photos ne sont pas effacées du stockage,
+    // elles reviennent donc avec la ligne.
+    const copie = competitions.find((c) => c.id === id)
     try {
       const { error } = await supabase.from('competitions').delete().eq('id', id)
       if (error) throw error
       setCompetitions((prev) => prev.filter((c) => c.id !== id))
       setDetailId(null)
-      toast('Compétition supprimée', 'success')
+      if (!copie) {
+        toast('Compétition supprimée', 'success')
+        return
+      }
+      proposerAnnulation({
+        message: 'Compétition supprimée',
+        libelleBouton: 'Annuler',
+        annuler: async () => {
+          const { error: erreurRestauration } = await supabase.from('competitions').insert([copie])
+          if (erreurRestauration) {
+            toast('Restauration impossible', 'error')
+            return false
+          }
+          await fetchCompetitions()
+          toast('Compétition restaurée', 'success')
+          return true
+        },
+      })
     } catch (err) {
       toast('Erreur lors de la suppression', 'error')
       console.error(err)
