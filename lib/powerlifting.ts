@@ -170,15 +170,16 @@ export const LIFT_DEADLIFT = ['Deadlift', 'Sumo Deadlift', 'Deficit Deadlift', '
 export const ACCESSORIES = ['Pull-ups', 'Barbell Row', 'Lat Pulldown', 'Leg Press', 'Bulgarian Split Squat', 'Leg Extensions', 'Leg Curls', 'Bicep Curls', 'Tricep Extensions', 'Gainage (Planche)', 'Ab Rollout']
 
 // ————————————————————————————————————————————————
-// Catalogue FITNESS (salle, sans compétition) — compte en mode
-// 'fitness'. Volontairement en français : ce n'est pas un vocabulaire
-// de plateau de compét, c'est celui des machines d'une salle.
+// Catalogue FITNESS (salle, sans compétition) — compte en mode 'fitness'.
+// En catalan : ce catalogue ne sert qu'au compte d'Yamina, et ces noms
+// sont ceux qu'elle voit dans l'autocomplétion puis qui sont écrits en base.
+// Les trois mouvements suivis en Analytique ouvrent la liste des jambes.
 // ————————————————————————————————————————————————
 
-export const FIT_JAMBES = ['Presse à cuisses', 'Leg Extension', 'Leg Curl', 'Hip Thrust', 'Fentes haltères', 'Squat guidé (Smith)', 'Soulevé de terre jambes tendues', 'Abducteurs machine', 'Adducteurs machine', 'Mollets debout', 'Step-up banc']
-export const FIT_POUSSEE = ['Développé couché haltères', 'Chest Press machine', 'Développé incliné haltères', 'Écartés poulie', 'Écartés machine (Pec Deck)', 'Développé épaules machine', 'Élévations latérales', 'Extension triceps poulie', 'Dips assistés']
-export const FIT_TIRAGE = ['Tirage vertical (Lat Pulldown)', 'Rowing machine', 'Tirage horizontal poulie', 'Rowing haltère', 'Tirage nuque', 'Face Pull', 'Curl biceps haltères', 'Curl pupitre', 'Traction assistée']
-export const FIT_ACCESSOIRES = ['Gainage (Planche)', 'Crunch poulie', 'Relevé de jambes', 'Abdos machine', 'Russian Twist', 'Vélo', 'Tapis de course', 'Rameur', 'Elliptique', 'Étirements', 'Mobilité hanches']
+export const FIT_JAMBES = ['Squat', 'Hip Thrust', 'Pes mort romanès', 'Premsa de cames', 'Extensió de quàdriceps', 'Curl femoral', 'Gambades amb manuelles', 'Squat búlgar', 'Abductors a màquina', 'Adductors a màquina', 'Bessons dempeus', 'Pujades a banc', 'Patada de glutis a politja']
+export const FIT_POUSSEE = ['Press de banca amb manuelles', 'Press de pit a màquina', 'Press inclinat amb manuelles', 'Obertures a politja', 'Contractora (Pec Deck)', "Press d'espatlles a màquina", 'Elevacions laterals', 'Extensió de tríceps a politja', 'Fons assistits']
+export const FIT_TIRAGE = ['Jal·lonament al pit', 'Rem a màquina', 'Rem baix a politja', 'Rem amb manuella', 'Face Pull', 'Curl de bíceps amb manuelles', 'Curl Scott', 'Dominades assistides']
+export const FIT_ACCESSOIRES = ['Planxa', 'Crunch a politja', 'Elevació de cames', 'Abdominals a màquina', 'Russian Twist', 'Bicicleta', 'Cinta de córrer', 'Rem (ergòmetre)', 'El·líptica', 'Estiraments', 'Mobilitat de malucs']
 
 export type LiftCategory = 'squat' | 'bench' | 'deadlift'
 export type ModeApp = 'powerlifting' | 'fitness'
@@ -197,9 +198,9 @@ export const CATEGORIES_PAR_MODE: Record<ModeApp, { key: LiftCategory; cle: CleT
     { key: 'deadlift', cle: 'catDeadlift', court: 'DL' },
   ],
   fitness: [
-    { key: 'squat', cle: 'catJambes', court: 'JBS' },
-    { key: 'bench', cle: 'catPoussee', court: 'PUSH' },
-    { key: 'deadlift', cle: 'catTirage', court: 'PULL' },
+    { key: 'squat', cle: 'catSquat', court: 'SQ' },
+    { key: 'bench', cle: 'catHipThrust', court: 'HT' },
+    { key: 'deadlift', cle: 'catPesMortRomanes', court: 'RDL' },
   ],
 }
 
@@ -227,17 +228,20 @@ export function suggestionsExercices(mode: ModeApp, jourSemaine: number): string
 
 /**
  * Classe un nom d'exercice libre dans une des trois catégories suivies.
- * En mode fitness, l'ordre des tests compte : « leg curl » (jambes) doit
- * être reconnu avant le « curl » générique (biceps → tirage).
+ * En mode fitness, les trois catégories sont trois mouvements précis
+ * (squat, hip thrust, soulevé de terre roumain), pas des groupes
+ * musculaires : un squat bulgare ou une presse ne doivent donc PAS gonfler
+ * la courbe du squat. Les mots-clés couvrent catalan, espagnol, français et
+ * anglais, puisque le nom est saisi librement.
  */
 export function classifyLift(name: string | null | undefined, mode: ModeApp = 'powerlifting'): LiftCategory | null {
   if (!name) return null
   const n = name.toLowerCase()
 
   if (mode === 'fitness') {
-    if (['leg curl', 'leg extension', 'presse', 'cuisse', 'fente', 'hip thrust', 'mollet', 'abducteur', 'adducteur', 'ischio', 'jambes tendues', 'step-up', 'squat'].some((k) => n.includes(k))) return 'squat'
-    if (['développé', 'developpe', 'chest press', 'écarté', 'ecarte', 'pec deck', 'élévation', 'elevation', 'triceps', 'dips', 'pompe'].some((k) => n.includes(k))) return 'bench'
-    if (['tirage', 'rowing', 'lat pulldown', 'traction', 'face pull', 'curl', 'biceps', 'pull-up'].some((k) => n.includes(k))) return 'deadlift'
+    if (['rdl', 'romanès', 'romanes', 'rumano', 'roumain', 'romanian', 'jambes tendues', 'cames rígides', 'piernas rígidas'].some((k) => n.includes(k))) return 'deadlift'
+    if (['hip thrust', 'hip-thrust', 'hipthrust', 'empenta de maluc', 'empuje de cadera'].some((k) => n.includes(k))) return 'bench'
+    if (['squat', 'sentadilla', 'esquat'].some((k) => n.includes(k)) && !['split', 'bulgar', 'búlgar', 'bulgarian'].some((k) => n.includes(k))) return 'squat'
     return null
   }
 
