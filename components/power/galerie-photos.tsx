@@ -6,21 +6,24 @@ import { useLocale, useT } from '@/app/ThemeContext'
 import { VisionneusePhotos } from '@/components/power/visionneuse-photos'
 import type { Traducteur } from '@/lib/i18n'
 import {
-  QUOTA_OCTETS,
+  PLAFOND_STOCKAGE_OCTETS,
+  SEUIL_ALERTE_STOCKAGE,
   formaterOctets,
   grouperParMois,
   insererA,
   joursEntre,
   libelleDate,
   libelleMois,
+  type EtatStockage,
   type PhotoSeance,
 } from '@/lib/photos'
-import { chargerPhotos, supprimerAvecAnnulation } from '@/lib/photos-client'
+import { chargerGalerie, supprimerAvecAnnulation } from '@/lib/photos-client'
 import { cn } from '@/lib/utils'
 
 interface Chargement {
   version: number
   photos: PhotoSeance[] | 'indisponible'
+  stockage: EtatStockage | null
 }
 
 /**
@@ -40,8 +43,9 @@ export function GaleriePhotos({ onOuvrirSeance }: { onOuvrirSeance: (date: strin
 
   useEffect(() => {
     let annule = false
-    chargerPhotos().then((photos) => {
-      if (!annule) setCharge({ version, photos })
+    chargerGalerie().then((resultat) => {
+      if (annule) return
+      setCharge(resultat === 'indisponible' ? { version, photos: resultat, stockage: null } : { version, ...resultat })
     })
     return () => { annule = true }
   }, [version])
@@ -82,7 +86,12 @@ export function GaleriePhotos({ onOuvrirSeance }: { onOuvrirSeance: (date: strin
     setSelection([])
   }
 
-  const remplissage = octets > 0 ? Math.max(1, Math.min(100, (octets / QUOTA_OCTETS) * 100)) : 0
+  // Jauge sur la place de tout le projet : le quota est commun aux deux comptes.
+  // Sans mesure du serveur, elle se rabat sur les photos affichées.
+  const utilises = charge?.stockage?.utilises ?? octets
+  const plafond = charge?.stockage?.plafond ?? PLAFOND_STOCKAGE_OCTETS
+  const part = utilises / plafond
+  const remplissage = utilises > 0 ? Math.max(1, Math.min(100, part * 100)) : 0
 
   return (
     <div className="space-y-4">
@@ -92,11 +101,14 @@ export function GaleriePhotos({ onOuvrirSeance }: { onOuvrirSeance: (date: strin
             {actuel === null ? t('photos') : photos.length === 1 ? t('unePhoto') : t('nPhotos', { n: photos.length })}
           </p>
           <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-            {t('stockageUtilise', { taille: formaterOctets(octets, locale), quota: formaterOctets(QUOTA_OCTETS, locale) })}
+            {t('stockageUtilise', { taille: formaterOctets(utilises, locale), quota: formaterOctets(plafond, locale) })}
           </p>
           <div className="mt-2 h-1.5 w-full max-w-48 overflow-hidden rounded-full bg-secondary">
-            <div className="h-full rounded-full bg-primary" style={{ width: `${remplissage}%` }} />
+            <div className={cn('h-full rounded-full', part >= 0.9 ? 'bg-destructive' : 'bg-primary')} style={{ width: `${remplissage}%` }} />
           </div>
+          {part >= SEUIL_ALERTE_STOCKAGE && (
+            <p className="mt-2 text-xs font-bold text-destructive">{part >= 1 ? t('stockagePlein') : t('stockageBientotPlein')}</p>
+          )}
         </div>
         {photos.length >= 2 && (
           <button

@@ -24,8 +24,20 @@ export const OCTETS_MAX_MINI = 200_000
 export type TypeImage = 'image/webp' | 'image/jpeg'
 export const EXTENSIONS: Record<TypeImage, string> = { 'image/webp': 'webp', 'image/jpeg': 'jpg' }
 
-/** Stockage de l'offre gratuite Supabase, pour la jauge de la galerie. */
-export const QUOTA_OCTETS = 1024 ** 3
+/**
+ * Plafond de TOUT le stockage du projet (photos de séance et de compétition).
+ * Le quota gratuit Supabase est de 1 Go, et le dépasser finit par bloquer
+ * toute l'app (réponses 402), pas seulement les photos : les envois sont donc
+ * refusés avant, à 850 Mo, avec de la marge.
+ */
+export const PLAFOND_STOCKAGE_OCTETS = 850 * 1024 ** 2
+/** Part du plafond à partir de laquelle la galerie prévient que l'espace se remplit. */
+export const SEUIL_ALERTE_STOCKAGE = 0.8
+
+export interface EtatStockage {
+  utilises: number
+  plafond: number
+}
 
 export interface PhotoSeance {
   id: string

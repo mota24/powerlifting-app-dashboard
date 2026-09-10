@@ -298,6 +298,10 @@ de navigation, pas un ajout de header, hors périmètre de cet audit.
    le navigateur avant l'envoi, ce qui retire les métadonnées EXIF (dont la position GPS). Elles partent
    avec le compte (`/api/account/delete`). Conséquence acceptée : le navigateur reçoit des liens signés
    valables **une heure** ; copié pendant ce délai, un lien ouvre la photo sans session.
+   Quota : le stockage gratuit (1 Go) est commun au projet, et le dépasser finit par bloquer toute l'app
+   (réponses 402). La route refuse donc tout envoi qui porterait le stockage total du projet au-delà de
+   850 Mo, mesuré par `stockage_octets_utilises()` (exécution réservée à `service_role`) ; si la mesure
+   échoue, l'envoi est refusé. La galerie affiche ce total : un seul nombre, commun aux deux comptes.
 
 ## 12. Hors périmètre — à faire manuellement de ton côté
 

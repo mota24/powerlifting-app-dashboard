@@ -9,6 +9,7 @@ import {
   OCTETS_MAX_MINI,
   OCTETS_MAX_PHOTO,
   PHOTOS_MAX_PAR_JOUR,
+  PLAFOND_STOCKAGE_OCTETS,
   dateValide,
   signatureImage,
   type PhotoSeance,
@@ -69,6 +70,16 @@ function tableAbsente(erreur: { code?: string } | null, status?: number) {
   return erreur?.code === 'PGRST205' || erreur?.code === '42P01' || status === 404
 }
 
+/**
+ * Octets occupés par TOUT le stockage du projet (c'est ce total que Supabase
+ * compare au quota gratuit), ou null si la mesure échoue.
+ */
+async function placeUtilisee(): Promise<number | null> {
+  const { data, error } = await getSupabaseAdmin().rpc('stockage_octets_utilises')
+  const octets = Number(data)
+  return error || data === null || !Number.isFinite(octets) ? null : octets
+}
+
 async function avecLiens(lignes: LignePhoto[]): Promise<PhotoSeance[] | null> {
   if (lignes.length === 0) return []
   const chemins = lignes.flatMap((l) => [l.chemin, l.chemin_mini])
@@ -83,7 +94,7 @@ async function avecLiens(lignes: LignePhoto[]): Promise<PhotoSeance[] | null> {
   })
 }
 
-/** ?date=YYYY-MM-DD : photos de la séance. Sans date : toute la galerie du compte. */
+/** ?date=YYYY-MM-DD : photos de la séance. Sans date : toute la galerie du compte, et la place occupée. */
 export async function GET(req: NextRequest) {
   const bloque = limiter(req)
   if (bloque) return bloque
@@ -105,7 +116,12 @@ export async function GET(req: NextRequest) {
   if (error) return repondre({ error: 'Photos indisponibles' }, tableAbsente(error, status) ? 503 : 500, session.refreshed)
   const photos = await avecLiens((data ?? []) as LignePhoto[])
   if (!photos) return repondre({ error: 'Photos indisponibles' }, 502, session.refreshed)
-  return repondre({ photos }, 200, session.refreshed)
+  if (date) return repondre({ photos }, 200, session.refreshed)
+
+  // Jauge de la galerie : un seul nombre, commun aux deux comptes (le quota l'est aussi).
+  const utilises = await placeUtilisee()
+  const stockage = utilises === null ? null : { utilises, plafond: PLAFOND_STOCKAGE_OCTETS }
+  return repondre({ photos, stockage }, 200, session.refreshed)
 }
 
 /** Une photo déjà compressée par le navigateur, avec sa vignette. */
@@ -143,6 +159,14 @@ export async function POST(req: NextRequest) {
   if (erreurCompte) return repondre({ error: 'Photos indisponibles' }, tableAbsente(erreurCompte, status) ? 503 : 500, refreshed)
   if ((count ?? 0) >= PHOTOS_MAX_PAR_JOUR) return repondre({ error: 'Limite atteinte' }, 409, refreshed)
 
+  // Dépasser le quota gratuit finirait par bloquer TOUTE l'app (402), pas
+  // seulement les photos : envoi refusé avant le plafond. Si la place ne peut
+  // pas être mesurée, on refuse aussi plutôt que de risquer le quota.
+  const place = await placeUtilisee()
+  if (place === null) return repondre({ error: 'Photos indisponibles' }, 503, refreshed)
+  const octets = octetsPhoto.byteLength + octetsMini.byteLength
+  if (place + octets > PLAFOND_STOCKAGE_OCTETS) return repondre({ error: 'Stockage plein' }, 507, refreshed)
+
   const id = crypto.randomUUID()
   const ligne: LignePhoto = {
     id,
@@ -151,7 +175,7 @@ export async function POST(req: NextRequest) {
     chemin_mini: `${compte}/${date}/${id}-mini.${EXTENSIONS[typeMini]}`,
     largeur,
     hauteur,
-    octets: octetsPhoto.byteLength + octetsMini.byteLength,
+    octets,
   }
   const stockage = admin.storage.from(BUCKET)
   const echec = async (erreur: { message?: string } | null) => {

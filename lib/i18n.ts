@@ -336,6 +336,8 @@ const fr = {
   photoPrecedente: 'Photo précédente',
   photoSuivante: 'Photo suivante',
   fermerPhoto: 'Fermer la photo',
+  stockagePlein: "Espace photos plein : supprime d'anciennes photos pour en ajouter.",
+  stockageBientotPlein: "Espace photos bientôt plein : pense à supprimer d'anciennes photos.",
 
   // — Accueil
   bienvenue: 'Bienvenue, {prenom} !',
@@ -648,6 +650,8 @@ const es: Record<CleTraduction, string> = {
   photoPrecedente: 'Foto anterior',
   photoSuivante: 'Foto siguiente',
   fermerPhoto: 'Cerrar la foto',
+  stockagePlein: 'Espacio de fotos lleno: borra fotos antiguas para añadir más.',
+  stockageBientotPlein: 'Espacio de fotos casi lleno: piensa en borrar fotos antiguas.',
 
   bienvenue: '¡Bienvenida, {prenom}!',
 }

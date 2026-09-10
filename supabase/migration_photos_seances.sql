@@ -1,5 +1,5 @@
 -- ============================================================
--- PHOTOS DE SÉANCE — bucket privé + index des photos
+-- PHOTOS DE SÉANCE — bucket privé, index des photos, mesure de la place
 -- À coller dans Supabase > SQL Editor AVANT de tester en local.
 --
 -- Ce sont des photos de corps. Contrairement aux photos de compétition, le
@@ -9,7 +9,8 @@
 -- écrit ; le navigateur n'affiche que des liens signés valables une heure.
 --
 -- Place : une photo compressée pèse ~150 à 300 Ko, vignette comprise.
--- 1 Go gratuit ≈ 4 000 photos.
+-- Le quota gratuit (1 Go) est commun à tout le projet : la route refuse les
+-- envois au-delà de 850 Mo de stockage total, pour ne jamais l'atteindre.
 --
 -- Idempotent : relançable sans risque. Ne modifie aucune donnée existante.
 -- ============================================================
@@ -45,6 +46,25 @@ CREATE INDEX IF NOT EXISTS idx_photos_seance_compte_date
 ALTER TABLE public.photos_seance ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.photos_seance FROM anon, authenticated;
 
+
+-- 3. PLACE OCCUPÉE PAR TOUT LE STOCKAGE DU PROJET
+--    Photos de séance ET de compétition : c'est ce total que Supabase compare
+--    au quota. Un seul nombre, réservé à service_role (appelé par /api/photos
+--    avant chaque envoi) : ni anon ni authenticated ne peuvent l'exécuter.
+CREATE OR REPLACE FUNCTION public.stockage_octets_utilises()
+RETURNS bigint
+LANGUAGE sql
+STABLE
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+  SELECT coalesce(sum((o.metadata ->> 'size')::bigint), 0)::bigint
+  FROM storage.objects AS o
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.stockage_octets_utilises() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.stockage_octets_utilises() TO service_role;
+
 NOTIFY pgrst, 'reload schema';
 
 
@@ -52,7 +72,9 @@ NOTIFY pgrst, 'reload schema';
 -- VÉRIFICATION — attendu sur la ligne :
 --   bucket_prive = true, rls = true, policies_table = 0,
 --   acces_anon = false, acces_authenticated = false,
---   policies_storage_bucket = 0, policies_storage_generiques = 0
+--   policies_storage_bucket = 0, policies_storage_generiques = 0,
+--   mesure_anon = false, mesure_authenticated = false,
+--   stockage_mo = place occupée aujourd'hui (en Mo)
 -- (une policy « générique » sur storage.objects, sans filtre de bucket,
 --  ouvrirait aussi ce bucket : elle doit être à 0.)
 -- ============================================================
@@ -67,4 +89,7 @@ SELECT
        AND (coalesce(qual, '') || coalesce(with_check, '')) ILIKE '%photos-seances%') AS policies_storage_bucket,
   (SELECT count(*) FROM pg_policies
      WHERE schemaname = 'storage' AND tablename = 'objects'
-       AND (coalesce(qual, '') || coalesce(with_check, '')) NOT ILIKE '%bucket_id%') AS policies_storage_generiques;
+       AND (coalesce(qual, '') || coalesce(with_check, '')) NOT ILIKE '%bucket_id%') AS policies_storage_generiques,
+  has_function_privilege('anon', 'public.stockage_octets_utilises()', 'EXECUTE') AS mesure_anon,
+  has_function_privilege('authenticated', 'public.stockage_octets_utilises()', 'EXECUTE') AS mesure_authenticated,
+  round(public.stockage_octets_utilises() / 1048576.0, 1) AS stockage_mo;
