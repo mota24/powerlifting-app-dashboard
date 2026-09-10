@@ -182,15 +182,15 @@ export const ACCESSORIES = ['Pull-ups', 'Barbell Row', 'Lat Pulldown', 'Leg Pres
 
 // ————————————————————————————————————————————————
 // Catalogue FITNESS (salle, sans compétition) — compte en mode 'fitness'.
-// En catalan : ce catalogue ne sert qu'au compte d'Yamina, et ces noms
+// En espagnol : ce catalogue ne sert qu'au compte d'Yamina, et ces noms
 // sont ceux qu'elle voit dans l'autocomplétion puis qui sont écrits en base.
 // Les trois mouvements suivis en Analytique ouvrent la liste des jambes.
 // ————————————————————————————————————————————————
 
-export const FIT_JAMBES = ['Squat', 'Hip Thrust', 'Pes mort romanès', 'Premsa de cames', 'Extensió de quàdriceps', 'Curl femoral', 'Gambades amb manuelles', 'Squat búlgar', 'Abductors a màquina', 'Adductors a màquina', 'Bessons dempeus', 'Pujades a banc', 'Patada de glutis a politja']
-export const FIT_POUSSEE = ['Press de banca amb manuelles', 'Press de pit a màquina', 'Press inclinat amb manuelles', 'Obertures a politja', 'Contractora (Pec Deck)', "Press d'espatlles a màquina", 'Elevacions laterals', 'Extensió de tríceps a politja', 'Fons assistits']
-export const FIT_TIRAGE = ['Jal·lonament al pit', 'Rem a màquina', 'Rem baix a politja', 'Rem amb manuella', 'Face Pull', 'Curl de bíceps amb manuelles', 'Curl Scott', 'Dominades assistides']
-export const FIT_ACCESSOIRES = ['Planxa', 'Crunch a politja', 'Elevació de cames', 'Abdominals a màquina', 'Russian Twist', 'Bicicleta', 'Cinta de córrer', 'Rem (ergòmetre)', 'El·líptica', 'Estiraments', 'Mobilitat de malucs']
+export const FIT_JAMBES = ['Squat', 'Hip Thrust', 'Peso muerto rumano', 'Prensa de piernas', 'Extensión de cuádriceps', 'Curl femoral', 'Zancadas con mancuernas', 'Sentadilla búlgara', 'Abductores en máquina', 'Aductores en máquina', 'Gemelos de pie', 'Subidas al banco', 'Patada de glúteo en polea']
+export const FIT_POUSSEE = ['Press de banca con mancuernas', 'Press de pecho en máquina', 'Press inclinado con mancuernas', 'Aperturas en polea', 'Contractora (Pec Deck)', 'Press de hombros en máquina', 'Elevaciones laterales', 'Extensión de tríceps en polea', 'Fondos asistidos']
+export const FIT_TIRAGE = ['Jalón al pecho', 'Remo en máquina', 'Remo bajo en polea', 'Remo con mancuerna', 'Face Pull', 'Curl de bíceps con mancuernas', 'Curl Scott', 'Dominadas asistidas']
+export const FIT_ACCESSOIRES = ['Plancha', 'Crunch en polea', 'Elevación de piernas', 'Abdominales en máquina', 'Russian Twist', 'Bicicleta', 'Cinta de correr', 'Remo (ergómetro)', 'Elíptica', 'Estiramientos', 'Movilidad de cadera']
 
 export type LiftCategory = 'squat' | 'bench' | 'deadlift'
 export type ModeApp = 'powerlifting' | 'fitness'
@@ -242,7 +242,7 @@ export function suggestionsExercices(mode: ModeApp, jourSemaine: number): string
  * En mode fitness, les trois catégories sont trois mouvements précis
  * (squat, hip thrust, soulevé de terre roumain), pas des groupes
  * musculaires : un squat bulgare ou une presse ne doivent donc PAS gonfler
- * la courbe du squat. Les mots-clés couvrent catalan, espagnol, français et
+ * la courbe du squat. Les mots-clés couvrent espagnol, catalan (anciens noms), français et
  * anglais, puisque le nom est saisi librement.
  */
 export function classifyLift(name: string | null | undefined, mode: ModeApp = 'powerlifting'): LiftCategory | null {

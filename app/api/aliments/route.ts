@@ -50,12 +50,12 @@ function premiereMarque(brands: unknown): string | null {
   return texte(typeof brands === 'string' ? brands.split(',')[0] : null)
 }
 
-function normaliser(p: ProduitOff, langue: 'fr' | 'ca'): Aliment | null {
+function normaliser(p: ProduitOff, langue: 'fr' | 'es'): Aliment | null {
   const nutriments = p.nutriments ?? {}
   const kcal = nombre(nutriments['energy-kcal_100g'])
   const prot = nombre(nutriments['proteins_100g'])
-  const noms = langue === 'ca'
-    ? [p.product_name_ca, p.product_name_es, p.product_name, p.product_name_fr]
+  const noms = langue === 'es'
+    ? [p.product_name_es, p.product_name, p.product_name_ca, p.product_name_fr]
     : [p.product_name_fr, p.product_name, p.product_name_es, p.product_name_ca]
   const nom = noms.map(texte).find((n): n is string => n !== null)
   // Sans calories ou sans protéines, un produit est inutilisable dans le journal.
@@ -86,7 +86,9 @@ export async function GET(req: NextRequest) {
   if (!auth) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
 
   const params = req.nextUrl.searchParams
-  const langue = params.get('lang') === 'ca' ? 'ca' : 'fr'
+  // 'ca' : ancienne langue du compte 2, encore envoyée par un onglet resté ouvert.
+  const lang = params.get('lang')
+  const langue = lang === 'es' || lang === 'ca' ? 'es' : 'fr'
   const code = params.get('code')?.trim()
   const texte = params.get('q')?.trim()
 

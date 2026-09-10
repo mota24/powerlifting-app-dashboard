@@ -20,15 +20,18 @@
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS prenom TEXT;
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS langue TEXT NOT NULL DEFAULT 'fr';
 
+-- Valeurs posées AVANT la contrainte : relancé alors qu'un profil porte encore
+-- l'ancienne valeur 'ca', le script ne doit pas échouer.
 ALTER TABLE profiles DROP CONSTRAINT IF EXISTS profiles_langue_valide;
-ALTER TABLE profiles
-  ADD CONSTRAINT profiles_langue_valide
-  CHECK (langue IN ('fr', 'ca'));
 
 UPDATE profiles SET prenom = 'Moti', langue = 'fr'
   WHERE id = (SELECT id FROM auth.users WHERE email = '1@power.app');
-UPDATE profiles SET prenom = 'Yamina', langue = 'ca'
+UPDATE profiles SET prenom = 'Yamina', langue = 'es'
   WHERE id = (SELECT id FROM auth.users WHERE email = '2@power.app');
+
+ALTER TABLE profiles
+  ADD CONSTRAINT profiles_langue_valide
+  CHECK (langue IN ('fr', 'es'));
 
 
 -- ────────────────────────────────────────────────────────────

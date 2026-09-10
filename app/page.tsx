@@ -25,7 +25,7 @@ import { Palmares } from '@/components/power/palmares'
 import { Classement } from '@/components/power/classement'
 import { Nutrition } from '@/components/power/nutrition'
 import { ThemeProvider, type Langue } from './ThemeContext'
-import { traducteurPour, LOCALES } from '@/lib/i18n'
+import { traducteurPour, langueDuProfil, LOCALES } from '@/lib/i18n'
 
 interface AuthUser {
   id: string;
@@ -103,13 +103,13 @@ export default function Page() {
       setTheme(data?.theme ?? 'dark')
       setMode(data?.mode === 'fitness' ? 'fitness' : 'powerlifting')
       setPrenom(data?.prenom ?? null)
-      setLangue(data?.langue === 'ca' ? 'ca' : 'fr')
+      setLangue(langueDuProfil(data?.langue))
 
       // Le prénom n'est connu qu'après cette requête : l'accueil ne peut
       // donc pas être affiché au moment de la soumission du formulaire.
       if (vientDeSeConnecter.current && data?.prenom) {
         vientDeSeConnecter.current = false
-        const accueil = traducteurPour(data.langue === 'ca' ? 'ca' : 'fr')
+        const accueil = traducteurPour(langueDuProfil(data.langue))
         toast(accueil('bienvenue', { prenom: data.prenom }), 'success')
       }
     }
