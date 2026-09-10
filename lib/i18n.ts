@@ -179,6 +179,14 @@ const fr = {
   douleurStop: 'Stop',
   prTheorique: 'PR THÉORIQUE ESTIMÉ',
 
+  // Minuteur de repos
+  lancerRepos: 'Lancer le repos',
+  reposCourt: 'Repos',
+  reposTermine: 'Repos terminé !',
+  arreter: 'Arrêter',
+  choisirDuree: 'Choisir la durée',
+  horsLigne: 'HORS LIGNE — SYNC EN ATTENTE',
+
   // — Accueil
   bienvenue: 'Bienvenue, {prenom} !',
 } as const
@@ -338,6 +346,13 @@ const ca: Record<CleTraduction, string> = {
   douleurDouleur: 'Dolor',
   douleurStop: 'Atura',
   prTheorique: 'RÈCORD TEÒRIC ESTIMAT',
+
+  lancerRepos: 'Inicia el descans',
+  reposCourt: 'Descans',
+  reposTermine: 'Descans acabat!',
+  arreter: 'Atura',
+  choisirDuree: 'Tria la durada',
+  horsLigne: 'SENSE CONNEXIÓ — PENDENT DE SINCRONITZAR',
 
   bienvenue: 'Benvinguda, {prenom}!',
 }

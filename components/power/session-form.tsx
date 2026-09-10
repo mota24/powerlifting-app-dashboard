@@ -8,6 +8,7 @@ import { countryCodeToFlag } from '@/lib/countries'
 import { Activity, Check, Coffee, Plus, Trash2, X, Copy, RefreshCw, Award, Sparkles, ChevronUp, ChevronDown, Dumbbell, Trophy } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from '@/components/power/toaster'
+import { RestTimer } from '@/components/power/rest-timer'
 
 interface Props { dateActive: Date; isRestDayMode: boolean; setIsRestDayMode: (val: boolean) => void; pasDuJour: number | null; setDateActive: (date: Date) => void; nextCompetition: UpcomingCompetition | null; onGoToPalmares: (competitionId: string) => void; }
 interface ExerciceRow { id: string | null; uid: string; name: string; coachTracking: SetData[]; tracking: SetData[]; comments: string; painLevel: number | null; }
@@ -298,9 +299,18 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
       </div>
       )}
 
+      {estFitness && !isRestDayMode && (
+        <>
+          {/* Réserve la hauteur de la barre de repos, fixée en bas d'écran :
+              sans ça elle masquerait le bouton de fin de séance. */}
+          <div aria-hidden className="h-20" />
+          <RestTimer />
+        </>
+      )}
+
       {(!isOnline || savePending) && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 px-6 py-3 rounded-full border border-border bg-background text-foreground text-[10px] font-bold uppercase tracking-widest shadow-xl whitespace-nowrap">
-          HORS LIGNE — SYNC EN ATTENTE
+        <div className={cn("fixed left-1/2 -translate-x-1/2 z-40 px-6 py-3 rounded-full border border-border bg-background text-foreground text-[10px] font-bold uppercase tracking-widest shadow-xl whitespace-nowrap", estFitness && !isRestDayMode ? 'bottom-24' : 'bottom-4')}>
+          {t('horsLigne')}
         </div>
       )}
 
