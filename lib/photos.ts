@@ -9,6 +9,12 @@
 
 export const PHOTOS_MAX_PAR_JOUR = 6
 
+/**
+ * Chaque photo s'efface automatiquement 15 jours après son ajout : le
+ * stockage ne grossit pas, et des photos de corps ne traînent pas.
+ */
+export const DUREE_CONSERVATION_JOURS = 15
+
 /** Côté long de la photo gardée : assez net pour comparer un dos d'une semaine à l'autre. */
 export const COTE_MAX_PX = 1440
 /** Qualités essayées dans l'ordre, jusqu'à passer sous OCTETS_MAX_PHOTO. */
@@ -43,6 +49,8 @@ export interface PhotoSeance {
   id: string
   /** 'YYYY-MM-DD' */
   date: string
+  /** Instant d'ajout (ISO) : la photo s'efface DUREE_CONSERVATION_JOURS jours plus tard. */
+  creeLe: string
   largeur: number
   hauteur: number
   octets: number
@@ -125,4 +133,18 @@ export function libelleDate(
 export function libelleMois(mois: string, locale: string): string {
   const [annee, numero] = mois.split('-').map(Number)
   return new Date(annee, numero - 1, 1).toLocaleDateString(locale, { month: 'long', year: 'numeric' })
+}
+
+const JOUR_MS = 86_400_000
+
+/** Instant avant lequel une photo ajoutée est expirée. */
+export function limiteConservation(maintenant: Date = new Date()): Date {
+  return new Date(maintenant.getTime() - DUREE_CONSERVATION_JOURS * JOUR_MS)
+}
+
+/** Jours entamés avant l'effacement : 1 = dernier jour, 0 = expirée. */
+export function joursAvantSuppression(creeLe: string, maintenant: Date = new Date()): number {
+  const fin = new Date(creeLe).getTime() + DUREE_CONSERVATION_JOURS * JOUR_MS
+  if (!Number.isFinite(fin)) return DUREE_CONSERVATION_JOURS
+  return Math.max(0, Math.ceil((fin - maintenant.getTime()) / JOUR_MS))
 }

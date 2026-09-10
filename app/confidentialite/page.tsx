@@ -25,7 +25,7 @@ export default function ConfidentialitePage() {
             <li>— IDENTIFIANT ET MOT DE PASSE (CHIFFRÉS).</li>
             <li>— DONNÉES D&apos;ENTRAÎNEMENT : CHARGES, RPE, TONNAGE, NOTES.</li>
             <li>— <strong className="text-white">DONNÉES DE SANTÉ :</strong> DOULEUR, SOMMEIL, FATIGUE, PAS, POIDS DE CORPS (ART. 9 RGPD).</li>
-            <li>— PHOTOS DE SÉANCE : ESPACE PRIVÉ, VISIBLES UNIQUEMENT DEPUIS TON COMPTE, SANS DONNÉES DE LOCALISATION.</li>
+            <li>— PHOTOS DE SÉANCE : ESPACE PRIVÉ, VISIBLES UNIQUEMENT DEPUIS TON COMPTE, SANS DONNÉES DE LOCALISATION, EFFACÉES AUTOMATIQUEMENT 15 JOURS APRÈS LEUR AJOUT.</li>
           </ul>
         </section>
 

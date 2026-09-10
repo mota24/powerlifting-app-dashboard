@@ -302,6 +302,9 @@ de navigation, pas un ajout de header, hors périmètre de cet audit.
    (réponses 402). La route refuse donc tout envoi qui porterait le stockage total du projet au-delà de
    850 Mo, mesuré par `stockage_octets_utilises()` (exécution réservée à `service_role`) ; si la mesure
    échoue, l'envoi est refusé. La galerie affiche ce total : un seul nombre, commun aux deux comptes.
+   Conservation : chaque photo s'efface 15 jours après son ajout. Une photo expirée n'est plus jamais
+   renvoyée (filtre sur `cree_le`) ; ses fichiers puis sa ligne sont purgés au fil des visites du compte,
+   après la réponse (`after()`), sans tâche planifiée à configurer.
 
 ## 12. Hors périmètre — à faire manuellement de ton côté
 

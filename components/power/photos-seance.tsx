@@ -4,8 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Camera, ImagePlus, RefreshCw } from 'lucide-react'
 import { useLocale, useT } from '@/app/ThemeContext'
 import { toast } from '@/components/power/toaster'
-import { VisionneusePhotos } from '@/components/power/visionneuse-photos'
-import { PHOTOS_MAX_PAR_JOUR, insererA, type PhotoSeance } from '@/lib/photos'
+import { PastilleExpiration, VisionneusePhotos } from '@/components/power/visionneuse-photos'
+import { DUREE_CONSERVATION_JOURS, PHOTOS_MAX_PAR_JOUR, insererA, type PhotoSeance } from '@/lib/photos'
 import { MESSAGE_ERREUR, chargerPhotos, envoyerPhoto, supprimerAvecAnnulation } from '@/lib/photos-client'
 
 interface Chargement {
@@ -129,6 +129,7 @@ export function PhotosSeance({ date }: { date: string }) {
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={photo.urlMini} alt="" loading="lazy" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
+                <PastilleExpiration creeLe={photo.creeLe} t={t} />
               </button>
             ))}
             {envoisDuJour.map((envoi) => (
@@ -151,7 +152,7 @@ export function PhotosSeance({ date }: { date: string }) {
               </button>
             )}
           </div>
-          {total === 0 && <p className="mt-3 text-xs text-muted-foreground">{t('photosAstuce')}</p>}
+          {total === 0 && <p className="mt-3 text-xs text-muted-foreground">{t('photosAstuce', { n: DUREE_CONSERVATION_JOURS })}</p>}
         </>
       )}
 

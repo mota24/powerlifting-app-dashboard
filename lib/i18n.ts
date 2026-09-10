@@ -308,7 +308,7 @@ const fr = {
   // Photos de séance
   photos: 'Photos',
   photosSeance: 'Photos de la séance',
-  photosAstuce: 'Même angle, même lumière : tes photos seront faciles à comparer.',
+  photosAstuce: "Même angle, même lumière : tes photos seront faciles à comparer. Elles s'effacent au bout de {n} jours.",
   ajouterPhoto: 'Ajouter une photo',
   voirPhoto: 'Voir la photo',
   photoAjoutee: 'Photo ajoutée',
@@ -338,6 +338,9 @@ const fr = {
   fermerPhoto: 'Fermer la photo',
   stockagePlein: "Espace photos plein : supprime d'anciennes photos pour en ajouter.",
   stockageBientotPlein: "Espace photos bientôt plein : pense à supprimer d'anciennes photos.",
+  photosConservation: "Chaque photo s'efface {n} jours après son ajout",
+  photoSupprimeeDans: "S'efface dans {n} jours",
+  photoDernierJour: "Dernier jour avant l'effacement",
 
   // — Accueil
   bienvenue: 'Bienvenue, {prenom} !',
@@ -622,7 +625,7 @@ const es: Record<CleTraduction, string> = {
 
   photos: 'Fotos',
   photosSeance: 'Fotos de la sesión',
-  photosAstuce: 'Mismo ángulo, misma luz: tus fotos serán fáciles de comparar.',
+  photosAstuce: 'Mismo ángulo, misma luz: tus fotos serán fáciles de comparar. Se borran a los {n} días.',
   ajouterPhoto: 'Añadir una foto',
   voirPhoto: 'Ver la foto',
   photoAjoutee: 'Foto añadida',
@@ -652,6 +655,9 @@ const es: Record<CleTraduction, string> = {
   fermerPhoto: 'Cerrar la foto',
   stockagePlein: 'Espacio de fotos lleno: borra fotos antiguas para añadir más.',
   stockageBientotPlein: 'Espacio de fotos casi lleno: piensa en borrar fotos antiguas.',
+  photosConservation: 'Cada foto se borra {n} días después de añadirla',
+  photoSupprimeeDans: 'Se borra en {n} días',
+  photoDernierJour: 'Último día antes de borrarse',
 
   bienvenue: '¡Bienvenida, {prenom}!',
 }

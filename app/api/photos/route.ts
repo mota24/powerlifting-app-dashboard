@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import { applySessionCookies, fetchUser, getAccessToken, type SessionTokens } from '@/lib/server/auth-session'
 import { clientIp } from '@/lib/server/rate-limit'
 import { limiterMemoire } from '@/lib/server/memory-rate-limit'
@@ -11,6 +11,7 @@ import {
   PHOTOS_MAX_PAR_JOUR,
   PLAFOND_STOCKAGE_OCTETS,
   dateValide,
+  limiteConservation,
   signatureImage,
   type PhotoSeance,
 } from '@/lib/photos'
@@ -25,6 +26,9 @@ export const dynamic = 'force-dynamic'
  * route y touche, avec la clé service_role, et toujours sous le compte dérivé
  * de la session, jamais d'un paramètre envoyé par le client. Le navigateur ne
  * reçoit que des liens signés valables une heure.
+ *
+ * Chaque photo s'efface 15 jours après son ajout : passé ce délai elle n'est
+ * plus jamais renvoyée, et ses fichiers sont purgés à la visite suivante.
  */
 
 const BUCKET = 'photos-seances'
@@ -33,6 +37,10 @@ const DUREE_LIEN_S = 60 * 60
 // Galerie, séance et envois un par un : large pour l'usage réel.
 const LIMITE_PAR_MINUTE = 60
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+// La carte photos se recharge à chaque changement de jour : une purge par
+// compte toutes les 10 minutes suffit largement (mémoire propre à l'instance).
+const INTERVALLE_PURGE_MS = 10 * 60_000
+const dernieresPurges = new Map<string, number>()
 
 interface LignePhoto {
   id: string
@@ -42,6 +50,7 @@ interface LignePhoto {
   largeur: number
   hauteur: number
   octets: number
+  cree_le: string
 }
 
 function limiter(req: NextRequest) {
@@ -80,6 +89,30 @@ async function placeUtilisee(): Promise<number | null> {
   return error || data === null || !Number.isFinite(octets) ? null : octets
 }
 
+/** Efface fichiers puis lignes des photos expirées DU COMPTE. Jamais bloquant : lancé après la réponse. */
+async function purgerExpirees(compte: string) {
+  const maintenant = Date.now()
+  if (maintenant - (dernieresPurges.get(compte) ?? 0) < INTERVALLE_PURGE_MS) return
+  dernieresPurges.set(compte, maintenant)
+  try {
+    const admin = getSupabaseAdmin()
+    const { data, error } = await admin
+      .from(TABLE)
+      .select('id, chemin, chemin_mini')
+      .eq('user_id', compte)
+      .lt('cree_le', limiteConservation().toISOString())
+      .limit(100)
+    if (error || !data || data.length === 0) return
+    const lignes = data as { id: string; chemin: string; chemin_mini: string }[]
+    // Fichiers d'abord : si le stockage refuse, les lignes restent et la purge sera retentée.
+    const { error: erreurStockage } = await admin.storage.from(BUCKET).remove(lignes.flatMap((l) => [l.chemin, l.chemin_mini]))
+    if (erreurStockage) throw erreurStockage
+    await admin.from(TABLE).delete().eq('user_id', compte).in('id', lignes.map((l) => l.id))
+  } catch {
+    dernieresPurges.delete(compte)
+  }
+}
+
 async function avecLiens(lignes: LignePhoto[]): Promise<PhotoSeance[] | null> {
   if (lignes.length === 0) return []
   const chemins = lignes.flatMap((l) => [l.chemin, l.chemin_mini])
@@ -90,7 +123,9 @@ async function avecLiens(lignes: LignePhoto[]): Promise<PhotoSeance[] | null> {
     const url = liens.get(l.chemin)
     const urlMini = liens.get(l.chemin_mini)
     // Fichier absent du stockage : la photo n'est pas proposée plutôt qu'affichée cassée.
-    return url && urlMini ? [{ id: l.id, date: l.date, largeur: l.largeur, hauteur: l.hauteur, octets: l.octets, url, urlMini }] : []
+    return url && urlMini
+      ? [{ id: l.id, date: l.date, creeLe: l.cree_le, largeur: l.largeur, hauteur: l.hauteur, octets: l.octets, url, urlMini }]
+      : []
   })
 }
 
@@ -106,8 +141,10 @@ export async function GET(req: NextRequest) {
 
   let requete = getSupabaseAdmin()
     .from(TABLE)
-    .select('id, date, chemin, chemin_mini, largeur, hauteur, octets')
+    .select('id, date, chemin, chemin_mini, largeur, hauteur, octets, cree_le')
     .eq('user_id', session.compte)
+    // Expirée = jamais renvoyée, même si la purge n'est pas encore passée.
+    .gte('cree_le', limiteConservation().toISOString())
     .order('date', { ascending: false })
     .order('cree_le', { ascending: true })
   requete = date ? requete.eq('date', date) : requete.limit(1000)
@@ -116,8 +153,11 @@ export async function GET(req: NextRequest) {
   if (error) return repondre({ error: 'Photos indisponibles' }, tableAbsente(error, status) ? 503 : 500, session.refreshed)
   const photos = await avecLiens((data ?? []) as LignePhoto[])
   if (!photos) return repondre({ error: 'Photos indisponibles' }, 502, session.refreshed)
-  if (date) return repondre({ photos }, 200, session.refreshed)
 
+  const compte = session.compte
+  after(() => purgerExpirees(compte))
+
+  if (date) return repondre({ photos }, 200, session.refreshed)
   // Jauge de la galerie : un seul nombre, commun aux deux comptes (le quota l'est aussi).
   const utilises = await placeUtilisee()
   const stockage = utilises === null ? null : { utilises, plafond: PLAFOND_STOCKAGE_OCTETS }
@@ -156,6 +196,7 @@ export async function POST(req: NextRequest) {
     .select('id', { count: 'exact', head: true })
     .eq('user_id', compte)
     .eq('date', date)
+    .gte('cree_le', limiteConservation().toISOString())
   if (erreurCompte) return repondre({ error: 'Photos indisponibles' }, tableAbsente(erreurCompte, status) ? 503 : 500, refreshed)
   if ((count ?? 0) >= PHOTOS_MAX_PAR_JOUR) return repondre({ error: 'Limite atteinte' }, 409, refreshed)
 
@@ -176,6 +217,7 @@ export async function POST(req: NextRequest) {
     largeur,
     hauteur,
     octets,
+    cree_le: new Date().toISOString(),
   }
   const stockage = admin.storage.from(BUCKET)
   const echec = async (erreur: { message?: string } | null) => {

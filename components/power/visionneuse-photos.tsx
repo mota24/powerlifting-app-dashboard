@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { CalendarDays, ChevronLeft, ChevronRight, RefreshCw, Trash2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Traducteur } from '@/lib/i18n'
-import { libelleDate, type PhotoSeance } from '@/lib/photos'
+import { joursAvantSuppression, libelleDate, type PhotoSeance } from '@/lib/photos'
 
 /**
  * Photo en plein écran : glisser ou flèches pour passer à la voisine, Échap
@@ -52,6 +52,7 @@ export function VisionneusePhotos({ photos, idOuvert, onChanger, onFermer, onSup
   // donnerait « Jueves, 10 De Septiembre De 2026 ».
   const libelle = libelleDate(photo.date, locale)
   const date = libelle.charAt(0).toUpperCase() + libelle.slice(1)
+  const restants = joursAvantSuppression(photo.creeLe)
 
   return (
     // bg-black/95 et non bg-black : le thème rose ne garde du texte blanc que
@@ -60,9 +61,10 @@ export function VisionneusePhotos({ photos, idOuvert, onChanger, onFermer, onSup
       <div className="flex items-center justify-between gap-3 px-3 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3">
         <div className="min-w-0 pl-1">
           <p className="truncate text-sm font-black">{date}</p>
-          {photos.length > 1 && (
-            <p className="text-[10px] font-bold tabular-nums tracking-widest text-white/60">{index + 1} / {photos.length}</p>
-          )}
+          <p className="text-[10px] font-bold tracking-widest text-white/60">
+            {photos.length > 1 && <span className="tabular-nums">{index + 1} / {photos.length} · </span>}
+            {restants <= 1 ? t('photoDernierJour') : t('photoSupprimeeDans', { n: restants })}
+          </p>
         </div>
         <button onClick={onFermer} aria-label={t('fermerPhoto')} className="flex size-11 shrink-0 items-center justify-center rounded-xl text-white/70 transition-colors hover:bg-white/10 hover:text-white">
           <X className="size-5" />
@@ -132,5 +134,16 @@ export function VisionneusePhotos({ photos, idOuvert, onChanger, onFermer, onSup
         </div>
       )}
     </div>
+  )
+}
+
+/** Pastille « 2 j » sur une vignette, quand la photo s'efface dans 3 jours ou moins. */
+export function PastilleExpiration({ creeLe, t }: { creeLe: string; t: Traducteur }) {
+  const restants = joursAvantSuppression(creeLe)
+  if (restants > 3) return null
+  return (
+    <span className="absolute left-1 top-1 rounded-md bg-black/50 px-1.5 py-0.5 text-[10px] font-black tabular-nums text-white">
+      {t('joursCourt', { n: restants })}
+    </span>
   )
 }

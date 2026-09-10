@@ -11,6 +11,8 @@
 -- Place : une photo compressée pèse ~150 à 300 Ko, vignette comprise.
 -- Le quota gratuit (1 Go) est commun à tout le projet : la route refuse les
 -- envois au-delà de 850 Mo de stockage total, pour ne jamais l'atteindre.
+-- Conservation : chaque photo s'efface 15 jours après son ajout (purge faite
+-- par /api/photos : aucune tâche planifiée à créer ici).
 --
 -- Idempotent : relançable sans risque. Ne modifie aucune donnée existante.
 -- ============================================================

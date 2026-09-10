@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeftRight, Columns2, Images, RefreshCw, X } from 'lucide-react'
 import { useLocale, useT } from '@/app/ThemeContext'
-import { VisionneusePhotos } from '@/components/power/visionneuse-photos'
+import { PastilleExpiration, VisionneusePhotos } from '@/components/power/visionneuse-photos'
 import type { Traducteur } from '@/lib/i18n'
 import {
+  DUREE_CONSERVATION_JOURS,
   PLAFOND_STOCKAGE_OCTETS,
   SEUIL_ALERTE_STOCKAGE,
   formaterOctets,
@@ -101,13 +102,19 @@ export function GaleriePhotos({ onOuvrirSeance }: { onOuvrirSeance: (date: strin
             {actuel === null ? t('photos') : photos.length === 1 ? t('unePhoto') : t('nPhotos', { n: photos.length })}
           </p>
           <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-            {t('stockageUtilise', { taille: formaterOctets(utilises, locale), quota: formaterOctets(plafond, locale) })}
+            {t('photosConservation', { n: DUREE_CONSERVATION_JOURS })}
           </p>
-          <div className="mt-2 h-1.5 w-full max-w-48 overflow-hidden rounded-full bg-secondary">
-            <div className={cn('h-full rounded-full', part >= 0.9 ? 'bg-destructive' : 'bg-primary')} style={{ width: `${remplissage}%` }} />
-          </div>
+          {/* Avec l'effacement automatique, l'espace ne se remplit qu'en cas d'abus : la jauge n'apparaît qu'alors. */}
           {part >= SEUIL_ALERTE_STOCKAGE && (
-            <p className="mt-2 text-xs font-bold text-destructive">{part >= 1 ? t('stockagePlein') : t('stockageBientotPlein')}</p>
+            <>
+              <p className="mt-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                {t('stockageUtilise', { taille: formaterOctets(utilises, locale), quota: formaterOctets(plafond, locale) })}
+              </p>
+              <div className="mt-2 h-1.5 w-full max-w-48 overflow-hidden rounded-full bg-secondary">
+                <div className={cn('h-full rounded-full', part >= 0.9 ? 'bg-destructive' : 'bg-primary')} style={{ width: `${remplissage}%` }} />
+              </div>
+              <p className="mt-2 text-xs font-bold text-destructive">{part >= 1 ? t('stockagePlein') : t('stockageBientotPlein')}</p>
+            </>
           )}
         </div>
         {photos.length >= 2 && (
@@ -162,6 +169,7 @@ export function GaleriePhotos({ onOuvrirSeance }: { onOuvrirSeance: (date: strin
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={photo.urlMini} alt="" loading="lazy" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
+                    <PastilleExpiration creeLe={photo.creeLe} t={t} />
                     <span className="absolute bottom-1 left-1 rounded-md bg-black/50 px-1.5 py-0.5 text-[10px] font-black tabular-nums text-white">
                       {libelleDate(photo.date, locale, { day: 'numeric', month: 'short' })}
                     </span>
