@@ -3,6 +3,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { toLocalDateStr, sessionTonnage, setsTonnage, bestE1RM, classifyLift, suggestionsExercices, ACCESSORIES, FIT_ACCESSOIRES, PAIN_LEVELS, type SetData, type LiftCategory, type UpcomingCompetition } from '@/lib/powerlifting'
+import { PhotosSeance } from '@/components/power/photos-seance'
 import { useTheme, useT, useLocale } from '@/app/ThemeContext'
 import { joursProgrammes, nouvelleSerie, type LigneJour } from '@/lib/serie'
 import { proposerAnnulation } from '@/lib/annulation'
@@ -294,6 +295,8 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
 
           <DailyMetrics fatigue={fatigue} sommeil={sommeil} pas={pas} setFatigue={setFatigue} setSommeil={setSommeil} setPas={setPas} />
 
+          <PhotosSeance date={dateFormatee} />
+
           <button onClick={validerMission} disabled={isValidating || !estAujourdhui} className="w-full p-6 rounded-full font-black text-sm uppercase tracking-widest bg-primary hover:opacity-90 text-primary-foreground transition-all flex justify-center items-center gap-3 disabled:opacity-40 disabled:cursor-not-allowed">
             {isValidating ? <RefreshCw className="size-5 animate-spin" /> : <><Award className="size-5" /> {t('validerRepos')}</>}
           </button>
@@ -323,6 +326,8 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
         </button>
 
         <DailyMetrics fatigue={fatigue} sommeil={sommeil} pas={pas} setFatigue={setFatigue} setSommeil={setSommeil} setPas={setPas} />
+
+        <PhotosSeance date={dateFormatee} />
 
         <div className="p-6 rounded-2xl border border-border bg-card flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">

@@ -25,13 +25,14 @@ export default function ConfidentialitePage() {
             <li>— IDENTIFIANT ET MOT DE PASSE (CHIFFRÉS).</li>
             <li>— DONNÉES D&apos;ENTRAÎNEMENT : CHARGES, RPE, TONNAGE, NOTES.</li>
             <li>— <strong className="text-white">DONNÉES DE SANTÉ :</strong> DOULEUR, SOMMEIL, FATIGUE, PAS, POIDS DE CORPS (ART. 9 RGPD).</li>
+            <li>— PHOTOS DE SÉANCE : ESPACE PRIVÉ, VISIBLES UNIQUEMENT DEPUIS TON COMPTE, SANS DONNÉES DE LOCALISATION.</li>
           </ul>
         </section>
 
         <section className="space-y-4">
           <h2 className="text-sm font-bold text-white uppercase tracking-widest">Conservation</h2>
           <p className="text-xs font-bold uppercase tracking-wider text-zinc-500 leading-relaxed">
-            LES DONNÉES SONT CONSERVÉES TANT QUE LE COMPTE EST ACTIF. LES PAS QUOTIDIENS ET L&apos;HISTORIQUE DE POIDS DE CORPS SONT SUPPRIMÉS À LA SUPPRESSION DU COMPTE.
+            LES DONNÉES SONT CONSERVÉES TANT QUE LE COMPTE EST ACTIF. LES PAS QUOTIDIENS, L&apos;HISTORIQUE DE POIDS DE CORPS ET LES PHOTOS DE SÉANCE SONT SUPPRIMÉS À LA SUPPRESSION DU COMPTE.
           </p>
         </section>
 

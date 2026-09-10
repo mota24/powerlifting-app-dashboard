@@ -81,7 +81,7 @@ toutes les requêtes de données partent vers la même origine. Conséquences po
 
 ---
 
-## 3. Route Handlers (9)
+## 3. Route Handlers (11)
 
 | Route | Auth | Notes |
 |---|---|---|
@@ -93,6 +93,8 @@ toutes les requêtes de données partent vers la même origine. Conséquences po
 | `app/api/db/[...path]/route.ts` | cookie | Proxy PostgREST, restreint à `rest/v1/` |
 | `app/api/coach/route.ts` | cookie + consentement | Gemini |
 | `app/api/palmares/photo/route.ts` | cookie | Upload Storage, type/taille validés serveur |
+| `app/api/aliments/route.ts` | cookie | Relais Open Food Facts, 30 req/min, paramètres validés (§11, point 9) |
+| `app/api/photos/route.ts` | cookie | Photos de séance : bucket privé, liens signés 1 h, signature binaire vérifiée (§11, point 10) |
 | `app/api/sync-steps/route.ts` | `SYNC_SECRET` + `userId` vérifié | Contrôle IDOR ajouté récemment |
 
 **Aucun header `Access-Control-Allow-*` posé nulle part** → voir Phase 3 ci-dessous.
@@ -286,6 +288,16 @@ de navigation, pas un ajout de header, hors périmètre de cet audit.
    'self'` inchangé). La caméra est autorisée pour le site lui-même uniquement, pour le scanner, et le
    navigateur demande toujours l'accord. Conséquence acceptée : si Open Food Facts est indisponible,
    seule la recherche échoue, la saisie manuelle reste possible.
+
+10. **Photos de séance** (`app/api/photos/route.ts`, `supabase/migration_photos_seances.sql`) — des
+   photos de corps, traitées comme des données sensibles. Garde-fous : bucket Supabase **privé** et table
+   `photos_seance` sous RLS **sans aucune policy** (ni `anon`, ni `authenticated`, ni le proxy `/api/db` n'y
+   accèdent) ; seule la route serveur y touche, avec `service_role`, sous le compte dérivé de la session ;
+   lecture et suppression filtrées sur ce compte ; taille, dimensions et signature binaire (JPEG/WebP)
+   vérifiées ; 6 photos par séance ; 60 requêtes/min par IP. Les photos sont réduites et ré-encodées dans
+   le navigateur avant l'envoi, ce qui retire les métadonnées EXIF (dont la position GPS). Elles partent
+   avec le compte (`/api/account/delete`). Conséquence acceptée : le navigateur reçoit des liens signés
+   valables **une heure** ; copié pendant ce délai, un lien ouvre la photo sans session.
 
 ## 12. Hors périmètre — à faire manuellement de ton côté
 

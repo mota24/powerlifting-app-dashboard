@@ -11,7 +11,7 @@ import SessionForm from '@/components/power/session-form'
 import { PlateVisualizer } from '@/components/power/plate-visualizer'
 import { WarmupGenerator } from '@/components/power/warmup-generator'
 import { Card, CardTitle } from '@/components/power/card'
-import { LineChart, Menu, X, Home, BarChart2, Wrench, Settings, Calculator, Lock, LogOut, RefreshCw, User, KeyRound, Timer, Trophy, Medal, Apple } from 'lucide-react'
+import { LineChart, Menu, X, Home, BarChart2, Wrench, Settings, Calculator, Lock, LogOut, RefreshCw, User, KeyRound, Timer, Trophy, Medal, Apple, Images } from 'lucide-react'
 import ChangePasswordModal from '@/components/power/change-password-modal'
 import CircuitTimer from '@/components/power/circuit-timer'
 import { toast } from '@/components/power/toaster'
@@ -24,6 +24,7 @@ import GLCalculator from '@/components/power/GLCalculator';
 import { Palmares } from '@/components/power/palmares'
 import { Classement } from '@/components/power/classement'
 import { Nutrition } from '@/components/power/nutrition'
+import { GaleriePhotos } from '@/components/power/galerie-photos'
 import { ThemeProvider, type Langue } from './ThemeContext'
 import { traducteurPour, langueDuProfil, LOCALES } from '@/lib/i18n'
 
@@ -434,6 +435,7 @@ export default function Page() {
               {vueActive === 'palmares' && t('palmares')}
               {vueActive === 'classement' && t('classement')}
               {vueActive === 'nutrition' && t('nutrition')}
+              {vueActive === 'photos' && t('photos')}
             </h2>
           </div>
 
@@ -474,6 +476,7 @@ export default function Page() {
                   )}
                   <button onClick={() => changerVue('classement')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'classement' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Medal className="size-4" /> {t('classement')}</button>
                   <button onClick={() => changerVue('nutrition')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'nutrition' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Apple className="size-4" /> {t('nutrition')}</button>
+                  <button onClick={() => changerVue('photos')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'photos' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Images className="size-4" /> {t('photos')}</button>
                   <button onClick={() => { setShowCircuitTimer(true); setMenuOuvert(false) }} className="flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors hover:bg-secondary text-foreground"><Timer className="size-4" /> {t('chronoCircuit')}</button>
 
                   <div className="h-px bg-border my-1"></div>
@@ -530,6 +533,12 @@ export default function Page() {
           {vueActive === 'nutrition' && (
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
               <Nutrition />
+            </div>
+          )}
+
+          {vueActive === 'photos' && (
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <GaleriePhotos onOuvrirSeance={ouvrirSeance} />
             </div>
           )}
 
