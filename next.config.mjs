@@ -51,18 +51,21 @@ const nextConfig = {
           { key: 'X-Frame-Options', value: 'DENY' },
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-          // Liste complète désactivée par défaut. screen-wake-lock=(self) est
-          // le seul exception délibérée : vérifié réellement utilisé
-          // (components/power/circuit-timer.tsx, navigator.wakeLock — garder
-          // l'écran allumé pendant une séance). fullscreen et
-          // publickey-credentials-get restent à (self) par cohérence avec le
-          // reste de la liste, bien qu'inutilisés aujourd'hui : (self) exige
-          // toujours un appel JS explicite pour avoir le moindre effet, donc
-          // aucune surface supplémentaire tant que rien ne les invoque.
+          // Liste complète désactivée par défaut, avec deux exceptions
+          // délibérées, chacune vérifiée réellement utilisée :
+          // - screen-wake-lock=(self) : garder l'écran allumé pendant une
+          //   séance (circuit-timer.tsx, rest-timer.tsx) ;
+          // - camera=(self) : scanner le code-barres d'un aliment
+          //   (components/power/nutrition.tsx). Le site lui-même uniquement,
+          //   jamais un iframe tiers, et le navigateur demande toujours
+          //   l'autorisation à l'utilisateur.
+          // fullscreen et publickey-credentials-get restent à (self) par
+          // cohérence, bien qu'inutilisés : (self) exige un appel JS explicite
+          // pour avoir le moindre effet.
           {
             key: 'Permissions-Policy',
             value:
-              'accelerometer=(), ambient-light-sensor=(), autoplay=(), battery=(), camera=(), display-capture=(), encrypted-media=(), fullscreen=(self), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(), publickey-credentials-get=(self), screen-wake-lock=(self), sync-xhr=(), usb=(), xr-spatial-tracking=()',
+              'accelerometer=(), ambient-light-sensor=(), autoplay=(), battery=(), camera=(self), display-capture=(), encrypted-media=(), fullscreen=(self), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(), publickey-credentials-get=(self), screen-wake-lock=(self), sync-xhr=(), usb=(), xr-spatial-tracking=()',
           },
           // Pas de "preload" : cela engage tous les sous-domaines présents
           // et futurs à servir du HTTPS, de façon quasi irréversible (retrait
