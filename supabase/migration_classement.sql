@@ -214,14 +214,25 @@ GRANT EXECUTE ON FUNCTION public.classement_semaines(integer) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.classement_semaines(integer) TO service_role;
 
 
+-- Recharge le cache de schéma de l'API : sans ça, PostgREST peut continuer
+-- d'ignorer la nouvelle fonction et répondre « fonction introuvable ».
+NOTIFY pgrst, 'reload schema';
+
+
 -- ============================================================
--- VÉRIFICATION — le SQL Editor n'a pas de JWT : on simule un appel du
--- compte 1 le temps d'une transaction annulée.
--- Attendu : une ligne par joueur pour la semaine en cours, est_moi = true
--- sur Moti uniquement.
+-- VÉRIFICATION
+-- Aucun contrôle de transaction dans ce fichier : le SQL Editor exécute le
+-- script comme une seule transaction, et l'annuler pour isoler la
+-- vérification annulerait aussi la création de la fonction ci-dessus.
+-- Attendu : une ligne, security_definer = true, anon_peut_executer = false,
+-- authenticated_peut_executer = true.
 -- ============================================================
-BEGIN;
-SELECT set_config('request.jwt.claims', '{"email":"1@power.app"}', true);
-SELECT semaine, prenom, est_moi, points, pts_pas, pts_seances, pts_objectif, pts_serie, jours_8000, seances, objectif_fait, objectif_seances, serie
-FROM public.classement_semaines(2);
-ROLLBACK;
+SELECT
+  p.proname AS fonction,
+  p.prosecdef AS security_definer,
+  has_function_privilege('anon', p.oid, 'EXECUTE') AS anon_peut_executer,
+  has_function_privilege('authenticated', p.oid, 'EXECUTE') AS authenticated_peut_executer
+FROM pg_proc p
+JOIN pg_namespace n ON n.oid = p.pronamespace
+WHERE n.nspname = 'public'
+  AND p.proname = 'classement_semaines';
