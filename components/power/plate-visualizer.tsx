@@ -1,17 +1,23 @@
 'use client'
 
 import { useState } from 'react'
-import { computePlates, BAR_WEIGHT } from '@/lib/powerlifting'
+import { computePlates, BAR_WEIGHT, COLLAR_WEIGHT, PLATES, PLATES_FITNESS } from '@/lib/powerlifting'
 import { Dumbbell } from 'lucide-react'
-import { useT } from '@/app/ThemeContext'
+import { useT, useTheme } from '@/app/ThemeContext'
 
 export function PlateVisualizer() {
   const t = useT()
+  const { mode } = useTheme()
+  // Salle de musculation : pas de 25 kg, stop-disques trop légers pour compter.
+  // Powerlifting : disques de 25 kg et stop-disques de compétition de 2,5 kg.
+  const estFitness = mode === 'fitness'
+  const disques = estFitness ? PLATES_FITNESS : PLATES
+  const collier = estFitness ? 0 : COLLAR_WEIGHT
   // La saisie est gardée en TEXTE : avec un état numérique, taper « 200 » sur
   // un champ à 0 laissait « 0200 », et vider le champ y réécrivait « 0 ».
   const [targetText, setTargetText] = useState('167.5')
   const target = Number(targetText) || 0
-  const { plates, perSide, achievable, remainder } = computePlates(target)
+  const { plates, perSide, achievable, remainder } = computePlates(target, BAR_WEIGHT, disques, collier)
 
   const handleTargetChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     // Supprime les zéros non significatifs (« 0200 » → « 200 ») sans casser
@@ -25,7 +31,7 @@ export function PlateVisualizer() {
         <Dumbbell className="size-5 text-white" />
         <div>
           <h2 className="text-sm font-bold text-white uppercase tracking-widest">{t('plateMath')}</h2>
-          <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{t('disquesParCote')}</span>
+          <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{t('disquesParCote')}{collier > 0 ? ` · ${t('stopDisquesInclus')}` : ''}</span>
         </div>
       </div>
 
@@ -53,11 +59,11 @@ export function PlateVisualizer() {
 
       <div className="flex flex-wrap items-center gap-2">
         {plates.length === 0 ? (
-          <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">{target <= BAR_WEIGHT ? 'BARRE À VIDE (20 KG)' : 'CHARGE INSUFFISANTE'}</span>
+          <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">{target <= BAR_WEIGHT + 2 * collier ? t('barreVide') : t('chargeInsuffisante')}</span>
         ) : (
           summarize(plates).map((s) => <span key={s.label} className="rounded-md bg-zinc-800 px-3 py-1.5 font-black tabular-nums text-[10px] text-white">{s.count} × {s.label}</span>)
         )}
-        {!achievable && remainder > 0 && <span className="rounded-md bg-white text-black px-3 py-1.5 font-black text-[10px] uppercase tracking-widest">RESTE {remainder} KG</span>}
+        {!achievable && remainder > 0 && <span className="rounded-md bg-white text-black px-3 py-1.5 font-black text-[10px] uppercase tracking-widest">{t('resteKg', { n: remainder })}</span>}
       </div>
     </div>
   )

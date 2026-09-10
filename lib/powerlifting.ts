@@ -21,7 +21,16 @@ export const PLATES: { weight: number; color: string; label: string }[] = [
   { weight: 1.25, color: 'oklch(0.72 0.04 250)', label: '1.25' },
 ]
 
+/**
+ * Disques d'une salle de musculation classique (Basic-Fit, Fitness Park…) :
+ * pas de 25 kg, qu'on ne trouve guère que sur du matériel de powerlifting.
+ */
+export const PLATES_FITNESS = PLATES.filter((p) => p.weight <= 20)
+
 export const BAR_WEIGHT = 20
+
+/** Stop-disque de compétition (IPF) : 2,5 kg chacun, compté dans la charge. */
+export const COLLAR_WEIGHT = 2.5
 
 /**
  * Arrondit à la charge réellement chargeable la plus proche.
@@ -33,16 +42,18 @@ export function roundToLoadable(target: number, increment = 2.5, bar = BAR_WEIGH
 }
 
 /**
- * Calcule les disques à charger de CHAQUE côté de la barre.
+ * Calcule les disques à charger de CHAQUE côté de la barre, avec le jeu de
+ * disques disponible. `collier` est le poids d'UN stop-disque : 0 en salle,
+ * où ils ne pèsent que quelques grammes.
  */
-export function computePlates(target: number, bar = BAR_WEIGHT) {
-  const perSide = (target - bar) / 2
+export function computePlates(target: number, bar = BAR_WEIGHT, disques = PLATES, collier = 0) {
+  const perSide = (target - bar - 2 * collier) / 2
   const result: { weight: number; color: string; label: string }[] = []
   if (perSide <= 0) {
-    return { plates: result, perSide: 0, achievable: target === bar, remainder: 0 }
+    return { plates: result, perSide: 0, achievable: target === bar + 2 * collier, remainder: 0 }
   }
   let remaining = perSide
-  for (const plate of PLATES) {
+  for (const plate of disques) {
     while (remaining + 1e-9 >= plate.weight) {
       result.push(plate)
       remaining = Math.round((remaining - plate.weight) * 100) / 100
