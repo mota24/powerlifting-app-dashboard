@@ -393,9 +393,9 @@ export default function CircuitTimer({ onClose }: Props) {
           </div>
 
           <div className={cn("flex items-center gap-6 mt-8 text-sm font-medium tracking-wide", meta.text, "opacity-80")}>
-            <span>{t('exerciceSur', { n: phase.exercice, total: config.exercices })}</span>
+            <span>{t('exerciceMot')} {phase.exercice}/{config.exercices}</span>
             <span className="w-1 h-1 rounded-full bg-current opacity-50"></span>
-            <span>{t('tourSur', { n: phase.tour, total: config.tours })}</span>
+            <span>{t('tourMot')} {phase.tour}/{config.tours}</span>
           </div>
 
           <div className="flex items-center gap-4 mt-16">
