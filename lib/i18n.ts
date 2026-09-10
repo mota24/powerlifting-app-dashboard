@@ -341,6 +341,7 @@ const fr = {
   photosConservation: "Chaque photo s'efface {n} jours après son ajout",
   photoSupprimeeDans: "S'efface dans {n} jours",
   photoDernierJour: "Dernier jour avant l'effacement",
+  prEstime: 'PR estimé sur {nom} ! ≈ {kg} kg',
 
   // — Accueil
   bienvenue: 'Bienvenue, {prenom} !',
@@ -658,6 +659,7 @@ const es: Record<CleTraduction, string> = {
   photosConservation: 'Cada foto se borra {n} días después de añadirla',
   photoSupprimeeDans: 'Se borra en {n} días',
   photoDernierJour: 'Último día antes de borrarse',
+  prEstime: '¡Récord estimado en {nom}! ≈ {kg} kg',
 
   bienvenue: '¡Bienvenida, {prenom}!',
 }
