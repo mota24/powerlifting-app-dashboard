@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronLeft, ChevronRight, Clock, PenLine, Plus, RefreshCw, ScanLine, Search, Trash2, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Clock, PenLine, Plus, RefreshCw, ScanLine, Search, Target, Trash2, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
 import { toast } from '@/components/power/toaster'
@@ -9,7 +9,7 @@ import { proposerAnnulation } from '@/lib/annulation'
 import { useLocale, useT, useTheme } from '@/app/ThemeContext'
 import { toLocalDateStr } from '@/lib/powerlifting'
 import type { Langue, Traducteur } from '@/lib/i18n'
-import { GRAMMES_MAX, grammesValides, pourGrammes, recents, totauxDuJour, type Aliment, type EntreeJournal } from '@/lib/nutrition'
+import { GRAMMES_MAX, LIMITES_OBJECTIFS, etatObjectif, grammesValides, lireObjectif, objectifValide, pourGrammes, recents, repereProteines, totauxDuJour, type Aliment, type EntreeJournal, type ObjectifsNutrition } from '@/lib/nutrition'
 
 type Onglet = 'scanner' | 'recherche' | 'recents' | 'manuel'
 
@@ -43,6 +43,9 @@ export function Nutrition() {
   const [erreur, setErreur] = useState(false)
   const [ajoutOuvert, setAjoutOuvert] = useState(false)
   const [version, setVersion] = useState(0)
+  const [objectifs, setObjectifs] = useState<ObjectifsNutrition | null>(null)
+  const [versionObjectifs, setVersionObjectifs] = useState(0)
+  const [objectifsOuverts, setObjectifsOuverts] = useState(false)
 
   const recharger = useCallback(() => setVersion((v) => v + 1), [])
   const fermerAjout = useCallback(() => setAjoutOuvert(false), [])
@@ -65,6 +68,22 @@ export function Nutrition() {
     })
     return () => { annule = true }
   }, [jour, version])
+
+  useEffect(() => {
+    let annule = false
+    supabase.from('objectifs_nutrition').select('kcal, proteines').maybeSingle().then(({ data, error }) => {
+      // Table absente (migration pas encore lancée) : simplement pas d'objectifs.
+      if (annule || error) return
+      setObjectifs(data ? { kcal: data.kcal ?? null, proteines: data.proteines ?? null } : null)
+    })
+    return () => { annule = true }
+  }, [versionObjectifs])
+
+  const fermerObjectifs = useCallback(() => setObjectifsOuverts(false), [])
+  const objectifsEnregistres = useCallback(() => {
+    setObjectifsOuverts(false)
+    setVersionObjectifs((v) => v + 1)
+  }, [])
 
   const totaux = useMemo(() => totauxDuJour(entrees), [entrees])
   const alimentsRecents = useMemo(() => recents(historique), [historique])
@@ -153,9 +172,16 @@ export function Nutrition() {
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <Total libelle={t('calories')} valeur={arrondi(totaux.kcal).toLocaleString(locale)} unite="kcal" />
-        <Total libelle={t('proteines')} valeur={arrondi1(totaux.prot).toLocaleString(locale)} unite="g" />
+        <Total libelle={t('calories')} valeur={totaux.kcal} arrondir={arrondi} unite="kcal" objectif={objectifs?.kcal ?? null} depasserReussit={false} t={t} locale={locale} />
+        <Total libelle={t('proteines')} valeur={totaux.prot} arrondir={arrondi1} unite="g" objectif={objectifs?.proteines ?? null} depasserReussit t={t} locale={locale} />
       </div>
+
+      <button
+        onClick={() => setObjectifsOuverts(true)}
+        className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-border text-[10px] font-black uppercase tracking-widest text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+      >
+        <Target className="size-4" /> {objectifs?.kcal || objectifs?.proteines ? t('modifierObjectifs') : t('definirObjectifs')}
+      </button>
 
       <button
         onClick={() => setAjoutOuvert(true)}
@@ -190,17 +216,42 @@ export function Nutrition() {
       {ajoutOuvert && (
         <FenetreAjout langue={langue} t={t} locale={locale} recents={alimentsRecents} onFermer={fermerAjout} onAjouter={ajouter} />
       )}
+      {objectifsOuverts && (
+        <FenetreObjectifs actuels={objectifs} t={t} locale={locale} onFermer={fermerObjectifs} onEnregistre={objectifsEnregistres} />
+      )}
     </div>
   )
 }
 
-function Total({ libelle, valeur, unite }: { libelle: string; valeur: string; unite: string }) {
+function Total({ libelle, valeur, arrondir, unite, objectif, depasserReussit, t, locale }: {
+  libelle: string
+  valeur: number
+  arrondir: (n: number) => number
+  unite: string
+  objectif: number | null
+  depasserReussit: boolean
+  t: Traducteur
+  locale: string
+}) {
+  const suivi = objectif !== null ? etatObjectif(valeur, objectif, depasserReussit) : null
+  const quantite = (n: number) => `${n.toLocaleString(locale)} ${unite}`
   return (
     <div className="rounded-2xl border border-border bg-card p-4">
       <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{libelle}</p>
       <p className="mt-1 text-3xl font-black tabular-nums text-foreground">
-        {valeur} <span className="text-sm font-bold text-muted-foreground">{unite}</span>
+        {arrondir(valeur).toLocaleString(locale)} <span className="text-sm font-bold text-muted-foreground">{unite}</span>
       </p>
+      {objectif !== null && suivi && (
+        <>
+          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-secondary">
+            <div className="h-full rounded-full bg-primary transition-[width] duration-500" style={{ width: `${suivi.part * 100}%` }} />
+          </div>
+          <p className="mt-1.5 truncate text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t('objectifCourt', { n: quantite(objectif) })}</p>
+          <p className="truncate text-[10px] font-black uppercase tracking-widest text-foreground">
+            {suivi.etat === 'reste' ? t('reste', { n: quantite(suivi.ecart) }) : suivi.etat === 'atteint' ? t('objectifAtteint') : t('objectifDepasse', { n: quantite(suivi.ecart) })}
+          </p>
+        </>
+      )}
     </div>
   )
 }
@@ -661,8 +712,8 @@ function ChoixQuantite({ aliment, t, locale, onRetour, onAjouter }: {
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <Total libelle={t('calories')} valeur={arrondi(kcal).toLocaleString(locale)} unite="kcal" />
-        <Total libelle={t('proteines')} valeur={arrondi1(prot).toLocaleString(locale)} unite="g" />
+        <Total libelle={t('calories')} valeur={kcal} arrondir={arrondi} unite="kcal" objectif={null} depasserReussit={false} t={t} locale={locale} />
+        <Total libelle={t('proteines')} valeur={prot} arrondir={arrondi1} unite="g" objectif={null} depasserReussit t={t} locale={locale} />
       </div>
 
       <div className="flex gap-2">
@@ -680,6 +731,135 @@ function ChoixQuantite({ aliment, t, locale, onRetour, onAjouter }: {
         >
           {envoi ? <RefreshCw className="size-4 animate-spin" /> : t('ajouterAuJournal')}
         </button>
+      </div>
+    </div>
+  )
+}
+
+function FenetreObjectifs({ actuels, t, locale, onFermer, onEnregistre }: {
+  actuels: ObjectifsNutrition | null
+  t: Traducteur
+  locale: string
+  onFermer: () => void
+  onEnregistre: () => void
+}) {
+  const [kcal, setKcal] = useState(actuels?.kcal != null ? String(actuels.kcal) : '')
+  const [prot, setProt] = useState(actuels?.proteines != null ? String(actuels.proteines) : '')
+  const [poids, setPoids] = useState<number | null>(null)
+  const [envoi, setEnvoi] = useState(false)
+  const [zoneVisible, setZoneVisible] = useState(lireZoneVisible)
+
+  // Dernier poids de corps : sert au repère de protéines.
+  useEffect(() => {
+    let annule = false
+    supabase.from('bodyweight_logs').select('weight').order('date', { ascending: false }).limit(1).maybeSingle().then(({ data }) => {
+      const valeur = Number(data?.weight)
+      if (!annule && Number.isFinite(valeur) && valeur > 0) setPoids(valeur)
+    })
+    return () => { annule = true }
+  }, [])
+
+  useEffect(() => {
+    const vue = window.visualViewport
+    if (!vue) return
+    const suivre = () => setZoneVisible({ haut: vue.offsetTop, hauteur: vue.height })
+    vue.addEventListener('resize', suivre)
+    vue.addEventListener('scroll', suivre)
+    return () => {
+      vue.removeEventListener('resize', suivre)
+      vue.removeEventListener('scroll', suivre)
+    }
+  }, [])
+
+  useEffect(() => {
+    const precedent = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const surTouche = (e: KeyboardEvent) => { if (e.key === 'Escape') onFermer() }
+    window.addEventListener('keydown', surTouche)
+    return () => {
+      document.body.style.overflow = precedent
+      window.removeEventListener('keydown', surTouche)
+    }
+  }, [onFermer])
+
+  const kcalLu = lireObjectif(kcal)
+  const protLu = lireObjectif(prot)
+  const valide = kcalLu !== 'invalide' && protLu !== 'invalide' && objectifValide(kcalLu, LIMITES_OBJECTIFS.kcal) && objectifValide(protLu, LIMITES_OBJECTIFS.proteines)
+  const repere = poids !== null ? repereProteines(poids) : null
+  const aDesObjectifs = actuels !== null && (actuels.kcal !== null || actuels.proteines !== null)
+  const classeChamp = 'h-12 w-full rounded-xl bg-secondary px-3 text-base font-bold tabular-nums text-foreground outline-none'
+
+  const enregistrer = async (valeurs: ObjectifsNutrition) => {
+    setEnvoi(true)
+    const { error } = await supabase
+      .from('objectifs_nutrition')
+      .upsert({ kcal: valeurs.kcal, proteines: valeurs.proteines, modifie_le: new Date().toISOString() }, { onConflict: 'user_id' })
+    setEnvoi(false)
+    if (error) {
+      toast(error.code === 'PGRST205' ? t('objectifsIndisponibles') : t('erreur'), 'error')
+      return
+    }
+    toast(t('objectifsEnregistres'), 'success')
+    onEnregistre()
+  }
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={t('objectifsDuJour')}
+      style={zoneVisible ? { top: zoneVisible.haut, height: zoneVisible.hauteur } : undefined}
+      className={cn('fixed inset-x-0 z-[100] flex items-end justify-center overflow-hidden bg-black/90 pt-6 sm:items-center sm:p-4', !zoneVisible && 'inset-y-0')}
+    >
+      <div className="flex max-h-full w-full max-w-lg flex-col overflow-hidden rounded-t-2xl border border-border bg-card sm:max-h-[92dvh] sm:rounded-2xl">
+        <header className="flex items-center justify-between border-b border-border p-4">
+          <h2 className="text-sm font-black uppercase tracking-widest text-foreground">{t('objectifsDuJour')}</h2>
+          <button onClick={onFermer} aria-label={t('fermer')} className="flex size-10 items-center justify-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground">
+            <X className="size-5" />
+          </button>
+        </header>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (valide && !envoi) void enregistrer({ kcal: kcalLu, proteines: protLu })
+          }}
+          className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4"
+        >
+          <label className="block">
+            <span className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t('objectifKcal')}</span>
+            <input value={kcal} onChange={(e) => setKcal(e.target.value)} inputMode="numeric" placeholder="2000" className={classeChamp} />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t('objectifProteines')}</span>
+            <input value={prot} onChange={(e) => setProt(e.target.value)} inputMode="numeric" placeholder="120" className={classeChamp} />
+          </label>
+          {repere && poids !== null && (
+            <div className="flex items-center justify-between gap-3 rounded-xl bg-secondary p-3">
+              <p className="text-xs text-muted-foreground">{t('conseilProteines', { min: repere.min, max: repere.max, poids: poids.toLocaleString(locale) })}</p>
+              <button
+                type="button"
+                onClick={() => setProt(String(repere.conseil))}
+                className="h-9 shrink-0 rounded-lg border border-border px-3 text-[10px] font-black uppercase tracking-widest text-foreground hover:bg-card"
+              >
+                {t('utiliserValeur', { n: repere.conseil })}
+              </button>
+            </div>
+          )}
+          {!valide && <p className="text-xs font-bold text-destructive">{t('objectifsInvalides')}</p>}
+          <button type="submit" disabled={!valide || envoi} className="h-12 w-full rounded-xl bg-primary text-xs font-black uppercase tracking-widest text-primary-foreground disabled:opacity-40">
+            {t('enregistrer')}
+          </button>
+          {aDesObjectifs && (
+            <button
+              type="button"
+              disabled={envoi}
+              onClick={() => void enregistrer({ kcal: null, proteines: null })}
+              className="h-11 w-full rounded-xl border border-border text-xs font-black uppercase tracking-widest text-muted-foreground hover:bg-secondary disabled:opacity-40"
+            >
+              {t('effacerObjectifs')}
+            </button>
+          )}
+        </form>
       </div>
     </div>
   )

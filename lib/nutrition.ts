@@ -66,3 +66,44 @@ export function recents(entrees: EntreeJournal[], max = 12): Aliment[] {
   }
   return liste
 }
+
+/** Objectifs quotidiens. null = pas d'objectif pour cette mesure. */
+export interface ObjectifsNutrition {
+  kcal: number | null
+  proteines: number | null
+}
+
+export const LIMITES_OBJECTIFS = { kcal: [800, 8000], proteines: [20, 400] } as const
+
+/** Champ saisi : vide = pas d'objectif, entier = objectif, le reste est invalide. */
+export function lireObjectif(saisie: string): number | null | 'invalide' {
+  const brut = saisie.replace(/\s/g, '')
+  if (brut === '') return null
+  const n = Number(brut)
+  return Number.isInteger(n) ? n : 'invalide'
+}
+
+export function objectifValide(valeur: number | null, [min, max]: readonly [number, number]): boolean {
+  return valeur === null || (Number.isInteger(valeur) && valeur >= min && valeur <= max)
+}
+
+/** Repère courant pour la musculation : 1,6 à 2,2 g de protéines par kg, conseil vers 1,8 g arrondi à 5 g. */
+export function repereProteines(poidsKg: number): { min: number; max: number; conseil: number } {
+  return {
+    min: Math.round(poidsKg * 1.6),
+    max: Math.round(poidsKg * 2.2),
+    conseil: Math.round((poidsKg * 1.8) / 5) * 5,
+  }
+}
+
+/**
+ * Où en est la journée : ce qui reste, ou le dépassement. Pour une mesure où
+ * dépasser est une réussite (protéines), le dépassement compte comme « atteint ».
+ */
+export function etatObjectif(valeur: number, objectif: number, depasserReussit: boolean): { part: number; etat: 'reste' | 'atteint' | 'depasse'; ecart: number } {
+  const ecart = Math.round(objectif - valeur)
+  const part = objectif > 0 ? Math.min(1, Math.max(0, valeur / objectif)) : 0
+  if (ecart > 0) return { part, etat: 'reste', ecart }
+  if (ecart === 0 || depasserReussit) return { part, etat: 'atteint', ecart: 0 }
+  return { part, etat: 'depasse', ecart: -ecart }
+}
