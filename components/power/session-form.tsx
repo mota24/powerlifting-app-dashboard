@@ -8,9 +8,10 @@ import { ModelesSeance } from '@/components/power/modeles-seance'
 import type { ModeleSeance } from '@/lib/modeles'
 import { useTheme, useT, useLocale } from '@/app/ThemeContext'
 import { joursProgrammes, nouvelleSerie, type LigneJour } from '@/lib/serie'
+import { cleExercice, seriePrescrite, suggererProgression, type SeanceExercice } from '@/lib/progression'
 import { proposerAnnulation } from '@/lib/annulation'
 import { countryCodeToFlag } from '@/lib/countries'
-import { Activity, Check, Coffee, Plus, Trash2, X, Copy, RefreshCw, Award, Sparkles, ChevronUp, ChevronDown, Dumbbell, Trophy } from 'lucide-react'
+import { Activity, Check, Coffee, Plus, Trash2, X, Copy, RefreshCw, Award, Sparkles, ChevronUp, ChevronDown, Dumbbell, Trophy, TrendingUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from '@/components/power/toaster'
 import { RestTimer } from '@/components/power/rest-timer'
@@ -50,6 +51,7 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
   const [newStreakState, setNewStreakState] = useState(0)
   const [leveledUp, setLeveledUp] = useState(false)
   const [tonnageSemainePrec, setTonnageSemainePrec] = useState<number | null>(null)
+  const [historiqueExercices, setHistoriqueExercices] = useState<{ date: string; parExercice: Map<string, SeanceExercice> } | null>(null)
 
   const dateFormatee = toLocalDateStr(dateActive)
   const jourSemaine = dateActive.getDay()
@@ -66,6 +68,25 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
 
   useEffect(() => { let cancelled = false; loadedDateRef.current = null; const chargerSeance = async () => { const { data, error } = await supabase.from('workout_sets').select('*').eq('date', dateFormatee).order('order_index', { ascending: true }); if (cancelled) return; if (error) { toast(t('erreurChargement'), 'error'); return } const rows = (data ?? []) as WorkoutSetRow[]; if (rows.length > 0) { const isExplicitRest = rows.some((item) => REST_NAMES.includes(item.exercise_name ?? '')); const vraisExercices = rows.filter((item) => !REST_NAMES.includes(item.exercise_name ?? '')); if (isExplicitRest && vraisExercices.length === 0) setIsRestDayMode(true); else if (vraisExercices.length > 0) setIsRestDayMode(false); else setIsRestDayMode(jourSemaine === 0 || jourSemaine === 5); if (vraisExercices.length > 0) { setExercices(vraisExercices.map((item) => { const fallbackCoach: SetData[] = item.coach_reps ? [{ reps: String(item.coach_reps), weight: item.coach_weight != null ? String(item.coach_weight) : '', rpe: item.coach_rpe != null ? String(item.coach_rpe) : '' }] : [videSet()]; const coachTracking = item.coach_tracking_data ?? fallbackCoach; const tracking = [...(item.tracking_data ?? [videSet()])]; while (tracking.length < coachTracking.length) tracking.push(videSet()); return { id: item.id, uid: crypto.randomUUID(), name: item.exercise_name ?? '', coachTracking, tracking, comments: item.comments ?? '', painLevel: item.pain_level ?? null, } })) } else { setExercices([creerExerciceVierge()]) } const derniereLigne = rows[rows.length - 1]; setFatigue(derniereLigne.fatigue_score ?? 5); setSommeil(derniereLigne.sleep_hours ?? 8); setPas(pasDuJourRef.current ?? derniereLigne.steps_count ?? 0) } else { setIsRestDayMode(jourSemaine === 0 || jourSemaine === 5); setExercices([creerExerciceVierge()]); setFatigue(5); setSommeil(8); setPas(pasDuJourRef.current ?? 0) } loadedDateRef.current = dateFormatee }; chargerSeance(); return () => { cancelled = true } }, [dateFormatee, jourSemaine, setIsRestDayMode, t])
   useEffect(() => { let cancelled = false; const fetchSemainePrec = async () => { const d = new Date(dateActive); d.setDate(d.getDate() - 7); const { data } = await supabase.from('workout_sets').select('tracking_data').eq('date', toLocalDateStr(d)); if (cancelled) return; const total = (data ?? []).reduce((sum, row) => sum + setsTonnage(row.tracking_data as SetData[] | null), 0); setTonnageSemainePrec(total > 0 ? Math.round(total) : null) }; fetchSemainePrec(); return () => { cancelled = true } }, [dateFormatee])
+  // Progression suggérée (muscu) : pour chaque exercice, la dernière séance des 60 jours précédents où il avait un plan.
+  useEffect(() => {
+    if (mode !== 'fitness') return
+    let cancelled = false
+    const [annee, mois, jour] = dateFormatee.split('-').map(Number)
+    const depuis = toLocalDateStr(new Date(annee, mois - 1, jour - 60))
+    supabase.from('workout_sets').select('exercise_name, coach_tracking_data, tracking_data').lt('date', dateFormatee).gte('date', depuis).order('date', { ascending: false }).limit(400).then(({ data }) => {
+      if (cancelled) return
+      const parExercice = new Map<string, SeanceExercice>()
+      for (const ligne of (data ?? []) as Pick<WorkoutSetRow, 'exercise_name' | 'coach_tracking_data' | 'tracking_data'>[]) {
+        const nom = ligne.exercise_name ?? ''
+        const coach = ligne.coach_tracking_data ?? []
+        if (!nom || REST_NAMES.includes(nom) || parExercice.has(cleExercice(nom)) || !coach.some(seriePrescrite)) continue
+        parExercice.set(cleExercice(nom), { coach, fait: ligne.tracking_data ?? [] })
+      }
+      setHistoriqueExercices({ date: dateFormatee, parExercice })
+    })
+    return () => { cancelled = true }
+  }, [dateFormatee, mode])
   const handleToggleMode = () => { if (!isRestDayMode && exercices.length > 0 && exercices[0].name !== '') { if (!confirm(t('effacerPourRepos'))) return } setIsRestDayMode(!isRestDayMode) }
   const executerSauvegarde = async (dateStr: string): Promise<boolean> => { if (typeof navigator !== 'undefined' && !navigator.onLine) return false; if (isRestDayMode) { const payload = { date: dateStr, exercise_name: 'Jour de Repos', fatigue_score: fatigue, sleep_hours: sommeil, steps_count: pas }; const del = await supabase.from('workout_sets').delete().eq('date', dateStr).neq('exercise_name', 'Jour de Repos'); if (del.error) return false; const { data, error: selError } = await supabase.from('workout_sets').select('id').eq('date', dateStr).limit(1); if (selError) return false; if (data && data.length > 0) { const { error } = await supabase.from('workout_sets').update(payload).eq('id', data[0].id); return !error } const { error } = await supabase.from('workout_sets').insert([payload]); return !error } const delRest = await supabase.from('workout_sets').delete().eq('date', dateStr).in('exercise_name', REST_NAMES); if (delRest.error) return false; const snapshot = exercices; type SaveResult = { data: { id: string } | null; error: { message: string } | null }; const sauver = async (includePain: boolean): Promise<SaveResult[]> => { const buildPayload = (ex: ExerciceRow, index: number) => { const payload: Record<string, unknown> = { date: dateStr, exercise_name: ex.name || t('exerciceSansNom'), coach_tracking_data: ex.coachTracking, tracking_data: ex.tracking, comments: ex.comments || null, fatigue_score: fatigue, sleep_hours: sommeil, steps_count: pas, order_index: index, }; if (includePain) payload.pain_level = ex.painLevel; return payload }; return Promise.all(snapshot.map(async (ex, index): Promise<SaveResult> => { if (ex.id) { const { error } = await supabase.from('workout_sets').update(buildPayload(ex, index)).eq('id', ex.id); return { data: null, error } } const { data, error } = await supabase.from('workout_sets').insert([buildPayload(ex, index)]).select('id').single(); return { data: data as { id: string } | null, error } })) }; let results = await sauver(painColumnOk.current); if (painColumnOk.current && results.some((r) => r.error?.message?.includes('pain_level'))) { painColumnOk.current = false; results = await sauver(false) } const idByUid = new Map<string, string>(); snapshot.forEach((ex, i) => { const r = results[i]; if (!ex.id && r?.data?.id) idByUid.set(ex.uid, r.data.id) }); if (idByUid.size > 0) { setExercices((prev) => prev.map((ex) => { const newId = idByUid.get(ex.uid); return newId ? { ...ex, id: newId } : ex })) } return results.every((r) => !r.error) }
   useEffect(() => { if (loadedDateRef.current !== dateFormatee) return; if (!isRestDayMode && exercices.length === 0) return; const timeoutId = setTimeout(async () => { const ok = await executerSauvegarde(dateFormatee); if (ok) { setLastSaved(new Date()); if (savePendingRef.current) marquerPending(false) } else { marquerPending(true) } }, 1500); return () => clearTimeout(timeoutId) }, [exercices, fatigue, sommeil, pas, isRestDayMode, dateFormatee])
@@ -226,12 +247,17 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
   const ajouterSerie = useCallback((exIndex: number, list: 'coachTracking' | 'tracking') => { setExercices((prev) => prev.map((ex, i) => { if (i !== exIndex) return ex; if (list === 'coachTracking') return { ...ex, coachTracking: [...ex.coachTracking, videSet()], tracking: [...ex.tracking, videSet()] }; return { ...ex, tracking: [...ex.tracking, videSet()] } })) }, [])
   const supprimerSerie = useCallback((exIndex: number, list: 'coachTracking' | 'tracking', setIndex: number) => { setExercices((prev) => prev.map((ex, i) => { if (i !== exIndex) return ex; if (list === 'coachTracking') { const coachTracking = ex.coachTracking.filter((_, j) => j !== setIndex); const tracking = ex.tracking.length > coachTracking.length ? ex.tracking.filter((_, j) => j !== setIndex) : ex.tracking; return { ...ex, coachTracking, tracking } } return { ...ex, tracking: ex.tracking.filter((_, j) => j !== setIndex) } })) }, [])
   const copierCoach = useCallback((exIndex: number) => { setExercices((prev) => prev.map((ex, i) => { if (i !== exIndex) return ex; const tracking: SetData[] = ex.coachTracking.map((cSet, j) => ({ reps: cSet.reps, weight: cSet.weight, rpe: ex.tracking[j]?.rpe ?? '', })); if (ex.tracking.length > ex.coachTracking.length) { tracking.push(...ex.tracking.slice(ex.coachTracking.length)) } return { ...ex, tracking } })) }, [])
+  const appliquerSuggestion = useCallback((exIndex: number, poids: number, ancien: number) => { setExercices((prev) => prev.map((ex, i) => i !== exIndex ? ex : { ...ex, coachTracking: ex.coachTracking.map((s) => (parseFloat(s.weight) === ancien || (s.weight.trim() === '' && s.reps.trim() !== '') ? { ...s, weight: String(poids) } : s)) })) }, [])
   const validerSerieCoach = useCallback((exIndex: number, setIndex: number) => { setExercices((prev) => prev.map((ex, i) => { if (i !== exIndex) return ex; const coach = ex.coachTracking[setIndex]; if (!coach) return ex; const tracking = ex.tracking.map((s, j) => j === setIndex ? { ...s, reps: coach.reps, weight: coach.weight } : s); return { ...ex, tracking } })); if (typeof navigator !== 'undefined') navigator.vibrate?.(50) }, [])
 
   const e1rmBaseline = useRef<Record<LiftCategory, number> | null>(null)
   useEffect(() => { let cancelled = false; const chargerBaseline = async () => { const since = new Date(); since.setMonth(since.getMonth() - 6); const { data, error } = await supabase.from('workout_sets').select('exercise_name, tracking_data').gte('date', toLocalDateStr(since)).not('tracking_data', 'is', null); if (cancelled || error) return; const maxes: Record<LiftCategory, number> = { squat: 0, bench: 0, deadlift: 0 }; for (const row of (data ?? []) as { exercise_name: string | null; tracking_data: SetData[] | null }[]) { const cat = classifyLift(row.exercise_name, mode); if (!cat) continue; const best = bestE1RM(row.tracking_data); if (best > maxes[cat]) maxes[cat] = best } e1rmBaseline.current = maxes }; chargerBaseline(); return () => { cancelled = true } }, [mode])
   useEffect(() => { if (isRestDayMode) return; const timeoutId = setTimeout(() => { const baseline = e1rmBaseline.current; if (!baseline) return; for (const ex of exercices) { const cat = classifyLift(ex.name, mode); if (!cat) continue; const e1rm = bestE1RM(ex.tracking); if (e1rm <= baseline[cat]) continue; const ancien = Math.round(baseline[cat]); baseline[cat] = e1rm; if (ancien > 0) { toast(t('prEstime', { nom: ex.name, kg: Math.round(e1rm) }), 'pr'); if (typeof navigator !== 'undefined') navigator.vibrate?.([80, 60, 80]) } } }, 1200); return () => clearTimeout(timeoutId) }, [exercices, isRestDayMode, mode, t])
 
+  const suggestions = useMemo(() => {
+    const parExercice = historiqueExercices?.date === dateFormatee ? historiqueExercices.parExercice : null
+    return exercices.map((ex) => (parExercice && ex.name.trim() ? suggererProgression(parExercice.get(cleExercice(ex.name)), ex.coachTracking) : null))
+  }, [exercices, historiqueExercices, dateFormatee])
   const tonnageJour = useMemo(() => sessionTonnage(exercices), [exercices])
   const deltaTonnage = tonnageSemainePrec ? Math.round(((tonnageJour - tonnageSemainePrec) / tonnageSemainePrec) * 100) : null
   const listId = `liste-exos-${jourSemaine}`
@@ -331,7 +357,7 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
         <datalist id={listId}>{suggestionsDuJour.map((nomExo) => <option key={nomExo} value={nomExo} />)}</datalist>
 
         {exercices.map((ex, exIndex) => (
-          <ExerciseCard key={ex.uid} ex={ex} exIndex={exIndex} isLast={exIndex === exercices.length - 1} listId={listId} onPatch={patchExercice} onUpdateSerie={updateSerie} onAjouterSerie={ajouterSerie} onSupprimerSerie={supprimerSerie} onDeplacer={deplacerExercice} onSupprimer={supprimerExercice} onCopierCoach={copierCoach} onValiderSerie={validerSerieCoach} />
+          <ExerciseCard key={ex.uid} ex={ex} exIndex={exIndex} isLast={exIndex === exercices.length - 1} listId={listId} onPatch={patchExercice} onUpdateSerie={updateSerie} onAjouterSerie={ajouterSerie} onSupprimerSerie={supprimerSerie} onDeplacer={deplacerExercice} onSupprimer={supprimerExercice} onCopierCoach={copierCoach} onValiderSerie={validerSerieCoach} suggestionPoids={suggestions[exIndex]?.poids ?? null} suggestionAncien={suggestions[exIndex]?.ancien ?? null} onAppliquerSuggestion={appliquerSuggestion} />
         ))}
 
         <button onClick={ajouterExercice} className="w-full py-6 border border-border hover:border-ring hover:bg-card text-muted-foreground hover:text-foreground rounded-2xl flex items-center justify-center gap-2 transition-colors text-[10px] font-bold uppercase tracking-widest">
@@ -442,11 +468,12 @@ function DailyMetrics({ fatigue, sommeil, pas, setFatigue, setSommeil, setPas }:
   )
 }
 
-interface ExerciseCardProps { ex: ExerciceRow; exIndex: number; isLast: boolean; listId: string; onPatch: (index: number, patch: Partial<ExerciceRow>) => void; onUpdateSerie: (exIndex: number, list: 'coachTracking' | 'tracking', setIndex: number, champ: keyof SetData, valeur: string) => void; onAjouterSerie: (exIndex: number, list: 'coachTracking' | 'tracking') => void; onSupprimerSerie: (exIndex: number, list: 'coachTracking' | 'tracking', setIndex: number) => void; onDeplacer: (index: number, direction: 'up' | 'down') => void; onSupprimer: (index: number, ex: ExerciceRow) => void; onCopierCoach: (exIndex: number) => void; onValiderSerie: (exIndex: number, setIndex: number) => void; }
+interface ExerciseCardProps { ex: ExerciceRow; exIndex: number; isLast: boolean; listId: string; onPatch: (index: number, patch: Partial<ExerciceRow>) => void; onUpdateSerie: (exIndex: number, list: 'coachTracking' | 'tracking', setIndex: number, champ: keyof SetData, valeur: string) => void; onAjouterSerie: (exIndex: number, list: 'coachTracking' | 'tracking') => void; onSupprimerSerie: (exIndex: number, list: 'coachTracking' | 'tracking', setIndex: number) => void; onDeplacer: (index: number, direction: 'up' | 'down') => void; onSupprimer: (index: number, ex: ExerciceRow) => void; onCopierCoach: (exIndex: number) => void; onValiderSerie: (exIndex: number, setIndex: number) => void; suggestionPoids: number | null; suggestionAncien: number | null; onAppliquerSuggestion: (exIndex: number, poids: number, ancien: number) => void; }
 
-const ExerciseCard = memo(function ExerciseCard({ ex, exIndex, isLast, listId, onPatch, onUpdateSerie, onAjouterSerie, onSupprimerSerie, onDeplacer, onSupprimer, onCopierCoach, onValiderSerie }: ExerciseCardProps) {
+const ExerciseCard = memo(function ExerciseCard({ ex, exIndex, isLast, listId, onPatch, onUpdateSerie, onAjouterSerie, onSupprimerSerie, onDeplacer, onSupprimer, onCopierCoach, onValiderSerie, suggestionPoids, suggestionAncien, onAppliquerSuggestion }: ExerciseCardProps) {
   const { mode } = useTheme()
   const t = useT()
+  const locale = useLocale()
   // Pas de RPE en mode fitness : c'est un outil d'autorégulation de
   // powerlifteur, hors sujet pour de la muscu en salle sans compétition.
   const avecRpe = mode !== 'fitness'
@@ -463,6 +490,14 @@ const ExerciseCard = memo(function ExerciseCard({ ex, exIndex, isLast, listId, o
         </div>
         <button onClick={() => onSupprimer(exIndex, ex)} className="shrink-0 p-3 text-muted-foreground hover:text-destructive bg-secondary border border-border rounded-xl transition-colors"><Trash2 className="size-4" /></button>
       </div>
+
+      {suggestionPoids !== null && suggestionAncien !== null && (
+        <div className="flex items-center gap-3 rounded-xl border border-border bg-secondary px-3 py-2">
+          <TrendingUp className="size-4 shrink-0 text-foreground" />
+          <p className="min-w-0 flex-1 text-xs font-bold text-foreground">{t('suggestionProgression', { ancien: suggestionAncien.toLocaleString(locale), poids: suggestionPoids.toLocaleString(locale) })}</p>
+          <button onClick={() => onAppliquerSuggestion(exIndex, suggestionPoids, suggestionAncien)} className="h-9 shrink-0 rounded-lg bg-primary px-3 text-[10px] font-black uppercase tracking-widest text-primary-foreground hover:opacity-90">{t('appliquer')}</button>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="p-4 rounded-xl border border-border bg-background flex flex-col h-full">

@@ -366,6 +366,9 @@ const fr = {
   modelesMax: '{max} modèles maximum',
   unExercice: '1 exercice',
   nExercices: '{n} exercices',
+  // Progression suggérée
+  suggestionProgression: 'Tout réussi la dernière fois à {ancien} kg : essaie {poids} kg',
+  appliquer: 'Appliquer',
 
   // — Accueil
   bienvenue: 'Bienvenue, {prenom} !',
@@ -707,6 +710,8 @@ const es: Record<CleTraduction, string> = {
   modelesMax: 'Máximo {max} plantillas',
   unExercice: '1 ejercicio',
   nExercices: '{n} ejercicios',
+  suggestionProgression: 'La última vez lo completaste todo con {ancien} kg: prueba con {poids} kg',
+  appliquer: 'Aplicar',
 
   bienvenue: '¡Bienvenida, {prenom}!',
 }
