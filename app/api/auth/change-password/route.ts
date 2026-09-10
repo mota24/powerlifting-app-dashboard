@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
   const debit = limiterMemoire(`auth:${clientIp(req)}`, LIMITE_DEBIT_PAR_IP, 60_000)
   if (debit.bloque) {
     return NextResponse.json(
-      { error: 'Trop de requêtes' },
+      { error: 'Trop de requêtes', code: 'trop_de_requetes' },
       { status: 429, headers: { 'Retry-After': String(debit.retryAfterSeconds) } }
     )
   }
@@ -39,14 +39,14 @@ export async function POST(req: NextRequest) {
   const auth = await getAccessToken(req)
   const user = auth ? await fetchUser(auth.accessToken) : null
   if (!auth || !user?.email) {
-    return NextResponse.json({ error: 'Session expirée : reconnecte-toi' }, { status: 401 })
+    return NextResponse.json({ error: 'Session expirée : reconnecte-toi', code: 'session_expiree' }, { status: 401 })
   }
 
   const body = (await req.json().catch(() => null)) as { currentPassword?: unknown; newPassword?: unknown } | null
   const currentPassword = typeof body?.currentPassword === 'string' ? body.currentPassword : ''
   const newPassword = typeof body?.newPassword === 'string' ? body.newPassword : ''
   if (!currentPassword || !newPassword) {
-    return NextResponse.json({ error: 'Mot de passe actuel et nouveau mot de passe requis' }, { status: 400 })
+    return NextResponse.json({ error: 'Mot de passe actuel et nouveau mot de passe requis', code: 'champs_requis' }, { status: 400 })
   }
 
   const keyCompte = `pwd:${user.id}`
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
   if (gate.blocked) {
     const minutes = Math.max(1, Math.ceil(gate.retryAfterSeconds / 60))
     return NextResponse.json(
-      { error: `Trop de tentatives échouées. Réessaie dans ${minutes} min.` },
+      { error: `Trop de tentatives échouées. Réessaie dans ${minutes} min.`, code: 'trop_de_tentatives', minutes },
       { status: 429, headers: { 'Retry-After': String(gate.retryAfterSeconds) } }
     )
   }
@@ -67,14 +67,14 @@ export async function POST(req: NextRequest) {
   const verification = await signInWithPassword(user.email, currentPassword)
   if (!verification) {
     await recordFailure([keyCompte, keyIp])
-    return NextResponse.json({ error: 'Mot de passe actuel incorrect' }, { status: 401 })
+    return NextResponse.json({ error: 'Mot de passe actuel incorrect', code: 'mot_de_passe_incorrect' }, { status: 401 })
   }
 
   // 2. Règles de robustesse
   const manques = validatePasswordStrength(newPassword)
   if (manques.length > 0) {
     return NextResponse.json(
-      { error: `Mot de passe trop faible — il faut : ${manques.join(', ')}.` },
+      { error: `Mot de passe trop faible — il faut : ${manques.join(', ')}.`, code: 'mot_de_passe_faible' },
       { status: 400 }
     )
   }
@@ -85,13 +85,13 @@ export async function POST(req: NextRequest) {
   const fuites = await pwnedCount(newPassword)
   if (fuites === null) {
     return NextResponse.json(
-      { error: 'Vérification des fuites de données momentanément indisponible — réessaie dans un instant.' },
+      { error: 'Vérification des fuites de données momentanément indisponible — réessaie dans un instant.', code: 'verification_indisponible' },
       { status: 503 }
     )
   }
   if (fuites > 0) {
     return NextResponse.json(
-      { error: `Ce mot de passe est apparu ${fuites.toLocaleString('fr-FR')} fois dans des fuites de données publiques : choisis-en un autre.` },
+      { error: `Ce mot de passe est apparu ${fuites.toLocaleString('fr-FR')} fois dans des fuites de données publiques : choisis-en un autre.`, code: 'mot_de_passe_fuite', fuites },
       { status: 400 }
     )
   }
@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
     password: newPassword,
   })
   if (error) {
-    return NextResponse.json({ error: 'Impossible de mettre à jour le mot de passe' }, { status: 500 })
+    return NextResponse.json({ error: 'Impossible de mettre à jour le mot de passe', code: 'echec_mise_a_jour' }, { status: 500 })
   }
 
   await clearFailures([keyCompte])

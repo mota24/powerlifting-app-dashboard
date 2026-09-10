@@ -323,7 +323,7 @@ export default function CircuitTimer({ onClose }: Props) {
       {/* Barre supérieure minimaliste */}
       <div className="flex items-center justify-between p-6">
         <h2 className={cn("text-sm font-semibold tracking-widest uppercase", enCours ? meta.text : "text-white")}>
-          Timer
+          {t('chronoTitre')}
         </h2>
         <div className="flex items-center gap-4">
           <button
@@ -352,7 +352,7 @@ export default function CircuitTimer({ onClose }: Props) {
             <div className="space-y-2 py-2">
               <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 pl-1">{t('dureesTravail')}</h3>
               {normalizeWorkTimes(config.workTimes, config.exercices).map((duree, i) => (
-                <Stepper key={i} label={`Exercice ${i + 1}`} unit="s" value={duree} min={WORK_MIN} max={WORK_MAX} step={5} onChange={(v) => setWorkTime(i, v)} />
+                <Stepper key={i} label={t('exerciceN', { n: i + 1 })} unit="s" value={duree} min={WORK_MIN} max={WORK_MAX} step={5} onChange={(v) => setWorkTime(i, v)} />
               ))}
             </div>
 
@@ -369,7 +369,7 @@ export default function CircuitTimer({ onClose }: Props) {
               onClick={demarrer}
               className="w-full mt-4 p-5 rounded-full font-bold text-sm tracking-widest uppercase bg-white text-black hover:bg-zinc-200 transition-colors"
             >
-              Démarrer le circuit
+              {t('demarrerCircuit')}
             </button>
           </div>
         </div>
@@ -379,7 +379,7 @@ export default function CircuitTimer({ onClose }: Props) {
       {enCours && phase && (
         <div className="flex-1 flex flex-col items-center justify-center px-4 pb-12 select-none">
           <div className={cn('text-sm font-bold uppercase tracking-[0.4em] mb-4', meta.text)}>
-            {status === 'paused' ? 'PAUSE' : t(meta.cle)}
+            {status === 'paused' ? t('pause') : t(meta.cle)}
           </div>
 
           <div
@@ -393,9 +393,9 @@ export default function CircuitTimer({ onClose }: Props) {
           </div>
 
           <div className={cn("flex items-center gap-6 mt-8 text-sm font-medium tracking-wide", meta.text, "opacity-80")}>
-            <span>Exercice {phase.exercice}/{config.exercices}</span>
+            <span>{t('exerciceSur', { n: phase.exercice, total: config.exercices })}</span>
             <span className="w-1 h-1 rounded-full bg-current opacity-50"></span>
-            <span>Tour {phase.tour}/{config.tours}</span>
+            <span>{t('tourSur', { n: phase.tour, total: config.tours })}</span>
           </div>
 
           <div className="flex items-center gap-4 mt-16">
@@ -424,20 +424,20 @@ export default function CircuitTimer({ onClose }: Props) {
           <Flag className="size-10 text-white mb-6" />
           <div className="text-2xl font-bold tracking-widest uppercase text-white mb-2">{t('termine')}</div>
           <p className="text-zinc-500 font-medium mb-12">
-            {config.tours} tours · {formatDuree(dureeTotale)}
+            {t('toursDuree', { n: config.tours, duree: formatDuree(dureeTotale) })}
           </p>
           <div className="flex flex-col gap-4 w-full max-w-xs">
             <button
               onClick={demarrer}
               className="w-full p-4 rounded-full font-bold text-sm tracking-widest uppercase bg-white text-black hover:bg-zinc-200 transition-colors"
             >
-              Recommencer
+              {t('recommencer')}
             </button>
             <button
               onClick={reinitialiser}
               className="w-full p-4 rounded-full font-bold text-sm tracking-widest uppercase bg-zinc-900 text-white hover:bg-zinc-800 transition-colors"
             >
-              Paramètres
+              {t('parametres')}
             </button>
           </div>
         </div>

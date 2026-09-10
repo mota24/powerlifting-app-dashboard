@@ -49,7 +49,7 @@ export default function ConfigPanel() {
   const ajouterBloc = async () => {
     const nextNumber = blocks.length > 0 ? Math.max(...blocks.map(b => b.block_number)) + 1 : 1
     const today = new Date().toISOString().split('T')[0]
-    const { data, error } = await supabase.from('training_blocks').insert([{ block_number: nextNumber, start_date: today, duration_weeks: 4, name: 'NOUVEAU BLOC' }]).select()
+    const { data, error } = await supabase.from('training_blocks').insert([{ block_number: nextNumber, start_date: today, duration_weeks: 4, name: t('nouveauBloc') }]).select()
     if (data) setBlocks([...blocks, data[0]])
     if (error) alert(t('erreurDeuxPoints') + ' ' + error.message)
   }
@@ -272,7 +272,7 @@ export default function ConfigPanel() {
         )}
 
         <button onClick={ajouterBloc} className="w-full py-6 border border-zinc-800 hover:border-white text-zinc-500 hover:text-white bg-zinc-950 rounded-2xl flex items-center justify-center gap-2 transition-colors text-[10px] font-bold uppercase tracking-widest mt-6">
-          <Plus className="size-4" /> NOUVEAU BLOC
+          <Plus className="size-4" /> {t('nouveauBloc')}
         </button>
       </div>
     </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Header } from '@/components/power/header'
 import { StatsCards } from '@/components/power/stats-cards'
@@ -87,7 +87,7 @@ export default function Page() {
   const estFitness = mode === 'fitness'
   // page.tsx rend le ThemeProvider : il ne peut pas consommer son contexte,
   // il construit donc son traducteur directement depuis son propre etat.
-  const t = traducteurPour(langue)
+  const t = useMemo(() => traducteurPour(langue), [langue])
 
   const menuRef = useRef<HTMLDivElement>(null)
   const toggleBtnRef = useRef<HTMLButtonElement>(null)
@@ -309,7 +309,7 @@ export default function Page() {
     if (!session || blocks === null) return;
 
     if (blocks.length === 0) {
-      setBlockInfo('Aucun bloc planifié')
+      setBlockInfo(t('aucunBloc'))
       return
     }
 
@@ -335,16 +335,16 @@ export default function Page() {
       const currentWeek = Math.floor(diffDays / 7) + 1
 
       if (currentWeek > duration) {
-        setBlockInfo(`Bloc ${activeBlock.block_number} terminé (S${currentWeek})`)
+        setBlockInfo(t('blocTermine', { n: activeBlock.block_number, s: currentWeek }))
       } else if (currentWeek === duration) {
-        setBlockInfo(`🔥 Bloc ${activeBlock.block_number} | Semaine ${currentWeek} / ${duration} (MAX)`)
+        setBlockInfo(t('blocSemaineMax', { n: activeBlock.block_number, s: currentWeek, d: duration }))
       } else {
-        setBlockInfo(`Bloc ${activeBlock.block_number} | Semaine ${currentWeek} / ${duration}`)
+        setBlockInfo(t('blocSemaine', { n: activeBlock.block_number, s: currentWeek, d: duration }))
       }
     } else {
-      setBlockInfo('En attente du Bloc 1')
+      setBlockInfo(t('enAttenteBloc1'))
     }
-  }, [dateActive, blocks, session])
+  }, [dateActive, blocks, session, t])
 
   if (loadingAuth) {
     return (

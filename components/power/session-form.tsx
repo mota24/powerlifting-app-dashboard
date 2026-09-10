@@ -280,7 +280,7 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
 
         <div className="space-y-4 pt-4">
           <div className="h-4 flex items-center justify-center text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-            {savePending ? <span className="text-foreground">{t('attenteSync')}</span> : lastSaved && `SÉCURISÉ À ${lastSaved.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
+            {savePending ? <span className="text-foreground">{t('attenteSync')}</span> : lastSaved && t('securiseA', { heure: lastSaved.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }) })}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
