@@ -4,6 +4,8 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { toLocalDateStr, sessionTonnage, setsTonnage, bestE1RM, classifyLift, suggestionsExercices, ACCESSORIES, FIT_ACCESSOIRES, PAIN_LEVELS, type SetData, type LiftCategory, type UpcomingCompetition } from '@/lib/powerlifting'
 import { PhotosSeance } from '@/components/power/photos-seance'
+import { ModelesSeance } from '@/components/power/modeles-seance'
+import type { ModeleSeance } from '@/lib/modeles'
 import { useTheme, useT, useLocale } from '@/app/ThemeContext'
 import { joursProgrammes, nouvelleSerie, type LigneJour } from '@/lib/serie'
 import { proposerAnnulation } from '@/lib/annulation'
@@ -144,6 +146,15 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
   }
 
   const ajouterExercice = useCallback(() => { setExercices((prev) => [...prev, creerExerciceVierge()]) }, [])
+  const chargerModele = useCallback(async (modele: ModeleSeance) => {
+    const nouveaux: ExerciceRow[] = modele.exercices.map((ex) => ({ id: null, uid: crypto.randomUUID(), name: ex.nom, coachTracking: ex.prescription.map((s) => ({ ...s })), tracking: ex.prescription.map(() => videSet()), comments: ex.notes, painLevel: null }))
+    // Comme pour l'IA : l'exercice vierge du jour est remplacé, sinon on ajoute à la suite.
+    // La sauvegarde automatique a pu déjà l'enregistrer : sa ligne est effacée d'abord.
+    const vierge = exercices.length === 1 && exercices[0].name === '' ? exercices[0] : null
+    if (vierge?.id) await supabase.from('workout_sets').delete().eq('id', vierge.id)
+    setExercices((prev) => (prev.length === 1 && prev[0].name === '' ? nouveaux : [...prev, ...nouveaux]))
+    toast(t('modeleCharge', { nom: modele.nom }), 'success')
+  }, [exercices, t])
   const supprimerExercice = useCallback(async (index: number, ex: ExerciceRow) => {
     if (ex.id) await supabase.from('workout_sets').delete().eq('id', ex.id)
     setExercices((prev) => prev.filter((_, i) => i !== index))
@@ -314,6 +325,8 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
             {isGenerating ? <RefreshCw className="size-4 animate-spin" /> : t('generer')}
           </button>
         </div>
+
+        <ModelesSeance exercices={exercices} onCharger={chargerModele} />
 
         <datalist id={listId}>{suggestionsDuJour.map((nomExo) => <option key={nomExo} value={nomExo} />)}</datalist>
 
