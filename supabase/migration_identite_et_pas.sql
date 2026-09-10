@@ -38,7 +38,26 @@ UPDATE profiles SET prenom = 'Yamina', langue = 'ca'
 -- compte 1 : on les lui attribue explicitement.
 -- ────────────────────────────────────────────────────────────
 
-UPDATE seances_pas SET user_id = '1' WHERE user_id <> '1' AND user_id <> '2';
+-- Relançable après déploiement : entre-temps, l'ancien code a pu écrire des
+-- jours sous l'ancien identifiant ET le nouveau code le même jour sous '1'.
+-- La contrainte UNIQUE (user_id, date) ferait alors échouer un simple UPDATE,
+-- et tout le script avec. On fusionne d'abord ces doublons en gardant le plus
+-- grand nombre de pas, puis on rattache le reste.
+UPDATE seances_pas AS compte
+SET pas = GREATEST(compte.pas, orphelin.pas)
+FROM seances_pas AS orphelin
+WHERE compte.user_id = '1'
+  AND orphelin.user_id NOT IN ('1', '2')
+  AND orphelin.date = compte.date;
+
+DELETE FROM seances_pas AS orphelin
+WHERE orphelin.user_id NOT IN ('1', '2')
+  AND EXISTS (
+    SELECT 1 FROM seances_pas AS compte
+    WHERE compte.user_id = '1' AND compte.date = orphelin.date
+  );
+
+UPDATE seances_pas SET user_id = '1' WHERE user_id NOT IN ('1', '2');
 
 ALTER TABLE seances_pas ENABLE ROW LEVEL SECURITY;
 
