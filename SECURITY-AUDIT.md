@@ -279,6 +279,14 @@ de navigation, pas un ajout de header, hors périmètre de cet audit.
    le nombre de pas et de séances de l'autre, c'est le principe du classement. Toute modification de
    cette fonction doit être relue comme un changement de policy RLS.
 
+9. **Route `/api/aliments` et `camera=(self)`** (journal alimentaire) — relais serveur vers Open
+   Food Facts, service tiers gratuit et sans clé. Garde-fous : session exigée, 30 requêtes/min par IP,
+   paramètres validés (code 6-14 chiffres, texte 2-80 caractères), délai de 6 s ; seuls le code-barres
+   ou le texte cherché sont transmis, aucune donnée de compte. La CSP n'est pas ouverte (`connect-src
+   'self'` inchangé). La caméra est autorisée pour le site lui-même uniquement, pour le scanner, et le
+   navigateur demande toujours l'accord. Conséquence acceptée : si Open Food Facts est indisponible,
+   seule la recherche échoue, la saisie manuelle reste possible.
+
 ## 12. Hors périmètre — à faire manuellement de ton côté
 
 **Gratuit :**
