@@ -9,7 +9,7 @@ import { proposerAnnulation } from '@/lib/annulation'
 import { useLocale, useT, useTheme } from '@/app/ThemeContext'
 import { toLocalDateStr } from '@/lib/powerlifting'
 import type { Langue, Traducteur } from '@/lib/i18n'
-import { GRAMMES_MAX, LIMITES_OBJECTIFS, etatObjectif, grammesValides, lireObjectif, objectifValide, pourGrammes, recents, repereProteines, totauxDuJour, type Aliment, type EntreeJournal, type ObjectifsNutrition } from '@/lib/nutrition'
+import { GRAMMES_MAX, LIMITES_OBJECTIFS, depuisAlimentPerso, etatObjectif, grammesValides, lireObjectif, objectifValide, pourGrammes, recents, repereProteines, totauxDuJour, variantesCode, type Aliment, type AlimentPerso, type EntreeJournal, type ObjectifsNutrition, type ProduitPartiel } from '@/lib/nutrition'
 
 type Onglet = 'scanner' | 'recherche' | 'recents' | 'manuel'
 
@@ -30,6 +30,35 @@ async function appelerApi(params: URLSearchParams): Promise<Aliment[] | 'erreur'
   } catch {
     return 'erreur'
   }
+}
+
+const COLONNES_PERSO = 'code_barres, nom, marque, kcal_100g, proteines_100g, portion_g'
+
+/**
+ * Code-barres : d'abord les produits déjà saisis par le compte (réponse immédiate),
+ * puis Open Food Facts. Une fiche incomplète renvoie de quoi pré-remplir la saisie.
+ */
+async function chercherCodeBarres(code: string, langue: Langue): Promise<{ aliment: Aliment } | { partiel: ProduitPartiel | null } | 'erreur'> {
+  const perso = await supabase.from('aliments_perso').select(COLONNES_PERSO).in('code_barres', variantesCode(code)).limit(1)
+  // Table absente (migration pas encore lancée) : on passe simplement à Open Food Facts.
+  const connu = !perso.error ? (perso.data as AlimentPerso[] | null)?.[0] : undefined
+  if (connu) return { aliment: depuisAlimentPerso(connu) }
+  try {
+    const rep = await fetch(`/api/aliments?${new URLSearchParams({ code, lang: langue })}`)
+    if (!rep.ok) return 'erreur'
+    const corps = (await rep.json()) as { aliments?: Aliment[]; partiel?: ProduitPartiel | null }
+    const aliment = corps.aliments?.[0]
+    return aliment ? { aliment } : { partiel: corps.partiel ?? null }
+  } catch {
+    return 'erreur'
+  }
+}
+
+/** Produits saisis par le compte dont le nom contient le texte cherché. */
+async function chercherAlimentsPerso(texte: string): Promise<Aliment[]> {
+  const motif = texte.replace(/[%_\\]/g, '')
+  const { data, error } = await supabase.from('aliments_perso').select(COLONNES_PERSO).ilike('nom', `%${motif}%`).order('modifie_le', { ascending: false }).limit(5)
+  return error || !data ? [] : (data as AlimentPerso[]).map(depuisAlimentPerso)
 }
 
 export function Nutrition() {
@@ -317,6 +346,7 @@ function FenetreAjout({ langue, t, locale, recents: alimentsRecents, onFermer, o
 }) {
   const [onglet, setOnglet] = useState<Onglet>('scanner')
   const [choisi, setChoisi] = useState<Aliment | null>(null)
+  const [prerempli, setPrerempli] = useState<ProduitPartiel | null>(null)
   const [zoneVisible, setZoneVisible] = useState(lireZoneVisible)
 
   useEffect(() => {
@@ -391,10 +421,10 @@ function FenetreAjout({ langue, t, locale, recents: alimentsRecents, onFermer, o
               ))}
             </nav>
             <div className="min-h-0 flex-1 overflow-y-auto p-4">
-              {onglet === 'scanner' && <Scanner langue={langue} t={t} onTrouve={setChoisi} />}
+              {onglet === 'scanner' && <Scanner langue={langue} t={t} onTrouve={setChoisi} onCreer={(produit) => { setPrerempli(produit); setOnglet('manuel') }} />}
               {onglet === 'recherche' && <Recherche langue={langue} t={t} locale={locale} onChoisir={setChoisi} />}
               {onglet === 'recents' && <ListeAliments aliments={alimentsRecents} vide={t('aucunRecent')} t={t} locale={locale} onChoisir={setChoisi} />}
-              {onglet === 'manuel' && <SaisieManuelle t={t} onValider={setChoisi} />}
+              {onglet === 'manuel' && <SaisieManuelle key={prerempli?.code ?? 'libre'} t={t} prerempli={prerempli} onValider={setChoisi} />}
             </div>
           </>
         )}
@@ -410,26 +440,29 @@ function lireZoneVisible(): { haut: number; hauteur: number } | null {
 
 type EtatScanner = 'demarrage' | 'lecture' | 'recherche' | 'refus' | 'camera' | 'introuvable' | 'erreur'
 
-function Scanner({ langue, t, onTrouve }: { langue: Langue; t: Traducteur; onTrouve: (aliment: Aliment) => void }) {
+function Scanner({ langue, t, onTrouve, onCreer }: { langue: Langue; t: Traducteur; onTrouve: (aliment: Aliment) => void; onCreer: (produit: ProduitPartiel) => void }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [etat, setEtat] = useState<EtatScanner>('demarrage')
   const [essai, setEssai] = useState(0)
   const [dernierCode, setDernierCode] = useState('')
   const [codeManuel, setCodeManuel] = useState('')
+  const [partiel, setPartiel] = useState<ProduitPartiel | null>(null)
 
   const chercherCode = useCallback(async (code: string) => {
     setEtat('recherche')
     setDernierCode(code)
-    const resultat = await appelerApi(new URLSearchParams({ code, lang: langue }))
+    setPartiel(null)
+    const resultat = await chercherCodeBarres(code, langue)
     if (resultat === 'erreur') {
       setEtat('erreur')
       return
     }
-    if (resultat.length === 0) {
-      setEtat('introuvable')
+    if ('aliment' in resultat) {
+      onTrouve(resultat.aliment)
       return
     }
-    onTrouve(resultat[0])
+    setPartiel(resultat.partiel)
+    setEtat('introuvable')
   }, [langue, onTrouve])
 
   useEffect(() => {
@@ -486,7 +519,7 @@ function Scanner({ langue, t, onTrouve }: { langue: Langue; t: Traducteur; onTro
     recherche: t('scannerRecherche'),
     refus: t('cameraRefusee'),
     camera: t('cameraIndisponible'),
-    introuvable: t('produitIntrouvable', { code: dernierCode }),
+    introuvable: partiel?.nom ? t('produitSansValeurs', { nom: partiel.nom }) : t('produitInconnu', { code: dernierCode }),
     erreur: t('serviceIndisponible'),
   }
 
@@ -500,6 +533,15 @@ function Scanner({ langue, t, onTrouve }: { langue: Langue; t: Traducteur; onTro
       </div>
 
       <p role="status" className="text-center text-sm font-bold text-foreground">{messages[etat]}</p>
+
+      {etat === 'introuvable' && (
+        <button
+          onClick={() => onCreer(partiel ?? { code: dernierCode, nom: null, marque: null, portionG: null })}
+          className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary text-xs font-black uppercase tracking-widest text-primary-foreground hover:opacity-90"
+        >
+          <Plus className="size-4" /> {t('ajouterCeProduit')}
+        </button>
+      )}
 
       {(etat === 'introuvable' || etat === 'erreur') && (
         <button
@@ -546,13 +588,15 @@ function Recherche({ langue, t, locale, onChoisir }: { langue: Langue; t: Traduc
     // Délai de frappe : une requête par pause, pas une par lettre.
     const id = setTimeout(async () => {
       setEtat('recherche')
-      const r = await appelerApi(new URLSearchParams({ q: requete, lang: langue }))
+      const [r, perso] = await Promise.all([appelerApi(new URLSearchParams({ q: requete, lang: langue })), chercherAlimentsPerso(requete)])
       if (annule) return
-      if (r === 'erreur') {
+      if (r === 'erreur' && perso.length === 0) {
         setEtat('erreur')
         return
       }
-      setResultats(r)
+      // Produits saisis par le compte en tête, sans doublon de code-barres.
+      const codesPerso = new Set(perso.map((a) => a.code))
+      setResultats([...perso, ...(r === 'erreur' ? [] : r.filter((a) => !a.code || !codesPerso.has(a.code)))])
       setEtat('repos')
     }, 450)
     return () => {
@@ -616,27 +660,52 @@ function ListeAliments({ aliments, vide, t, locale, onChoisir }: {
   )
 }
 
-function SaisieManuelle({ t, onValider }: { t: Traducteur; onValider: (aliment: Aliment) => void }) {
-  const [nom, setNom] = useState('')
+function SaisieManuelle({ t, prerempli, onValider }: { t: Traducteur; prerempli: ProduitPartiel | null; onValider: (aliment: Aliment) => void }) {
+  const [nom, setNom] = useState(prerempli?.nom ?? '')
+  const [marque, setMarque] = useState(prerempli?.marque ?? '')
   const [kcal, setKcal] = useState('')
   const [prot, setProt] = useState('')
+  const [envoi, setEnvoi] = useState(false)
   const k = Number.parseFloat(kcal.replace(',', '.'))
   const p = Number.parseFloat(prot.replace(',', '.'))
   const valide = nom.trim().length > 0 && Number.isFinite(k) && k >= 0 && k <= 1000 && Number.isFinite(p) && p >= 0 && p <= 100
   // 16 px minimum : en dessous, Safari iOS zoome toute la page quand le champ prend le focus.
   const classeChamp = 'h-12 w-full rounded-xl bg-secondary px-3 text-base font-bold text-foreground outline-none'
 
+  const valider = async () => {
+    if (!valide || envoi) return
+    const aliment: Aliment = { code: prerempli?.code ?? null, nom: nom.trim().slice(0, 200), marque: marque.trim().slice(0, 200) || null, kcal100: k, prot100: p, portionG: prerempli?.portionG ?? null }
+    if (aliment.code) {
+      setEnvoi(true)
+      // Mémorisé pour ce compte : le prochain scan de ce code le trouvera directement.
+      const { error } = await supabase.from('aliments_perso').upsert(
+        [{ code_barres: aliment.code, nom: aliment.nom, marque: aliment.marque, kcal_100g: aliment.kcal100, proteines_100g: aliment.prot100, portion_g: aliment.portionG, modifie_le: new Date().toISOString() }],
+        { onConflict: 'user_id,code_barres' },
+      )
+      setEnvoi(false)
+      if (error && error.code !== 'PGRST205') toast(t('produitNonMemorise'), 'info')
+    }
+    onValider(aliment)
+  }
+
   return (
     <form
       onSubmit={(e) => {
         e.preventDefault()
-        if (valide) onValider({ code: null, nom: nom.trim().slice(0, 200), marque: null, kcal100: k, prot100: p, portionG: null })
+        void valider()
       }}
       className="space-y-3"
     >
+      {prerempli?.code && (
+        <p className="rounded-xl bg-secondary p-3 text-xs font-bold text-muted-foreground">{t('memoriseProchainScan', { code: prerempli.code })}</p>
+      )}
       <label className="block">
         <span className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t('nomAliment')}</span>
         <input value={nom} onChange={(e) => setNom(e.target.value)} maxLength={200} className={classeChamp} />
+      </label>
+      <label className="block">
+        <span className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t('marqueFacultative')}</span>
+        <input value={marque} onChange={(e) => setMarque(e.target.value)} maxLength={200} className={classeChamp} />
       </label>
       <div className="grid grid-cols-2 gap-3">
         <label className="block">
@@ -648,8 +717,8 @@ function SaisieManuelle({ t, onValider }: { t: Traducteur; onValider: (aliment: 
           <input value={prot} onChange={(e) => setProt(e.target.value)} inputMode="decimal" className={cn(classeChamp, 'tabular-nums')} />
         </label>
       </div>
-      <button type="submit" disabled={!valide} className="h-12 w-full rounded-xl bg-primary text-xs font-black uppercase tracking-widest text-primary-foreground disabled:opacity-40">
-        {t('continuer')}
+      <button type="submit" disabled={!valide || envoi} className="flex h-12 w-full items-center justify-center rounded-xl bg-primary text-xs font-black uppercase tracking-widest text-primary-foreground disabled:opacity-40">
+        {envoi ? <RefreshCw className="size-4 animate-spin" /> : t('continuer')}
       </button>
     </form>
   )

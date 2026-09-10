@@ -107,3 +107,43 @@ export function etatObjectif(valeur: number, objectif: number, depasserReussit: 
   if (ecart === 0 || depasserReussit) return { part, etat: 'atteint', ecart: 0 }
   return { part, etat: 'depasse', ecart: -ecart }
 }
+
+/** 1 kcal = 4,184 kJ. */
+export const KJ_PAR_KCAL = 4.184
+
+/** Fiche Open Food Facts trouvée mais sans calories ou protéines : de quoi pré-remplir la saisie. */
+export interface ProduitPartiel {
+  code: string
+  nom: string | null
+  marque: string | null
+  portionG: number | null
+}
+
+/** Ligne de aliments_perso : produit saisi une fois par le compte, retrouvé au scan suivant. */
+export interface AlimentPerso {
+  code_barres: string
+  nom: string
+  marque: string | null
+  kcal_100g: number
+  proteines_100g: number
+  portion_g: number | null
+}
+
+export function depuisAlimentPerso(a: AlimentPerso): Aliment {
+  return {
+    code: a.code_barres,
+    nom: a.nom,
+    marque: a.marque,
+    // Number() : selon la configuration, PostgREST peut renvoyer un numeric en texte.
+    kcal100: Number(a.kcal_100g),
+    prot100: Number(a.proteines_100g),
+    portionG: a.portion_g === null ? null : Number(a.portion_g),
+  }
+}
+
+/** Un UPC-A (12 chiffres) est aussi un EAN-13 précédé d'un 0 : les deux écritures désignent le même produit. */
+export function variantesCode(code: string): string[] {
+  if (code.length === 12) return [code, `0${code}`]
+  if (code.length === 13 && code.startsWith('0')) return [code, code.slice(1)]
+  return [code]
+}

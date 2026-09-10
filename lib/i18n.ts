@@ -385,6 +385,13 @@ const fr = {
   objectifsEnregistres: 'Objectifs enregistrés',
   objectifsInvalides: 'Calories entre 800 et 8 000, protéines entre 20 et 400 g (ou vide).',
   objectifsIndisponibles: 'Objectifs indisponibles pour le moment',
+  // Codes-barres inconnus
+  produitInconnu: 'Produit {code} inconnu : ajoute-le une fois, il sera reconnu au prochain scan.',
+  produitSansValeurs: '« {nom} » est connu, mais sans calories ni protéines : recopie-les depuis l’étiquette.',
+  ajouterCeProduit: 'Ajouter ce produit',
+  memoriseProchainScan: 'Code {code} : ce produit sera reconnu au prochain scan.',
+  marqueFacultative: 'Marque (facultatif)',
+  produitNonMemorise: 'Produit ajouté, mais pas mémorisé pour les prochains scans',
 
   // — Accueil
   bienvenue: 'Bienvenue, {prenom} !',
@@ -743,6 +750,12 @@ const es: Record<CleTraduction, string> = {
   objectifsEnregistres: 'Objetivos guardados',
   objectifsInvalides: 'Calorías entre 800 y 8.000, proteínas entre 20 y 400 g (o vacío).',
   objectifsIndisponibles: 'Objetivos no disponibles por ahora',
+  produitInconnu: 'Producto {code} desconocido: añádelo una vez y se reconocerá en el próximo escaneo.',
+  produitSansValeurs: '«{nom}» existe, pero sin calorías ni proteínas: cópialas de la etiqueta.',
+  ajouterCeProduit: 'Añadir este producto',
+  memoriseProchainScan: 'Código {code}: este producto se reconocerá en el próximo escaneo.',
+  marqueFacultative: 'Marca (opcional)',
+  produitNonMemorise: 'Producto añadido, pero no guardado para los próximos escaneos',
 
   bienvenue: '¡Bienvenida, {prenom}!',
 }

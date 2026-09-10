@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getAccessToken } from '@/lib/server/auth-session'
 import { clientIp } from '@/lib/server/rate-limit'
 import { limiterMemoire } from '@/lib/server/memory-rate-limit'
-import type { Aliment } from '@/lib/nutrition'
+import { KJ_PAR_KCAL, variantesCode, type Aliment, type ProduitPartiel } from '@/lib/nutrition'
 
 export const dynamic = 'force-dynamic'
 
@@ -50,25 +50,47 @@ function premiereMarque(brands: unknown): string | null {
   return texte(typeof brands === 'string' ? brands.split(',')[0] : null)
 }
 
-function normaliser(p: ProduitOff, langue: 'fr' | 'es'): Aliment | null {
+/** Ce qu'une fiche apprend du produit, complet ou non. */
+interface Extrait {
+  code: string | null
+  nom: string | null
+  marque: string | null
+  kcal: number | null
+  prot: number | null
+  portionG: number | null
+}
+
+function extraire(p: ProduitOff, langue: 'fr' | 'es'): Extrait {
   const nutriments = p.nutriments ?? {}
-  const kcal = nombre(nutriments['energy-kcal_100g'])
-  const prot = nombre(nutriments['proteins_100g'])
+  // Beaucoup de fiches n'ont que l'énergie en kJ (energy_100g est en kJ) : on la convertit.
+  const kj = nombre(nutriments['energy-kj_100g']) ?? nombre(nutriments['energy_100g'])
+  const kcal = nombre(nutriments['energy-kcal_100g']) ?? (kj !== null ? kj / KJ_PAR_KCAL : null)
   const noms = langue === 'es'
     ? [p.product_name_es, p.product_name, p.product_name_ca, p.product_name_fr]
     : [p.product_name_fr, p.product_name, p.product_name_es, p.product_name_ca]
-  const nom = noms.map(texte).find((n): n is string => n !== null)
-  // Sans calories ou sans protéines, un produit est inutilisable dans le journal.
-  if (kcal === null || prot === null || kcal > 1000 || prot > 100 || !nom) return null
+  const nom = noms.map(texte).find((n): n is string => n !== null) ?? null
   const portion = nombre(p.serving_quantity)
   const code = texte(p.code)
   return {
     code: code && /^\d{6,14}$/.test(code) ? code : null,
-    nom: nom.slice(0, 200),
+    nom: nom ? nom.slice(0, 200) : null,
     marque: premiereMarque(p.brands)?.slice(0, 200) ?? null,
-    kcal100: Math.round(kcal * 10) / 10,
-    prot100: Math.round(prot * 10) / 10,
+    kcal,
+    prot: nombre(nutriments['proteins_100g']),
     portionG: portion !== null && portion > 0 && portion <= 5000 ? portion : null,
+  }
+}
+
+function versAliment(e: Extrait): Aliment | null {
+  // Sans calories ou sans protéines, un produit est inutilisable dans le journal.
+  if (e.kcal === null || e.prot === null || e.kcal > 1000 || e.prot > 100 || !e.nom) return null
+  return {
+    code: e.code,
+    nom: e.nom,
+    marque: e.marque,
+    kcal100: Math.round(e.kcal * 10) / 10,
+    prot100: Math.round(e.prot * 10) / 10,
+    portionG: e.portionG,
   }
 }
 
@@ -90,27 +112,36 @@ export async function GET(req: NextRequest) {
   const lang = params.get('lang')
   const langue = lang === 'es' || lang === 'ca' ? 'es' : 'fr'
   const code = params.get('code')?.trim()
-  const texte = params.get('q')?.trim()
+  const recherche = params.get('q')?.trim()
 
   try {
     if (code) {
       if (!/^\d{6,14}$/.test(code)) return NextResponse.json({ error: 'Code invalide' }, { status: 400 })
-      const rep = await appelerOff(`https://world.openfoodfacts.org/api/v2/product/${code}.json?fields=${CHAMPS}`)
-      if (!rep.ok) return NextResponse.json({ error: 'Service indisponible' }, { status: 502 })
-      // Code inconnu : Open Food Facts répond 200 avec status = 0.
-      const corps = (await rep.json()) as { status?: number; product?: ProduitOff }
-      const aliment = corps.status === 1 && corps.product ? normaliser({ ...corps.product, code }, langue) : null
-      return NextResponse.json({ aliments: aliment ? [aliment] : [] }, { headers: { 'Cache-Control': 'private, max-age=86400' } })
+      let partiel: ProduitPartiel | null = null
+      // Un même produit peut être enregistré en UPC (12 chiffres) ou en EAN-13 (précédé d'un 0).
+      for (const variante of variantesCode(code)) {
+        const rep = await appelerOff(`https://world.openfoodfacts.org/api/v2/product/${variante}.json?fields=${CHAMPS}`)
+        if (!rep.ok && rep.status !== 404) return NextResponse.json({ error: 'Service indisponible' }, { status: 502 })
+        // Code inconnu : Open Food Facts répond status = 0 (en 200 ou en 404 selon les cas).
+        const corps = rep.ok ? ((await rep.json()) as { status?: number; product?: ProduitOff }) : null
+        if (corps?.status !== 1 || !corps.product) continue
+        const extrait = extraire({ ...corps.product, code }, langue)
+        const aliment = versAliment(extrait)
+        if (aliment) return NextResponse.json({ aliments: [aliment] }, { headers: { 'Cache-Control': 'private, max-age=86400' } })
+        // Fiche trouvée mais incomplète : le nom connu servira à pré-remplir la saisie.
+        partiel ??= { code, nom: extrait.nom, marque: extrait.marque, portionG: extrait.portionG }
+      }
+      return NextResponse.json({ aliments: [], partiel }, { headers: { 'Cache-Control': 'private, max-age=3600' } })
     }
 
-    if (texte) {
-      if (texte.length < 2 || texte.length > 80) return NextResponse.json({ error: 'Recherche invalide' }, { status: 400 })
+    if (recherche) {
+      if (recherche.length < 2 || recherche.length > 80) return NextResponse.json({ error: 'Recherche invalide' }, { status: 400 })
       // Nouveau moteur de recherche : l'ancien (cgi/search.pl) répond 503 aux appels automatisés.
-      const rep = await appelerOff(`https://search.openfoodfacts.org/search?q=${encodeURIComponent(texte)}&page_size=25&fields=${CHAMPS}`)
+      const rep = await appelerOff(`https://search.openfoodfacts.org/search?q=${encodeURIComponent(recherche)}&page_size=25&fields=${CHAMPS}`)
       if (!rep.ok) return NextResponse.json({ error: 'Service indisponible' }, { status: 502 })
       const corps = (await rep.json()) as { hits?: ProduitOff[]; products?: ProduitOff[] }
       const aliments = (corps.hits ?? corps.products ?? [])
-        .map((p) => normaliser(p, langue))
+        .map((p) => versAliment(extraire(p, langue)))
         .filter((a): a is Aliment => a !== null)
         .slice(0, 15)
       return NextResponse.json({ aliments }, { headers: { 'Cache-Control': 'private, max-age=3600' } })
