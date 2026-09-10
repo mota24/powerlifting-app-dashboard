@@ -137,3 +137,58 @@ export function supprimerAvecAnnulation({ photo, t, retirer, remettre }: {
     },
   })
 }
+
+// Fichiers déjà récupérés. Sur iPhone, la feuille de partage doit s'ouvrir
+// juste après l'appui : si le téléchargement a pris trop longtemps, le second
+// appui repart d'un fichier déjà prêt.
+const fichiersPrets = new Map<string, File>()
+
+async function fichierDePhoto(photo: PhotoSeance): Promise<File> {
+  const pret = fichiersPrets.get(photo.id)
+  if (pret) return pret
+  const rep = await fetch(`/api/photos/fichier?id=${encodeURIComponent(photo.id)}`, { cache: 'no-store' })
+  if (!rep.ok) throw new Error(`Photo indisponible (${rep.status})`)
+  const blob = await rep.blob()
+  const extension = blob.type === 'image/webp' ? 'webp' : 'jpg'
+  const fichier = new File([blob], `photo-${photo.date}.${extension}`, { type: blob.type })
+  fichiersPrets.set(photo.id, fichier)
+  if (fichiersPrets.size > 5) fichiersPrets.delete(fichiersPrets.keys().next().value as string)
+  return fichier
+}
+
+/**
+ * Enregistre la photo sur l'appareil. Sur téléphone : feuille de partage
+ * (« Enregistrer l'image » sur iPhone). Sur ordinateur : téléchargement.
+ */
+export async function enregistrerPhoto(photo: PhotoSeance, t: Traducteur) {
+  let fichier: File
+  try {
+    fichier = await fichierDePhoto(photo)
+  } catch {
+    toast(t('photoEnregistrementImpossible'), 'error')
+    return
+  }
+  const tactile = window.matchMedia('(pointer: coarse)').matches
+  if (tactile && typeof navigator.canShare === 'function' && navigator.canShare({ files: [fichier] })) {
+    try {
+      await navigator.share({ files: [fichier] })
+    } catch (erreur) {
+      const nom = erreur instanceof DOMException ? erreur.name : ''
+      // Feuille fermée sans rien choisir : rien à signaler.
+      if (nom === 'AbortError') return
+      // Appui « périmé » pendant le téléchargement : le fichier est prêt pour le suivant.
+      if (nom === 'NotAllowedError') toast(t('photoPreteAppuieEncore'), 'info')
+      else toast(t('photoEnregistrementImpossible'), 'error')
+    }
+    return
+  }
+  const url = URL.createObjectURL(fichier)
+  const lien = document.createElement('a')
+  lien.href = url
+  lien.download = fichier.name
+  document.body.appendChild(lien)
+  lien.click()
+  lien.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 10_000)
+  toast(t('photoTelechargee'), 'success')
+}

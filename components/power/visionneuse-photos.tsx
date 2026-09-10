@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { CalendarDays, ChevronLeft, ChevronRight, RefreshCw, Trash2, X } from 'lucide-react'
+import { CalendarDays, ChevronLeft, ChevronRight, Download, RefreshCw, Trash2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Traducteur } from '@/lib/i18n'
 import { joursAvantSuppression, libelleDate, type PhotoSeance } from '@/lib/photos'
@@ -10,12 +10,13 @@ import { joursAvantSuppression, libelleDate, type PhotoSeance } from '@/lib/phot
  * Photo en plein écran : glisser ou flèches pour passer à la voisine, Échap
  * pour fermer. La vignette floutée patiente le temps que la photo arrive.
  */
-export function VisionneusePhotos({ photos, idOuvert, onChanger, onFermer, onSupprimer, onOuvrirSeance, onErreurLien, t, locale }: {
+export function VisionneusePhotos({ photos, idOuvert, onChanger, onFermer, onSupprimer, onEnregistrer, onOuvrirSeance, onErreurLien, t, locale }: {
   photos: PhotoSeance[]
   idOuvert: string
   onChanger: (id: string) => void
   onFermer: () => void
   onSupprimer?: (photo: PhotoSeance) => void
+  onEnregistrer?: (photo: PhotoSeance) => void
   onOuvrirSeance?: (date: string) => void
   onErreurLien?: () => void
   t: Traducteur
@@ -53,6 +54,11 @@ export function VisionneusePhotos({ photos, idOuvert, onChanger, onFermer, onSup
   const libelle = libelleDate(photo.date, locale)
   const date = libelle.charAt(0).toUpperCase() + libelle.slice(1)
   const restants = joursAvantSuppression(photo.creeLe)
+  const actions = [
+    onOuvrirSeance && { cle: 'seance', Icone: CalendarDays, libelle: t('voirSeance'), agir: () => onOuvrirSeance(photo.date), danger: false },
+    onEnregistrer && { cle: 'enregistrer', Icone: Download, libelle: t('enregistrerPhoto'), agir: () => onEnregistrer(photo), danger: false },
+    onSupprimer && { cle: 'supprimer', Icone: Trash2, libelle: t('supprimer'), agir: () => onSupprimer(photo), danger: true },
+  ].filter((a) => a !== undefined)
 
   return (
     // bg-black/95 et non bg-black : le thème rose ne garde du texte blanc que
@@ -119,18 +125,22 @@ export function VisionneusePhotos({ photos, idOuvert, onChanger, onFermer, onSup
         )}
       </div>
 
-      {(onOuvrirSeance || onSupprimer) && (
-        <div className="flex items-center justify-between gap-2 px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-          {onOuvrirSeance ? (
-            <button onClick={() => onOuvrirSeance(photo.date)} className="flex h-11 items-center gap-2 rounded-xl px-3 text-[10px] font-black uppercase tracking-widest text-white transition-colors hover:bg-white/10">
-              <CalendarDays className="size-4" /> {t('voirSeance')}
+      {actions.length > 0 && (
+        // Barre d'outils à colonnes égales, icône au-dessus du libellé : tient sur 320 px, même en français.
+        <div className={cn('grid gap-1 px-3 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]', actions.length === 3 ? 'grid-cols-3' : actions.length === 2 ? 'grid-cols-2' : 'grid-cols-1')}>
+          {actions.map(({ cle, Icone, libelle, agir, danger }) => (
+            <button
+              key={cle}
+              onClick={agir}
+              className={cn(
+                'flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-center text-[10px] font-black uppercase leading-tight tracking-widest transition-colors',
+                danger ? 'text-red-400 hover:bg-red-500/10' : 'text-white hover:bg-white/10',
+              )}
+            >
+              <Icone className="size-5" />
+              {libelle}
             </button>
-          ) : <span />}
-          {onSupprimer && (
-            <button onClick={() => onSupprimer(photo)} className="flex h-11 items-center gap-2 rounded-xl px-3 text-[10px] font-black uppercase tracking-widest text-red-400 transition-colors hover:bg-red-500/10">
-              <Trash2 className="size-4" /> {t('supprimer')}
-            </button>
-          )}
+          ))}
         </div>
       )}
     </div>

@@ -6,7 +6,7 @@ import { useLocale, useT } from '@/app/ThemeContext'
 import { toast } from '@/components/power/toaster'
 import { PastilleExpiration, VisionneusePhotos } from '@/components/power/visionneuse-photos'
 import { DUREE_CONSERVATION_JOURS, PHOTOS_MAX_PAR_JOUR, insererA, type PhotoSeance } from '@/lib/photos'
-import { MESSAGE_ERREUR, chargerPhotos, envoyerPhoto, supprimerAvecAnnulation } from '@/lib/photos-client'
+import { MESSAGE_ERREUR, chargerPhotos, enregistrerPhoto, envoyerPhoto, supprimerAvecAnnulation } from '@/lib/photos-client'
 
 interface Chargement {
   date: string
@@ -178,6 +178,7 @@ export function PhotosSeance({ date }: { date: string }) {
           onChanger={setIdOuvert}
           onFermer={fermer}
           onSupprimer={supprimer}
+          onEnregistrer={(photo) => void enregistrerPhoto(photo, t)}
           onErreurLien={relancer}
           t={t}
           locale={locale}

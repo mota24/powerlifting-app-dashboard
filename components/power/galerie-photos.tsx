@@ -18,7 +18,7 @@ import {
   type EtatStockage,
   type PhotoSeance,
 } from '@/lib/photos'
-import { chargerGalerie, supprimerAvecAnnulation } from '@/lib/photos-client'
+import { chargerGalerie, enregistrerPhoto, supprimerAvecAnnulation } from '@/lib/photos-client'
 import { cn } from '@/lib/utils'
 
 interface Chargement {
@@ -204,6 +204,7 @@ export function GaleriePhotos({ onOuvrirSeance }: { onOuvrirSeance: (date: strin
           onChanger={setIdOuvert}
           onFermer={fermer}
           onSupprimer={supprimer}
+          onEnregistrer={(photo) => void enregistrerPhoto(photo, t)}
           onOuvrirSeance={onOuvrirSeance}
           onErreurLien={relancer}
           t={t}

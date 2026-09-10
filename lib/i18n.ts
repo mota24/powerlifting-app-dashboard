@@ -342,6 +342,10 @@ const fr = {
   photoSupprimeeDans: "S'efface dans {n} jours",
   photoDernierJour: "Dernier jour avant l'effacement",
   prEstime: 'PR estimé sur {nom} ! ≈ {kg} kg',
+  enregistrerPhoto: 'Enregistrer',
+  photoTelechargee: 'Photo téléchargée',
+  photoEnregistrementImpossible: "Impossible d'enregistrer la photo",
+  photoPreteAppuieEncore: 'Photo prête : appuie encore sur Enregistrer',
 
   // — Accueil
   bienvenue: 'Bienvenue, {prenom} !',
@@ -660,6 +664,10 @@ const es: Record<CleTraduction, string> = {
   photoSupprimeeDans: 'Se borra en {n} días',
   photoDernierJour: 'Último día antes de borrarse',
   prEstime: '¡Récord estimado en {nom}! ≈ {kg} kg',
+  enregistrerPhoto: 'Guardar',
+  photoTelechargee: 'Foto descargada',
+  photoEnregistrementImpossible: 'No se ha podido guardar la foto',
+  photoPreteAppuieEncore: 'Foto lista: pulsa otra vez en Guardar',
 
   bienvenue: '¡Bienvenida, {prenom}!',
 }

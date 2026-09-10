@@ -81,7 +81,7 @@ toutes les requêtes de données partent vers la même origine. Conséquences po
 
 ---
 
-## 3. Route Handlers (11)
+## 3. Route Handlers (12)
 
 | Route | Auth | Notes |
 |---|---|---|
@@ -95,6 +95,7 @@ toutes les requêtes de données partent vers la même origine. Conséquences po
 | `app/api/palmares/photo/route.ts` | cookie | Upload Storage, type/taille validés serveur |
 | `app/api/aliments/route.ts` | cookie | Relais Open Food Facts, 30 req/min, paramètres validés (§11, point 9) |
 | `app/api/photos/route.ts` | cookie | Photos de séance : bucket privé, liens signés 1 h, signature binaire vérifiée (§11, point 10) |
+| `app/api/photos/fichier/route.ts` | cookie | Fichier d'une photo du compte, servi par l'app pour l'enregistrer sur le téléphone (§11, point 10) |
 | `app/api/sync-steps/route.ts` | `SYNC_SECRET` + `userId` vérifié | Contrôle IDOR ajouté récemment |
 
 **Aucun header `Access-Control-Allow-*` posé nulle part** → voir Phase 3 ci-dessous.
@@ -305,6 +306,8 @@ de navigation, pas un ajout de header, hors périmètre de cet audit.
    Conservation : chaque photo s'efface 15 jours après son ajout. Une photo expirée n'est plus jamais
    renvoyée (filtre sur `cree_le`) ; ses fichiers puis sa ligne sont purgés au fil des visites du compte,
    après la réponse (`after()`), sans tâche planifiée à configurer.
+   Enregistrement sur le téléphone : `/api/photos/fichier` renvoie le fichier d'une photo du compte
+   (même filtres que la liste), depuis l'app elle-même ; la CSP `connect-src 'self'` reste fermée à Supabase.
 
 ## 12. Hors périmètre — à faire manuellement de ton côté
 

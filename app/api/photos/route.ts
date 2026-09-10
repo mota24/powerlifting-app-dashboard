@@ -1,7 +1,4 @@
 import { NextRequest, NextResponse, after } from 'next/server'
-import { applySessionCookies, fetchUser, getAccessToken, type SessionTokens } from '@/lib/server/auth-session'
-import { clientIp } from '@/lib/server/rate-limit'
-import { limiterMemoire } from '@/lib/server/memory-rate-limit'
 import { getSupabaseAdmin } from '@/lib/supabase-admin'
 import {
   COTE_MAX_PX,
@@ -15,6 +12,7 @@ import {
   signatureImage,
   type PhotoSeance,
 } from '@/lib/photos'
+import { BUCKET_PHOTOS, TABLE_PHOTOS, UUID, compteConnecte, limiterPhotos, repondre, tableAbsente } from '@/lib/server/photos'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,12 +29,7 @@ export const dynamic = 'force-dynamic'
  * plus jamais renvoyée, et ses fichiers sont purgés à la visite suivante.
  */
 
-const BUCKET = 'photos-seances'
-const TABLE = 'photos_seance'
 const DUREE_LIEN_S = 60 * 60
-// Galerie, séance et envois un par un : large pour l'usage réel.
-const LIMITE_PAR_MINUTE = 60
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 // La carte photos se recharge à chaque changement de jour : une purge par
 // compte toutes les 10 minutes suffit largement (mémoire propre à l'instance).
 const INTERVALLE_PURGE_MS = 10 * 60_000
@@ -51,32 +44,6 @@ interface LignePhoto {
   hauteur: number
   octets: number
   cree_le: string
-}
-
-function limiter(req: NextRequest) {
-  const verdict = limiterMemoire(`photos:${clientIp(req)}`, LIMITE_PAR_MINUTE, 60_000)
-  if (!verdict.bloque) return null
-  return NextResponse.json({ error: 'Trop de requêtes' }, { status: 429, headers: { 'Retry-After': String(verdict.retryAfterSeconds) } })
-}
-
-async function compteConnecte(req: NextRequest): Promise<{ compte: string; refreshed: SessionTokens | null } | null> {
-  const auth = await getAccessToken(req)
-  if (!auth) return null
-  const user = await fetchUser(auth.accessToken)
-  const compte = user?.email?.split('@')[0] ?? ''
-  // Le compte sert de dossier dans le stockage : aucun caractère de chemin.
-  return /^[A-Za-z0-9_-]{1,64}$/.test(compte) ? { compte, refreshed: auth.refreshed } : null
-}
-
-function repondre(corps: object, status: number, refreshed: SessionTokens | null) {
-  const res = NextResponse.json(corps, { status, headers: { 'Cache-Control': 'private, no-store' } })
-  if (refreshed) applySessionCookies(res, refreshed)
-  return res
-}
-
-/** Table pas encore créée (migration non lancée). */
-function tableAbsente(erreur: { code?: string } | null, status?: number) {
-  return erreur?.code === 'PGRST205' || erreur?.code === '42P01' || status === 404
 }
 
 /**
@@ -97,7 +64,7 @@ async function purgerExpirees(compte: string) {
   try {
     const admin = getSupabaseAdmin()
     const { data, error } = await admin
-      .from(TABLE)
+      .from(TABLE_PHOTOS)
       .select('id, chemin, chemin_mini')
       .eq('user_id', compte)
       .lt('cree_le', limiteConservation().toISOString())
@@ -105,9 +72,9 @@ async function purgerExpirees(compte: string) {
     if (error || !data || data.length === 0) return
     const lignes = data as { id: string; chemin: string; chemin_mini: string }[]
     // Fichiers d'abord : si le stockage refuse, les lignes restent et la purge sera retentée.
-    const { error: erreurStockage } = await admin.storage.from(BUCKET).remove(lignes.flatMap((l) => [l.chemin, l.chemin_mini]))
+    const { error: erreurStockage } = await admin.storage.from(BUCKET_PHOTOS).remove(lignes.flatMap((l) => [l.chemin, l.chemin_mini]))
     if (erreurStockage) throw erreurStockage
-    await admin.from(TABLE).delete().eq('user_id', compte).in('id', lignes.map((l) => l.id))
+    await admin.from(TABLE_PHOTOS).delete().eq('user_id', compte).in('id', lignes.map((l) => l.id))
   } catch {
     dernieresPurges.delete(compte)
   }
@@ -116,7 +83,7 @@ async function purgerExpirees(compte: string) {
 async function avecLiens(lignes: LignePhoto[]): Promise<PhotoSeance[] | null> {
   if (lignes.length === 0) return []
   const chemins = lignes.flatMap((l) => [l.chemin, l.chemin_mini])
-  const { data, error } = await getSupabaseAdmin().storage.from(BUCKET).createSignedUrls(chemins, DUREE_LIEN_S)
+  const { data, error } = await getSupabaseAdmin().storage.from(BUCKET_PHOTOS).createSignedUrls(chemins, DUREE_LIEN_S)
   if (error || !data) return null
   const liens = new Map(data.map((d) => [d.path, d.signedUrl]))
   return lignes.flatMap((l) => {
@@ -131,7 +98,7 @@ async function avecLiens(lignes: LignePhoto[]): Promise<PhotoSeance[] | null> {
 
 /** ?date=YYYY-MM-DD : photos de la séance. Sans date : toute la galerie du compte, et la place occupée. */
 export async function GET(req: NextRequest) {
-  const bloque = limiter(req)
+  const bloque = limiterPhotos(req)
   if (bloque) return bloque
   const session = await compteConnecte(req)
   if (!session) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
@@ -140,7 +107,7 @@ export async function GET(req: NextRequest) {
   if (date !== null && !dateValide(date)) return repondre({ error: 'Date invalide' }, 400, session.refreshed)
 
   let requete = getSupabaseAdmin()
-    .from(TABLE)
+    .from(TABLE_PHOTOS)
     .select('id, date, chemin, chemin_mini, largeur, hauteur, octets, cree_le')
     .eq('user_id', session.compte)
     // Expirée = jamais renvoyée, même si la purge n'est pas encore passée.
@@ -166,7 +133,7 @@ export async function GET(req: NextRequest) {
 
 /** Une photo déjà compressée par le navigateur, avec sa vignette. */
 export async function POST(req: NextRequest) {
-  const bloque = limiter(req)
+  const bloque = limiterPhotos(req)
   if (bloque) return bloque
   const session = await compteConnecte(req)
   if (!session) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
@@ -192,7 +159,7 @@ export async function POST(req: NextRequest) {
 
   const admin = getSupabaseAdmin()
   const { count, error: erreurCompte, status } = await admin
-    .from(TABLE)
+    .from(TABLE_PHOTOS)
     .select('id', { count: 'exact', head: true })
     .eq('user_id', compte)
     .eq('date', date)
@@ -219,7 +186,7 @@ export async function POST(req: NextRequest) {
     octets,
     cree_le: new Date().toISOString(),
   }
-  const stockage = admin.storage.from(BUCKET)
+  const stockage = admin.storage.from(BUCKET_PHOTOS)
   const echec = async (erreur: { message?: string } | null) => {
     await stockage.remove([ligne.chemin, ligne.chemin_mini]).catch(() => null)
     const bucketAbsent = /bucket not found/i.test(erreur?.message ?? '')
@@ -230,7 +197,7 @@ export async function POST(req: NextRequest) {
   if (envoi.error) return echec(envoi.error)
   const envoiMini = await stockage.upload(ligne.chemin_mini, octetsMini, { contentType: typeMini, upsert: false })
   if (envoiMini.error) return echec(envoiMini.error)
-  const { error: erreurLigne } = await admin.from(TABLE).insert({ ...ligne, user_id: compte })
+  const { error: erreurLigne } = await admin.from(TABLE_PHOTOS).insert({ ...ligne, user_id: compte })
   if (erreurLigne) return echec(null)
 
   const [signee] = (await avecLiens([ligne])) ?? []
@@ -239,7 +206,7 @@ export async function POST(req: NextRequest) {
 
 /** ?id=<uuid> : supprime une photo DU COMPTE CONNECTÉ (fichiers puis index). */
 export async function DELETE(req: NextRequest) {
-  const bloque = limiter(req)
+  const bloque = limiterPhotos(req)
   if (bloque) return bloque
   const session = await compteConnecte(req)
   if (!session) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
@@ -250,14 +217,14 @@ export async function DELETE(req: NextRequest) {
 
   const admin = getSupabaseAdmin()
   // Filtré sur le compte de la session : deviner l'identifiant d'une autre photo ne suffit pas.
-  const { data, error } = await admin.from(TABLE).select('chemin, chemin_mini').eq('id', id).eq('user_id', compte).maybeSingle()
+  const { data, error } = await admin.from(TABLE_PHOTOS).select('chemin, chemin_mini').eq('id', id).eq('user_id', compte).maybeSingle()
   if (error) return repondre({ error: 'Photos indisponibles' }, 500, refreshed)
   if (!data) return repondre({ error: 'Photo introuvable' }, 404, refreshed)
 
   const { chemin, chemin_mini: cheminMini } = data as { chemin: string; chemin_mini: string }
-  const { error: erreurStockage } = await admin.storage.from(BUCKET).remove([chemin, cheminMini])
+  const { error: erreurStockage } = await admin.storage.from(BUCKET_PHOTOS).remove([chemin, cheminMini])
   if (erreurStockage) return repondre({ error: 'Suppression impossible' }, 500, refreshed)
-  const { error: erreurLigne } = await admin.from(TABLE).delete().eq('id', id).eq('user_id', compte)
+  const { error: erreurLigne } = await admin.from(TABLE_PHOTOS).delete().eq('id', id).eq('user_id', compte)
   if (erreurLigne) return repondre({ error: 'Suppression impossible' }, 500, refreshed)
   return repondre({ ok: true }, 200, refreshed)
 }
