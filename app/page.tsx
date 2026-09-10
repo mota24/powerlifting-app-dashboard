@@ -11,7 +11,7 @@ import SessionForm from '@/components/power/session-form'
 import { PlateVisualizer } from '@/components/power/plate-visualizer'
 import { WarmupGenerator } from '@/components/power/warmup-generator'
 import { Card, CardTitle } from '@/components/power/card'
-import { LineChart, Menu, X, Home, BarChart2, Wrench, Settings, Calculator, Lock, LogOut, RefreshCw, User, KeyRound, Timer, Trophy } from 'lucide-react'
+import { LineChart, Menu, X, Home, BarChart2, Wrench, Settings, Calculator, Lock, LogOut, RefreshCw, User, KeyRound, Timer, Trophy, Medal } from 'lucide-react'
 import ChangePasswordModal from '@/components/power/change-password-modal'
 import CircuitTimer from '@/components/power/circuit-timer'
 import { toast } from '@/components/power/toaster'
@@ -22,6 +22,7 @@ import CalculatorPanel from '@/components/power/calculator-panel'
 import HistoryPanel from '@/components/power/history-panel'
 import GLCalculator from '@/components/power/GLCalculator';
 import { Palmares } from '@/components/power/palmares'
+import { Classement } from '@/components/power/classement'
 import { ThemeProvider, type Langue } from './ThemeContext'
 import { traducteurPour, LOCALES } from '@/lib/i18n'
 
@@ -430,6 +431,7 @@ export default function Page() {
               {vueActive === 'calculatrice' && t('calculatrice')}
               {vueActive === 'configuration' && t('gestionBlocs')}
               {vueActive === 'palmares' && t('palmares')}
+              {vueActive === 'classement' && t('classement')}
             </h2>
           </div>
 
@@ -468,6 +470,7 @@ export default function Page() {
                   {!estFitness && (
                     <button onClick={() => changerVue('palmares')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'palmares' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Trophy className="size-4" /> {t('palmares')}</button>
                   )}
+                  <button onClick={() => changerVue('classement')} className={cn("flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors", vueActive === 'classement' ? "bg-primary/10 text-primary font-medium" : "hover:bg-secondary text-foreground")}><Medal className="size-4" /> {t('classement')}</button>
                   <button onClick={() => { setShowCircuitTimer(true); setMenuOuvert(false) }} className="flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors hover:bg-secondary text-foreground"><Timer className="size-4" /> {t('chronoCircuit')}</button>
 
                   <div className="h-px bg-border my-1"></div>
@@ -515,8 +518,26 @@ export default function Page() {
             </div>
           )}
 
+          {vueActive === 'classement' && (
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <Classement />
+            </div>
+          )}
+
           {vueActive === 'accueil' && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              {new Date().getDay() === 0 && (
+                <button
+                  onClick={() => changerVue('classement')}
+                  className="w-full flex items-center justify-between gap-3 rounded-2xl border border-primary bg-card p-4 text-left transition-colors hover:bg-secondary"
+                >
+                  <span className="flex min-w-0 items-center gap-3">
+                    <span className="text-2xl leading-none" aria-hidden>🏆</span>
+                    <span className="text-sm font-black text-foreground">{t('dimancheBanniere')}</span>
+                  </span>
+                  <span className="shrink-0 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t('voirPodium')} →</span>
+                </button>
+              )}
               <WeekCalendar
                 dateActive={dateActive}
                 setDateActive={setDateActive}

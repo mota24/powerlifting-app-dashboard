@@ -271,6 +271,14 @@ de navigation, pas un ajout de header, hors périmètre de cet audit.
 
 ---
 
+8. **Fonction `classement_semaines` en `SECURITY DEFINER`** (`supabase/migration_classement.sql`) —
+   contourne volontairement la RLS pour que le podium compare les deux comptes. Garde-fous : elle ne
+   renvoie que des agrégats hebdomadaires (prénom, points, compteurs de pas et de séances), jamais une
+   ligne d'entraînement ; `search_path` figé ; `EXECUTE` retiré à `anon` et `PUBLIC` ; résultat vide
+   pour un compte authentifié qui n'est pas l'un des joueurs. Conséquence acceptée : chaque joueur voit
+   le nombre de pas et de séances de l'autre, c'est le principe du classement. Toute modification de
+   cette fonction doit être relue comme un changement de policy RLS.
+
 ## 12. Hors périmètre — à faire manuellement de ton côté
 
 **Gratuit :**
