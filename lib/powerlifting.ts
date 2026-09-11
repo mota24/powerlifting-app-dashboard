@@ -10,6 +10,12 @@ export function toLocalDateStr(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+/** Inverse de toLocalDateStr : minuit local (new Date('YYYY-MM-DD') serait minuit UTC). */
+export function parseLocalDate(dateStr: string): Date {
+  const [annee, mois, jour] = dateStr.split('-').map(Number)
+  return new Date(annee, mois - 1, jour)
+}
+
 // Disques disponibles (kg) avec couleurs normes IPF
 export const PLATES: { weight: number; color: string; label: string }[] = [
   { weight: 25, color: 'oklch(0.62 0.23 25)', label: '25' },

@@ -11,30 +11,36 @@ import type { CleTraduction } from '@/lib/i18n'
 // ————————————————————————————————————————————————
 let audioCtx: AudioContext | null = null;
 
+// iOS ne débloque le son qu'à l'intérieur d'un geste utilisateur : appelé au démarrage du circuit.
+const contexteAudio = (): AudioContext => {
+  if (!audioCtx) {
+    const Ctor = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    audioCtx = new Ctor();
+  }
+  if (audioCtx.state === 'suspended') void audioCtx.resume();
+  return audioCtx;
+};
+
 const playTone = (frequency: number, duration: number, type: OscillatorType = 'sine') => {
   if (typeof window === 'undefined') return;
   try {
-    if (!audioCtx) audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-    if (audioCtx.state === 'suspended') audioCtx.resume();
-
-    const oscillator = audioCtx.createOscillator();
-    const gainNode = audioCtx.createGain();
+    const ctx = contexteAudio();
+    const oscillator = ctx.createOscillator();
+    const gainNode = ctx.createGain();
 
     oscillator.type = type;
-    oscillator.frequency.setValueAtTime(frequency, audioCtx.currentTime);
+    oscillator.frequency.setValueAtTime(frequency, ctx.currentTime);
 
-    gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
-    gainNode.gain.linearRampToValueAtTime(0.5, audioCtx.currentTime + 0.05);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+    gainNode.gain.setValueAtTime(0, ctx.currentTime);
+    gainNode.gain.linearRampToValueAtTime(0.5, ctx.currentTime + 0.05);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration);
 
     oscillator.connect(gainNode);
-    gainNode.connect(audioCtx.destination);
+    gainNode.connect(ctx.destination);
 
-    oscillator.start(audioCtx.currentTime);
-    oscillator.stop(audioCtx.currentTime + duration);
-  } catch (e) {
-    console.error("Audio error", e);
-  }
+    oscillator.start(ctx.currentTime);
+    oscillator.stop(ctx.currentTime + duration);
+  } catch { }
 };
 
 // ————————————————————————————————————————————————
@@ -120,6 +126,17 @@ function clampConfig(raw: Partial<CircuitConfig> & { work?: unknown }): Partial<
   return out
 }
 
+function lireConfig(): CircuitConfig {
+  try {
+    const saved = localStorage.getItem(CONFIG_KEY)
+    if (!saved) return DEFAULT_CONFIG
+    const merged = { ...DEFAULT_CONFIG, ...clampConfig(JSON.parse(saved)) }
+    return { ...merged, workTimes: normalizeWorkTimes(merged.workTimes, merged.exercices) }
+  } catch {
+    return DEFAULT_CONFIG
+  }
+}
+
 const vibrer = (pattern: number | number[]) => {
   if (typeof navigator !== 'undefined') navigator.vibrate?.(pattern)
 }
@@ -140,7 +157,8 @@ const PHASE_META: Record<PhaseKind, { cle: CleTraduction; bg: string; text: stri
 
 export default function CircuitTimer({ onClose }: Props) {
   const t = useT()
-  const [config, setConfig] = useState<CircuitConfig>(DEFAULT_CONFIG)
+  const [config, setConfig] = useState<CircuitConfig>(lireConfig)
+  const [phases, setPhases] = useState<Phase[]>([])
   const [status, setStatus] = useState<Status>('config')
   const [phaseIndex, setPhaseIndex] = useState(0)
   const [msRestants, setMsRestants] = useState(0)
@@ -162,18 +180,6 @@ export default function CircuitTimer({ onClose }: Props) {
     try { localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg)) } catch { }
     return cfg
   }
-
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(CONFIG_KEY)
-      if (saved) {
-        setConfig((prev) => {
-          const merged = { ...prev, ...clampConfig(JSON.parse(saved)) }
-          return { ...merged, workTimes: normalizeWorkTimes(merged.workTimes, merged.exercices) }
-        })
-      }
-    } catch { }
-  }, [])
 
   const patchConfig = (patch: Partial<CircuitConfig>) => {
     setConfig((prev) => {
@@ -267,14 +273,12 @@ export default function CircuitTimer({ onClose }: Props) {
   }, [])
 
   const demarrer = () => {
-    if (typeof window !== 'undefined') {
-      if (!audioCtx) audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      if (audioCtx.state === 'suspended') audioCtx.resume();
-    }
+    try { contexteAudio() } catch { }
 
     const seq = buildSequence(config)
     if (seq.length === 0) return
     phasesRef.current = seq
+    setPhases(seq)
     phaseIdxRef.current = 0
     finEtapeRef.current = Date.now() + seq[0].duration * 1000
     lastBeepRef.current = -1
@@ -302,14 +306,14 @@ export default function CircuitTimer({ onClose }: Props) {
     [config]
   )
 
-  const phase = phasesRef.current[phaseIndex]
+  const phase = phases[phaseIndex]
   const enCours = status === 'running' || status === 'paused'
   const secondes = Math.ceil(msRestants / 1000)
   const urgence = status === 'running' && secondes <= 3
   const meta = phase ? PHASE_META[phase.kind] : PHASE_META.prep
 
-  const progression = enCours && phasesRef.current.length > 0
-    ? Math.round(((phaseIndex + 1 - msRestants / 1000 / (phase?.duration || 1)) / phasesRef.current.length) * 100)
+  const progression = enCours && phases.length > 0
+    ? Math.round(((phaseIndex + 1 - msRestants / 1000 / (phase?.duration || 1)) / phases.length) * 100)
     : 0
 
   return (
@@ -471,12 +475,6 @@ function Stepper({ label, value, onChange, min, max, step, unit }: {
   const [inputValue, setInputValue] = useState(value.toString());
   const [isEditing, setIsEditing] = useState(false);
 
-  useEffect(() => {
-    if (!isEditing) {
-      setInputValue(value.toString());
-    }
-  }, [value, isEditing]);
-
   const handleBlur = () => {
     setIsEditing(false);
     let str = inputValue.trim();
@@ -528,6 +526,7 @@ function Stepper({ label, value, onChange, min, max, step, unit }: {
             inputMode={unit === 's' ? 'decimal' : 'numeric'}
             value={isEditing ? inputValue : value}
             onFocus={(e) => {
+              setInputValue(value.toString());
               setIsEditing(true);
               e.target.select();
             }}

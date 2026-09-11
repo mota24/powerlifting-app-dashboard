@@ -4,6 +4,7 @@ import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useEffect, useRef } from 'react'
 import { useLocale } from '@/app/ThemeContext'
+import { parseLocalDate, toLocalDateStr } from '@/lib/powerlifting'
 
 interface WeekCalendarProps {
   dateActive: Date;
@@ -48,13 +49,12 @@ export function WeekCalendar({ dateActive, setDateActive, blockTitle, weeksOut }
   }
 
   const joursSemaine = getJoursDeLaSemaine(dateActive)
-  const localDateFormatee = new Date(dateActive.getTime() - (dateActive.getTimezoneOffset() * 60000)).toISOString().split('T')[0]
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <label className="relative flex min-w-0 cursor-pointer items-center gap-2 p-2 -ml-2 rounded-lg hover:bg-accent active:bg-secondary transition-colors text-left min-h-11">
-          <input type="date" value={localDateFormatee} onChange={(e) => { if (e.target.value) setDateActive(new Date(e.target.value)) }} className="absolute inset-0 h-full w-full opacity-0" tabIndex={-1} aria-hidden="true" />
+          <input type="date" value={toLocalDateStr(dateActive)} onChange={(e) => { if (e.target.value) setDateActive(parseLocalDate(e.target.value)) }} className="absolute inset-0 h-full w-full opacity-0" tabIndex={-1} aria-hidden="true" />
           <Calendar className="size-4 text-foreground pointer-events-none shrink-0" />
           <span className="min-w-0 truncate text-sm font-bold uppercase tracking-widest text-foreground pointer-events-none">
             {blockTitle || "CALENDRIER"}

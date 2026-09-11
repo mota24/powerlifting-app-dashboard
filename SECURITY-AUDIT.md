@@ -375,7 +375,9 @@ effacer ses pas, son poids et ses photos via `/api/account/delete`. Même chose 
   policies et valeurs par défaut de `user_id` recréées sur elle, anciennes policies supprimées table par
   table, classement réservé aux comptes de l'app. Les migrations existantes utilisent la même fonction ;
   les scripts obsolètes qui recréaient `USING (true)` sont retirés du dépôt.
-- **Action manuelle requise :** désactiver les inscriptions (Authentication > Sign In / Providers).
+- Appliqué le 11/09/2026 : migration lancée (RLS active sur les 14 tables publiques, 0 policy à risque,
+  `anon` sans lecture, aucun compte hors `@power.app`) et inscriptions publiques désactivées
+  (`disable_signup = true` relu sur `/auth/v1/settings`).
 
 **Autres durcissements :**
 - `/api/coach` lisait l'historique des **deux** comptes (clé `service_role` sans filtre) et l'envoyait à

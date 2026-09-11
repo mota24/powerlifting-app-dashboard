@@ -1,29 +1,39 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useSyncExternalStore } from 'react'
 import { Analytics } from '@vercel/analytics/next'
 
 const CONSENT_KEY = 'powerapp_analytics_consent'
 type Choice = 'accepted' | 'refused' | null
 
-export function ConsentBanner() {
-  const [mounted, setMounted] = useState(false)
-  const [choice, setChoice] = useState<Choice>(null)
+// Choix gardé aussi en mémoire : si le stockage est bloqué, la bannière se ferme quand même.
+let choixMemoire: Choice = null
+const abonnes = new Set<() => void>()
 
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(CONSENT_KEY)
-      setChoice(saved === 'accepted' ? 'accepted' : saved === 'refused' ? 'refused' : null)
-    } catch { }
-    setMounted(true)
-  }, [])
+function lireChoix(): Choice {
+  try {
+    const saved = localStorage.getItem(CONSENT_KEY)
+    if (saved === 'accepted' || saved === 'refused') return saved
+  } catch { }
+  return choixMemoire
+}
+
+function sAbonner(rappel: () => void) {
+  abonnes.add(rappel)
+  return () => { abonnes.delete(rappel) }
+}
+
+export function ConsentBanner() {
+  // 'serveur' au rendu statique : rien n'est affiché avant de connaître le choix.
+  const choice = useSyncExternalStore<Choice | 'serveur'>(sAbonner, lireChoix, () => 'serveur')
 
   const decide = (value: Exclude<Choice, null>) => {
+    choixMemoire = value
     try { localStorage.setItem(CONSENT_KEY, value) } catch { }
-    setChoice(value)
+    abonnes.forEach((rappel) => rappel())
   }
 
-  if (!mounted) return null
+  if (choice === 'serveur') return null
 
   return (
     <>

@@ -16,10 +16,9 @@ import ChangePasswordModal from '@/components/power/change-password-modal'
 import CircuitTimer from '@/components/power/circuit-timer'
 import { toast } from '@/components/power/toaster'
 import { cn } from '@/lib/utils'
-import { toLocalDateStr, weeksOut, type UpcomingCompetition, type ModeApp } from '@/lib/powerlifting'
+import { toLocalDateStr, parseLocalDate, weeksOut, type UpcomingCompetition, type ModeApp } from '@/lib/powerlifting'
 import ConfigPanel from '@/components/power/config-panel'
 import CalculatorPanel from '@/components/power/calculator-panel'
-import HistoryPanel from '@/components/power/history-panel'
 import GLCalculator from '@/components/power/GLCalculator';
 import { Palmares } from '@/components/power/palmares'
 import { Classement } from '@/components/power/classement'
@@ -41,6 +40,23 @@ interface TrainingBlockRow {
   name?: string | null;
 }
 
+const VUES = ['accueil', 'analytique', 'outils', 'calculatrice', 'configuration', 'palmares', 'classement', 'nutrition', 'photos'] as const
+type Vue = (typeof VUES)[number]
+
+// Page inconnue dans l'URL (vieux lien, adresse modifiée) : retour à l'accueil plutôt qu'un écran vide.
+function vueDepuisUrl(): Vue {
+  if (typeof window === 'undefined') return 'accueil'
+  const page = new URLSearchParams(window.location.search).get('page')
+  return VUES.find((v) => v === page) ?? 'accueil'
+}
+
+// Les records saisis à la main ne doivent pas rester visibles pour le compte suivant.
+function purgerRecordsLocaux() {
+  try {
+    for (const cle of ['mota_real_prs', 'mota_real_prs_powerlifting', 'mota_real_prs_fitness']) window.localStorage.removeItem(cle)
+  } catch { }
+}
+
 export default function Page() {
   const [session, setSession] = useState<AuthUser | null>(null)
   const [loadingAuth, setLoadingAuth] = useState(true)
@@ -50,31 +66,23 @@ export default function Page() {
   const [isLoggingIn, setIsLoggingIn] = useState(false)
   
   const [isRestDayMode, setIsRestDayMode] = useState(false)
-  const [pasDuJour, setPasDuJour] = useState<number | null>(null);
-  const [pasASignaler, setPasASignaler] = useState<number | null>(null);
+  // Pas rattachés à leur date : une autre date n'affiche rien tant que les siens ne sont pas chargés.
+  const [pasCharges, setPasCharges] = useState<{ date: string; pas: number | null } | null>(null)
+  // ?steps=N (raccourci iPhone) : annoncé une fois la langue du profil connue.
+  const pasASignaler = useRef<number | null>(null)
   
   const [dateActive, setDateActive] = useState<Date>(() => {
     if (typeof window !== 'undefined') {
       const param = new URLSearchParams(window.location.search).get('date')
-      if (param && /^\d{4}-\d{2}-\d{2}$/.test(param)) {
-        const [annee, mois, jour] = param.split('-').map(Number)
-        return new Date(annee, mois - 1, jour)
-      }
+      if (param && /^\d{4}-\d{2}-\d{2}$/.test(param)) return parseLocalDate(param)
     }
     return new Date()
   })
   const [menuOuvert, setMenuOuvert] = useState(false)
   const [showPasswordModal, setShowPasswordModal] = useState(false)
   const [showCircuitTimer, setShowCircuitTimer] = useState(false)
-  const [blockInfo, setBlockInfo] = useState('...')
   
-  const [vueActive, setVueActive] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      return params.get('page') || 'accueil';
-    }
-    return 'accueil';
-  });
+  const [vueActive, setVueActive] = useState<Vue>(vueDepuisUrl)
 
   const [editCompId, setEditCompId] = useState<string | null>(() => {
     if (typeof window !== 'undefined') return new URLSearchParams(window.location.search).get('editComp')
@@ -104,14 +112,19 @@ export default function Page() {
       setTheme(data?.theme ?? 'dark')
       setMode(data?.mode === 'fitness' ? 'fitness' : 'powerlifting')
       setPrenom(data?.prenom ?? null)
-      setLangue(langueDuProfil(data?.langue))
+      const langueProfil = langueDuProfil(data?.langue)
+      setLangue(langueProfil)
+      const tProfil = traducteurPour(langueProfil)
 
-      // Le prénom n'est connu qu'après cette requête : l'accueil ne peut
-      // donc pas être affiché au moment de la soumission du formulaire.
+      // Prénom et langue ne sont connus qu'après cette requête : les messages
+      // d'accueil ne peuvent pas partir plus tôt.
       if (vientDeSeConnecter.current && data?.prenom) {
         vientDeSeConnecter.current = false
-        const accueil = traducteurPour(langueDuProfil(data.langue))
-        toast(accueil('bienvenue', { prenom: data.prenom }), 'success')
+        toast(tProfil('bienvenue', { prenom: data.prenom }), 'success')
+      }
+      if (pasASignaler.current !== null) {
+        toast(tProfil('pasSynchronises', { n: pasASignaler.current.toLocaleString(LOCALES[langueProfil]) }), 'success')
+        pasASignaler.current = null
       }
     }
     fetchProfil()
@@ -135,60 +148,27 @@ export default function Page() {
     return () => { cancelled = true }
   }, [session])
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const urlParams = new URLSearchParams(window.location.search || window.location.hash.split('?')[1]);
-      const stepsEnregistres = urlParams.get('steps');
+  const dateActiveStr = toLocalDateStr(dateActive)
+  const pasDuJour = pasCharges?.date === dateActiveStr ? pasCharges.pas : null
 
-      if (stepsEnregistres) {
-        const nombreDePas = parseInt(stepsEnregistres, 10);
-        setPasDuJour(nombreDePas);
-        setPasASignaler(nombreDePas);
-        window.history.replaceState({}, '', window.location.pathname);
-      }
+  useEffect(() => {
+    if (!session) return
+    let cancelled = false
+    // Filtré par compte côté base (RLS) : seules les lignes du compte connecté remontent.
+    supabase.from('seances_pas').select('pas').eq('date', dateActiveStr).maybeSingle().then(({ data, error }) => {
+      if (!cancelled && !error) setPasCharges({ date: dateActiveStr, pas: data?.pas ?? null })
+    })
+    return () => { cancelled = true }
+  }, [session, dateActiveStr])
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search || window.location.hash.split('?')[1])
+    const pasUrl = Number.parseInt(params.get('steps') ?? '', 10)
+    if (Number.isFinite(pasUrl) && pasUrl >= 0) {
+      pasASignaler.current = pasUrl
+      window.history.replaceState({}, '', window.location.pathname)
     }
-  }, []);
 
-  // Le raccourci ouvre l'app avec ?steps=N : au montage la langue du profil
-  // n'est pas encore chargée, on attend donc de la connaître pour le message.
-  useEffect(() => {
-    if (pasASignaler === null || !session) return;
-    toast(t('pasSynchronises', { n: pasASignaler.toLocaleString(LOCALES[langue]) }), 'success');
-    setPasASignaler(null);
-  }, [pasASignaler, session, langue, t]);
-
-  useEffect(() => {
-    if (!session) return;
-    // Le compte est désigné par le préfixe d'email, comme partout ailleurs.
-    // L'ancien identifiant de synchro était commun aux deux comptes.
-    const syncUserId = session.email?.split('@')[0]
-    if (!syncUserId) return;
-
-    setPasDuJour(null);
-    let cancelled = false;
-
-    const fetchStepsForSelectedDate = async () => {
-      const dateStr = toLocalDateStr(dateActive);
-      const { data, error } = await supabase
-        .from('seances_pas')
-        .select('pas')
-        .eq('user_id', syncUserId)
-        .eq('date', dateStr)
-        .maybeSingle();
-
-      if (cancelled) return;
-      if (error) {
-        console.error("Erreur de récupération des pas :", error);
-      } else {
-        setPasDuJour(data?.pas ?? null);
-      }
-    };
-
-    fetchStepsForSelectedDate();
-    return () => { cancelled = true };
-  }, [session, dateActive]);
-
-  useEffect(() => {
     try {
       for (const key of Object.keys(window.localStorage)) {
         if (key.startsWith('sb-')) window.localStorage.removeItem(key)
@@ -199,15 +179,7 @@ export default function Page() {
       .then(async (res) => (res.ok ? ((await res.json()) as { user: AuthUser | null }).user : null))
       .catch(() => null)
       .then((user) => {
-        if (!user) {
-          // Purge à la déconnexion : les records saisis à la main ne
-          // doivent pas rester visibles pour le compte suivant.
-          try {
-            for (const cle of ['mota_real_prs', 'mota_real_prs_powerlifting', 'mota_real_prs_fitness']) {
-              window.localStorage.removeItem(cle)
-            }
-          } catch { }
-        }
+        if (!user) purgerRecordsLocaux()
         setSession(user)
         setLoadingAuth(false)
       })
@@ -241,19 +213,18 @@ export default function Page() {
 
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {})
-    try { window.localStorage.removeItem('mota_real_prs') } catch { }
+    purgerRecordsLocaux()
     setSession(null)
   }
 
-  const changerVue = (vue: string) => {
+  const changerVue = (vue: Vue) => {
     setVueActive(vue)
     setMenuOuvert(false)
     window.history.pushState({}, '', `?page=${vue}`);
   }
 
   const ouvrirSeance = (dateStr: string) => {
-    const [annee, mois, jour] = dateStr.split('-').map(Number)
-    setDateActive(new Date(annee, mois - 1, jour))
+    setDateActive(parseLocalDate(dateStr))
     setVueActive('accueil')
     setMenuOuvert(false)
     window.history.pushState({}, '', `?page=accueil&date=${dateStr}`)
@@ -283,10 +254,7 @@ export default function Page() {
   }, [session])
 
   useEffect(() => {
-    const handlePopState = () => {
-      const params = new URLSearchParams(window.location.search);
-      setVueActive(params.get('page') || 'accueil');
-    };
+    const handlePopState = () => setVueActive(vueDepuisUrl())
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
@@ -307,46 +275,21 @@ export default function Page() {
     return () => { cancelled = true }
   }, [session, vueActive])
 
-  useEffect(() => {
-    if (!session || blocks === null) return;
-
-    if (blocks.length === 0) {
-      setBlockInfo(t('aucunBloc'))
-      return
-    }
-
-    const targetDate = new Date(dateActive)
-    targetDate.setHours(0, 0, 0, 0)
-
-    let activeBlock: TrainingBlockRow | null = null;
-    for (let i = blocks.length - 1; i >= 0; i--) {
-      const blockDate = new Date(blocks[i].start_date)
-      blockDate.setHours(0, 0, 0, 0)
-      if (targetDate >= blockDate) {
-        activeBlock = blocks[i];
-        break;
-      }
-    }
-
-    if (activeBlock) {
-      const startDate = new Date(activeBlock.start_date)
-      startDate.setHours(0, 0, 0, 0)
-      const duration = activeBlock.duration_weeks || 5
-      const diffTime = Math.abs(targetDate.getTime() - startDate.getTime())
-      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
-      const currentWeek = Math.floor(diffDays / 7) + 1
-
-      if (currentWeek > duration) {
-        setBlockInfo(t('blocTermine', { n: activeBlock.block_number, s: currentWeek }))
-      } else if (currentWeek === duration) {
-        setBlockInfo(t('blocSemaineMax', { n: activeBlock.block_number, s: currentWeek, d: duration }))
-      } else {
-        setBlockInfo(t('blocSemaine', { n: activeBlock.block_number, s: currentWeek, d: duration }))
-      }
-    } else {
-      setBlockInfo(t('enAttenteBloc1'))
-    }
-  }, [dateActive, blocks, session, t])
+  const blockInfo = useMemo(() => {
+    if (blocks === null) return '...'
+    if (blocks.length === 0) return t('aucunBloc')
+    const cible = parseLocalDate(dateActiveStr)
+    // Blocs triés par date de début : le bloc en cours est le dernier déjà commencé.
+    const commences = blocks.filter((b) => parseLocalDate(b.start_date) <= cible)
+    const actif = commences[commences.length - 1]
+    if (!actif) return t('enAttenteBloc1')
+    const duree = actif.duration_weeks || 5
+    // Arrondi et non troncature : un jour de changement d'heure dure 23 ou 25 h.
+    const jours = Math.round((cible.getTime() - parseLocalDate(actif.start_date).getTime()) / 86_400_000)
+    const v = { n: actif.block_number, s: Math.floor(jours / 7) + 1, d: duree }
+    if (v.s > duree) return t('blocTermine', v)
+    return t(v.s === duree ? 'blocSemaineMax' : 'blocSemaine', v)
+  }, [blocks, dateActiveStr, t])
 
   if (loadingAuth) {
     return (
@@ -515,12 +458,6 @@ export default function Page() {
           {vueActive === 'palmares' && !estFitness && (
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
               <Palmares initialEditId={editCompId} onInitialEditConsumed={() => setEditCompId(null)} />
-            </div>
-          )}
-
-          {vueActive === 'historique' && (
-            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <HistoryPanel />
             </div>
           )}
 

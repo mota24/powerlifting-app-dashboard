@@ -2,56 +2,61 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-import { calculateIPFGL, classifyLift, setE1RM, toLocalDateStr, CATEGORIES_PAR_MODE, type SetData } from '@/lib/powerlifting'
+import { calculateIPFGL, classifyLift, setE1RM, toLocalDateStr, CATEGORIES_PAR_MODE, type ModeApp, type SetData } from '@/lib/powerlifting'
 import { Trophy, Edit2, Check, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useTheme, useT } from '@/app/ThemeContext'
 
+type Records = { squat: number; bench: number; deadlift: number }
+const RECORDS_VIDES: Records = { squat: 0, bench: 0, deadlift: 0 }
+
+// Clé séparée par mode : sur un navigateur partagé, les records de
+// l'un ne doivent pas s'afficher chez l'autre.
+const clePrs = (mode: ModeApp) => `mota_real_prs_${mode}`
+
+function lireRecords(mode: ModeApp): Records {
+  try {
+    // Reprise de l'ancienne clé non préfixée, écrite avant le multi-compte.
+    const saved = localStorage.getItem(clePrs(mode)) ?? (mode === 'fitness' ? null : localStorage.getItem('mota_real_prs'))
+    const valeurs = saved ? (JSON.parse(saved) as Partial<Records>) : {}
+    return { squat: Number(valeurs.squat) || 0, bench: Number(valeurs.bench) || 0, deadlift: Number(valeurs.deadlift) || 0 }
+  } catch {
+    return RECORDS_VIDES
+  }
+}
+
 export function StatsCards() {
   const { mode } = useTheme()
+  // Remonté à chaque changement de mode : les records locaux sont relus pour le bon compte.
+  return <StatsCardsMode key={mode} mode={mode} />
+}
+
+function StatsCardsMode({ mode }: { mode: ModeApp }) {
   const t = useT()
   const estFitness = mode === 'fitness'
-  // Clé séparée par mode : sur un navigateur partagé, les records de
-  // l'un ne doivent pas s'afficher chez l'autre.
-  const clePrs = `mota_real_prs_${mode}`
   const categories = CATEGORIES_PAR_MODE[mode]
 
   const [isEditing, setIsEditing] = useState(false)
-  const [realPrs, setRealPrs] = useState({ squat: 0, bench: 0, deadlift: 0 })
-  const [tempPrs, setTempPrs] = useState({ squat: 0, bench: 0, deadlift: 0 })
-  const [theoPrs, setTheoPrs] = useState({ squat: 0, bench: 0, deadlift: 0 })
+  const [realPrs, setRealPrs] = useState(() => lireRecords(mode))
+  const [tempPrs, setTempPrs] = useState(realPrs)
+  const [theoPrs, setTheoPrs] = useState(RECORDS_VIDES)
   const [bodyweight, setBodyweight] = useState<number | null>(null)
 
   useEffect(() => {
-    // Reprise de l'ancienne clé non préfixée, écrite avant le multi-compte.
-    const saved = localStorage.getItem(clePrs) ?? (estFitness ? null : localStorage.getItem('mota_real_prs'))
-    const valeurs = saved ? JSON.parse(saved) : { squat: 0, bench: 0, deadlift: 0 }
-    setRealPrs(valeurs)
-    setTempPrs(valeurs)
-  }, [clePrs, estFitness])
-
-  useEffect(() => {
-    const fetchBodyweight = async () => {
-      const { data, error } = await supabase
-        .from('bodyweight_logs')
-        .select('weight')
-        .order('date', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-      if (!error && data) setBodyweight(data.weight)
-    }
-    fetchBodyweight()
+    let cancelled = false
+    supabase.from('bodyweight_logs').select('weight').order('date', { ascending: false }).limit(1).maybeSingle().then(({ data, error }) => {
+      if (!cancelled && !error && data) setBodyweight(data.weight)
+    })
+    return () => { cancelled = true }
   }, [])
 
   useEffect(() => {
     let cancelled = false
-    const calculateTheo1RM = async () => {
-      const since = new Date()
-      since.setMonth(since.getMonth() - 6)
-      const { data } = await supabase.from('workout_sets').select('exercise_name, tracking_data').gte('date', toLocalDateStr(since)).not('tracking_data', 'is', null)
+    const since = new Date()
+    since.setMonth(since.getMonth() - 6)
+    supabase.from('workout_sets').select('exercise_name, tracking_data').gte('date', toLocalDateStr(since)).not('tracking_data', 'is', null).then(({ data }) => {
       if (cancelled || !data) return
-
-      const maxes = { squat: 0, bench: 0, deadlift: 0 }
+      const maxes = { ...RECORDS_VIDES }
       for (const row of data as { exercise_name: string | null; tracking_data: SetData[] | null }[]) {
         const category = classifyLift(row.exercise_name, mode)
         if (!category || !row.tracking_data) continue
@@ -61,14 +66,19 @@ export function StatsCards() {
         }
       }
       setTheoPrs({ squat: Math.round(maxes.squat), bench: Math.round(maxes.bench), deadlift: Math.round(maxes.deadlift) })
-    }
-    calculateTheo1RM()
+    })
     return () => { cancelled = true }
   }, [mode])
 
+  const commencerEdition = () => {
+    // Repart des records enregistrés : une édition annulée ne doit pas réapparaître.
+    setTempPrs(realPrs)
+    setIsEditing(true)
+  }
+
   const handleSaveRealPrs = () => {
     setRealPrs(tempPrs)
-    localStorage.setItem(clePrs, JSON.stringify(tempPrs))
+    try { localStorage.setItem(clePrs(mode), JSON.stringify(tempPrs)) } catch { }
     setIsEditing(false)
   }
 
@@ -83,14 +93,14 @@ export function StatsCards() {
           <Trophy className="size-4 text-white" />
           <h2 className="text-xs font-bold text-white uppercase tracking-widest">{estFitness ? t('meilleuresCharges') : t('recordsTitre')}</h2>
         </div>
-        
+
         {isEditing ? (
           <div className="flex gap-2">
             <button onClick={() => setIsEditing(false)} className="p-2 text-zinc-500 hover:text-white rounded-lg"><X className="size-4" /></button>
             <button onClick={handleSaveRealPrs} className="p-2 text-black bg-white hover:bg-zinc-200 rounded-lg"><Check className="size-4" /></button>
           </div>
         ) : (
-          <button onClick={() => setIsEditing(true)} className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-zinc-500 hover:text-white transition-colors">
+          <button onClick={commencerEdition} className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-zinc-500 hover:text-white transition-colors">
             <Edit2 className="size-3" /> {t('modifier')}
           </button>
         )}
@@ -118,7 +128,7 @@ export function StatsCards() {
             </div>
           )
         })}
-        
+
         <div className="p-4 bg-white rounded-xl text-black flex flex-col justify-between">
           <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-3">{estFitness ? t('total') : t('totalSBD')}</h3>
           <div className="text-3xl font-black tabular-nums mb-1">{totalReel}</div>

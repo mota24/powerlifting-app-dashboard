@@ -1,16 +1,18 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { supabase } from '../../lib/supabase'
-import { toLocalDateStr, setsTonnage, painLabel, weeksOut, type SetData, type UpcomingCompetition } from '../../lib/powerlifting'
-import { countryCodeToFlag } from '../../lib/countries'
+import { supabase } from '@/lib/supabase'
+import { toLocalDateStr, parseLocalDate, setsTonnage, painLabel, weeksOut, type SetData, type UpcomingCompetition } from '@/lib/powerlifting'
+import { countryCodeToFlag } from '@/lib/countries'
 import { Plus, Trash2, Calendar, Settings, RefreshCw, Download, Tag, Trophy } from 'lucide-react'
 import { useT, useTheme, useLocale } from '@/app/ThemeContext'
 import { toast } from '@/components/power/toaster'
 import { proposerAnnulation } from '@/lib/annulation'
 
 interface TrainingBlock { id: string; block_number: number; start_date: string; duration_weeks: number; name?: string; }
-const parseLocalDate = (dateStr: string): Date => { const [annee, mois, jour] = dateStr.split('-').map(Number); return new Date(annee, mois - 1, jour) }
+interface LigneExport { date: string; exercise_name: string | null; coach_tracking_data: SetData[] | null; tracking_data: SetData[] | null; comments: string | null; fatigue_score: number | null; sleep_hours: number | null; steps_count: number | null; pain_level?: number | null; }
+const series = (valeur: SetData[] | null): SetData[] => (Array.isArray(valeur) ? valeur : [])
+const serieRemplie = (s: Partial<SetData> | undefined) => !!s && (String(s.reps ?? '').trim() !== '' || String(s.weight ?? '').trim() !== '')
 const numeroSemaineDansBloc = (debutBloc: string, date: string): number => { const diffJours = Math.round((parseLocalDate(date).getTime() - parseLocalDate(debutBloc).getTime()) / 86_400_000); return Math.floor(diffJours / 7) + 1 }
 
 export default function ConfigPanel() {
@@ -23,14 +25,19 @@ export default function ConfigPanel() {
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const [nextCompetition, setNextCompetition] = useState<UpcomingCompetition | null>(null)
 
-  const fetchBlocks = async () => {
-    setLoading(true)
-    const { data } = await supabase.from('training_blocks').select('*').order('block_number', { ascending: true })
-    if (data) setBlocks(data)
-    setLoading(false)
-  }
+  const [version, setVersion] = useState(0)
+  const recharger = () => { setLoading(true); setVersion((v) => v + 1) }
 
-  useEffect(() => { fetchBlocks() }, [])
+  useEffect(() => {
+    let cancelled = false
+    supabase.from('training_blocks').select('*').order('block_number', { ascending: true }).then(({ data, error }) => {
+      if (cancelled) return
+      if (error) toast(t('erreurChargement'), 'error')
+      else setBlocks((data ?? []) as TrainingBlock[])
+      setLoading(false)
+    })
+    return () => { cancelled = true }
+  }, [version, t])
 
   useEffect(() => {
     let cancelled = false
@@ -50,17 +57,16 @@ export default function ConfigPanel() {
 
   const ajouterBloc = async () => {
     const nextNumber = blocks.length > 0 ? Math.max(...blocks.map(b => b.block_number)) + 1 : 1
-    const today = new Date().toISOString().split('T')[0]
-    const { data, error } = await supabase.from('training_blocks').insert([{ block_number: nextNumber, start_date: today, duration_weeks: 4, name: t('nouveauBloc') }]).select()
-    if (data) setBlocks([...blocks, data[0]])
-    if (error) alert(t('erreurDeuxPoints') + ' ' + error.message)
+    const { data, error } = await supabase.from('training_blocks').insert([{ block_number: nextNumber, start_date: toLocalDateStr(new Date()), duration_weeks: 4, name: t('nouveauBloc') }]).select()
+    if (error || !data?.[0]) { toast(t('erreur'), 'error'); return }
+    setBlocks((prev) => [...prev, data[0] as TrainingBlock])
   }
 
   const supprimerBloc = async (id: string) => {
     if (!confirm(t('supprimerBloc'))) return
     const copie = blocks.find((b) => b.id === id)
     const { error } = await supabase.from('training_blocks').delete().eq('id', id)
-    if (error) { alert(t('erreurDeuxPoints') + ' ' + error.message); return }
+    if (error) { toast(t('erreur'), 'error'); return }
     setBlocks((prev) => prev.filter(b => b.id !== id))
     if (!copie) return
     proposerAnnulation({
@@ -72,24 +78,29 @@ export default function ConfigPanel() {
           toast(t('restaurationImpossible'), 'error')
           return false
         }
-        await fetchBlocks()
+        recharger()
         toast(t('restaure'), 'success')
         return true
       },
     })
   }
 
-  const debounceRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
-  useEffect(() => { const timers = debounceRef.current; return () => { Object.values(timers).forEach(clearTimeout) } }, [])
+  // Écritures différées par champ : celles encore en attente partent quand on quitte l'écran.
+  const enAttenteRef = useRef(new Map<string, { timer: ReturnType<typeof setTimeout>; ecrire: () => void }>())
+  useEffect(() => {
+    const enAttente = enAttenteRef.current
+    return () => { for (const { timer, ecrire } of [...enAttente.values()]) { clearTimeout(timer); ecrire() } }
+  }, [])
 
   const updateBlock = (id: string, field: keyof TrainingBlock, value: string | number) => {
     setBlocks((prev) => prev.map(b => b.id === id ? { ...b, [field]: value } : b))
     const key = `${id}:${field}`
-    clearTimeout(debounceRef.current[key])
-    debounceRef.current[key] = setTimeout(async () => {
-      const { error } = await supabase.from('training_blocks').update({ [field]: value }).eq('id', id)
-      if (error) alert(t('erreurSauvegardeDeuxPoints') + ' ' + error.message)
-    }, 800)
+    const ecrire = () => {
+      enAttenteRef.current.delete(key)
+      void supabase.from('training_blocks').update({ [field]: value }).eq('id', id).then(({ error }) => { if (error) toast(t('erreurSauvegarde'), 'error') })
+    }
+    clearTimeout(enAttenteRef.current.get(key)?.timer)
+    enAttenteRef.current.set(key, { timer: setTimeout(ecrire, 800), ecrire })
   }
 
   const telechargerBloc = async (block: TrainingBlock) => {
@@ -111,29 +122,22 @@ export default function ConfigPanel() {
         .order('order_index', { ascending: true })
         
       if (error) throw error; 
-      if (!allData || allData.length === 0) { alert(t('aucuneSeance')); return }
+      const toutes = (allData ?? []) as LigneExport[]
+      if (toutes.length === 0) { toast(t('aucuneSeance'), 'info'); return }
 
       // 2. Le scan intelligent : on cherche le dernier jour où un chiffre a été écrit (par le coach ou l'athlète)
       let derniereDateRemplie = block.start_date;
-      for (const row of allData) {
-        const coachData = Array.isArray(row.coach_tracking_data) ? row.coach_tracking_data : [];
-        const athleteData = Array.isArray(row.tracking_data) ? row.tracking_data : [];
-        
-        const coachRempli = coachData.some((s: any) => (s.reps && s.reps.toString().trim() !== '') || (s.weight && s.weight.toString().trim() !== ''));
-        const athleteRempli = athleteData.some((s: any) => (s.reps && s.reps.toString().trim() !== '') || (s.weight && s.weight.toString().trim() !== ''));
-        
-        if ((coachRempli || athleteRempli) && row.date > derniereDateRemplie) {
-          derniereDateRemplie = row.date;
-        }
+      for (const row of toutes) {
+        if ((series(row.coach_tracking_data).some(serieRemplie) || series(row.tracking_data).some(serieRemplie)) && row.date > derniereDateRemplie) derniereDateRemplie = row.date
       }
 
       // 3. On filtre pour ne garder que les séances jusqu'à cette dernière date
-      const data = allData.filter(row => row.date <= derniereDateRemplie);
+      const data = toutes.filter((row) => row.date <= derniereDateRemplie)
 
-      const parJour = new Map<string, any[]>()
+      const parJour = new Map<string, LigneExport[]>()
       for (const row of data) { const lignes = parJour.get(row.date) ?? []; lignes.push(row); parJour.set(row.date, lignes) }
 
-      const formatCote = (set: any, texteSiVide: string) => (set.reps || set.weight) ? `${set.reps || '-'} reps @ ${set.weight || '-'} kg (RPE ${set.rpe || '-'})` : texteSiVide
+      const formatCote = (set: Partial<SetData> | undefined, texteSiVide: string) => set && (set.reps || set.weight) ? `${set.reps || '-'} reps @ ${set.weight || '-'} kg (RPE ${set.rpe || '-'})` : texteSiVide
 
       let contenu = `=== HISTORIQUE DU BLOC ${block.block_number}${block.name ? ` (${block.name})` : ''} ===\n`
       contenu += `Période exportée : ${block.start_date} → ${derniereDateRemplie} (export généré le ${aujourdhuiStr})\n`
@@ -149,17 +153,17 @@ export default function ConfigPanel() {
         if (exercicesDuJour.length === 0) { contenu += `📅 ${nomJour} (${date}) — JOUR DE REPOS\n   ${metriques}\n\n`; continue }
         const tonnageDuJour = Math.round(exercicesDuJour.reduce((sum, r) => sum + setsTonnage(r.tracking_data as SetData[] | null), 0))
         contenu += `📅 ${nomJour} (${date})\n   ${metriques}${tonnageDuJour > 0 ? ` · Tonnage ${tonnageDuJour.toLocaleString(locale)} kg` : ''}\n`
-        const rienRempli = exercicesDuJour.every((r) => { const athlete = Array.isArray(r.tracking_data) ? r.tracking_data : []; return !athlete.some((s: any) => (s.reps && s.reps.toString().trim() !== '') || (s.weight && s.weight.toString().trim() !== '')) })
+        const rienRempli = exercicesDuJour.every((r) => !series(r.tracking_data).some(serieRemplie))
         if (rienRempli) { contenu += `   ⚠ SÉANCE NON RENSEIGNÉE PAR L'ATHLÈTE\n` }
         exercicesDuJour.forEach((row, idx) => {
           const douleur = painLabel(row.pain_level, t)
           contenu += `\n   ${idx + 1}. ${row.exercise_name || 'Exercice sans nom'}${douleur ? `   [Douleur : ${douleur}]` : ''}\n`
-          const coachData = Array.isArray(row.coach_tracking_data) ? row.coach_tracking_data : []
-          const athleteData = Array.isArray(row.tracking_data) ? row.tracking_data : []
+          const coachData = series(row.coach_tracking_data)
+          const athleteData = series(row.tracking_data)
           const maxSets = Math.max(coachData.length, athleteData.length)
           for (let i = 0; i < maxSets; i++) {
-            const cSet = coachData[i] || {}; const aSet = athleteData[i] || {}
-            if (!(cSet.reps || cSet.weight || aSet.reps || aSet.weight)) continue
+            const cSet = coachData[i]; const aSet = athleteData[i]
+            if (!serieRemplie(cSet) && !serieRemplie(aSet)) continue
             contenu += `      S${i + 1} | COACH → [ ${formatCote(cSet, 'Rien de prévu')} ]  ||  ATHLÈTE → [ ${formatCote(aSet, 'Non renseigné')} ]\n`
           }
           if (row.comments) contenu += `      NOTES : ${row.comments}\n`
@@ -171,7 +175,7 @@ export default function ConfigPanel() {
       const safeName = block.name ? `_${block.name.replace(/[^a-z0-9]/gi, '_')}` : ''
       lien.download = `Bloc_${block.block_number}${safeName}_export_${aujourdhuiStr}.txt`
       document.body.appendChild(lien); lien.click(); document.body.removeChild(lien); URL.revokeObjectURL(url)
-    } catch (err: any) { alert(t('erreurExport') + ' ' + err.message) } finally { setDownloadingId(null) }
+    } catch { toast(t('erreur'), 'error') } finally { setDownloadingId(null) }
   }
 
   if (loading) return <div className="p-8 text-center text-[10px] font-bold uppercase tracking-widest text-zinc-500 animate-pulse">{t('chargementMajuscule')}</div>
@@ -183,7 +187,7 @@ export default function ConfigPanel() {
           <Settings className="size-5 text-white" />
           <h2 className="text-sm font-bold text-white uppercase tracking-widest">{t('configuration')}</h2>
         </div>
-        <button onClick={fetchBlocks} className="p-2 text-zinc-500 hover:text-white hover:bg-zinc-900 rounded-lg transition-colors">
+        <button onClick={recharger} className="p-2 text-zinc-500 hover:text-white hover:bg-zinc-900 rounded-lg transition-colors">
           <RefreshCw className="size-4" />
         </button>
       </div>

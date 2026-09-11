@@ -5,7 +5,7 @@ import { Card, CardTitle } from '@/components/power/card'
 import { supabase } from '@/lib/supabase'
 import { toast } from '@/components/power/toaster'
 import { proposerAnnulation } from '@/lib/annulation'
-import { calculateIPFGL } from '@/lib/powerlifting'
+import { calculateIPFGL, toLocalDateStr } from '@/lib/powerlifting'
 import { COUNTRIES, countryCodeToFlag, countryName } from '@/lib/countries'
 import { cn } from '@/lib/utils'
 import { Calendar, Camera, CirclePlay, LayoutGrid, Loader2, Medal, Pencil, Plus, Table2, Trash2, Trophy, X } from 'lucide-react'
@@ -108,7 +108,7 @@ function glOf(comp: Competition): number {
 }
 
 function todayStr(): string {
-  return new Date().toISOString().split('T')[0]
+  return toLocalDateStr(new Date())
 }
 
 function formatDate(date: string): string {
@@ -227,22 +227,33 @@ export function Palmares({ initialEditId, onInitialEditConsumed }: PalmaresProps
   const [detailId, setDetailId] = useState<string | null>(null)
   const [vue, setVue] = useState<VueMode>('cartes')
 
-  const fetchCompetitions = async () => {
-    try {
-      const { data, error } = await supabase.from('competitions').select('*').order('date', { ascending: false })
-      if (error) throw error
-      setCompetitions((data ?? []) as Competition[])
-    } catch (e) {
-      console.error(e)
-      toast('Erreur de chargement du palmarès', 'error')
-    } finally {
-      setLoading(false)
-    }
-  }
+  const [version, setVersion] = useState(0)
+  const recharger = () => setVersion((v) => v + 1)
+  // Ouverture automatique depuis l'écran Jour J : une seule fois, au premier chargement.
+  const editionInitiale = useRef({ id: initialEditId, consommer: onInitialEditConsumed })
 
   useEffect(() => {
-    fetchCompetitions()
-  }, [])
+    let cancelled = false
+    supabase.from('competitions').select('*').order('date', { ascending: false }).then(({ data, error }) => {
+      if (cancelled) return
+      setLoading(false)
+      if (error) {
+        toast('Erreur de chargement du palmarès', 'error')
+        return
+      }
+      const liste = (data ?? []) as Competition[]
+      setCompetitions(liste)
+      const { id, consommer } = editionInitiale.current
+      const aEditer = id ? liste.find((c) => c.id === id) : undefined
+      if (!aEditer) return
+      editionInitiale.current = { id: null, consommer: undefined }
+      setEditingId(aEditer.id)
+      setForm(formFrom(aEditer))
+      setShowForm(true)
+      consommer?.()
+    })
+    return () => { cancelled = true }
+  }, [version])
 
   const detail = competitions.find((c) => c.id === detailId) ?? null
 
@@ -258,19 +269,6 @@ export function Palmares({ initialEditId, onInitialEditConsumed }: PalmaresProps
     setDetailId(null)
     setShowForm(true)
   }
-
-  // Ouverture automatique depuis l'écran Jour J : ne se déclenche qu'une
-  // fois (le ref empêche de rouvrir le formulaire si l'utilisateur le ferme
-  // avant que le parent n'ait eu le temps d'effacer initialEditId).
-  const initialEditConsumedRef = useRef(false)
-  useEffect(() => {
-    if (!initialEditId || initialEditConsumedRef.current || competitions.length === 0) return
-    const comp = competitions.find((c) => c.id === initialEditId)
-    if (!comp) return
-    initialEditConsumedRef.current = true
-    openEditForm(comp)
-    onInitialEditConsumed?.()
-  }, [initialEditId, competitions])
 
   const closeForm = () => {
     setShowForm(false)
@@ -292,7 +290,6 @@ export function Palmares({ initialEditId, onInitialEditConsumed }: PalmaresProps
       setForm((prev) => ({ ...prev, photoUrls: [...prev.photoUrls, ...urls] }))
     } catch (err) {
       toast(err instanceof Error ? err.message : "Échec de l'envoi des photos", 'error')
-      console.error(err)
     } finally {
       setUploading(false)
       e.target.value = ''
@@ -342,10 +339,9 @@ export function Palmares({ initialEditId, onInitialEditConsumed }: PalmaresProps
 
       toast(editingId ? 'Compétition mise à jour' : 'Compétition ajoutée', 'success')
       closeForm()
-      fetchCompetitions()
-    } catch (err) {
+      recharger()
+    } catch {
       toast('Erreur lors de la sauvegarde', 'error')
-      console.error(err)
     } finally {
       setSaving(false)
     }
@@ -375,14 +371,13 @@ export function Palmares({ initialEditId, onInitialEditConsumed }: PalmaresProps
             toast('Restauration impossible', 'error')
             return false
           }
-          await fetchCompetitions()
+          recharger()
           toast('Compétition restaurée', 'success')
           return true
         },
       })
-    } catch (err) {
+    } catch {
       toast('Erreur lors de la suppression', 'error')
-      console.error(err)
     }
   }
 
