@@ -1,3 +1,4 @@
+-- Requiert public.compte_courant() : lancer d'abord migration_securite_comptes.sql.
 -- ============================================================
 -- PHASE 1 — Identité (prénom, langue) et cloisonnement des pas
 -- À coller dans Supabase > SQL Editor.
@@ -71,14 +72,14 @@ DROP POLICY IF EXISTS "seances_pas_update" ON seances_pas;
 DROP POLICY IF EXISTS "seances_pas_delete" ON seances_pas;
 
 CREATE POLICY "seances_pas_select" ON seances_pas FOR SELECT TO authenticated
-  USING (split_part((current_setting('request.jwt.claims', true))::jsonb ->> 'email', '@', 1) = user_id);
+  USING ((SELECT public.compte_courant()) = user_id);
 CREATE POLICY "seances_pas_insert" ON seances_pas FOR INSERT TO authenticated
-  WITH CHECK (split_part((current_setting('request.jwt.claims', true))::jsonb ->> 'email', '@', 1) = user_id);
+  WITH CHECK ((SELECT public.compte_courant()) = user_id);
 CREATE POLICY "seances_pas_update" ON seances_pas FOR UPDATE TO authenticated
-  USING (split_part((current_setting('request.jwt.claims', true))::jsonb ->> 'email', '@', 1) = user_id)
-  WITH CHECK (split_part((current_setting('request.jwt.claims', true))::jsonb ->> 'email', '@', 1) = user_id);
+  USING ((SELECT public.compte_courant()) = user_id)
+  WITH CHECK ((SELECT public.compte_courant()) = user_id);
 CREATE POLICY "seances_pas_delete" ON seances_pas FOR DELETE TO authenticated
-  USING (split_part((current_setting('request.jwt.claims', true))::jsonb ->> 'email', '@', 1) = user_id);
+  USING ((SELECT public.compte_courant()) = user_id);
 
 REVOKE ALL ON seances_pas FROM anon;
 

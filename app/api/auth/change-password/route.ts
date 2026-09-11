@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import {
   applySessionCookies,
+  compteDepuisEmail,
   fetchUser,
   getAccessToken,
+  origineAutorisee,
   signInWithPassword,
   toSessionTokens,
 } from '@/lib/server/auth-session'
@@ -28,6 +30,7 @@ const LIMITE_DEBIT_PAR_IP = 10
  * de robustesse et refus des mots de passe fuités (Have I Been Pwned).
  */
 export async function POST(req: NextRequest) {
+  if (!origineAutorisee(req)) return NextResponse.json({ error: 'Origine refusée', code: 'origine_refusee' }, { status: 403 })
   const debit = limiterMemoire(`auth:${clientIp(req)}`, LIMITE_DEBIT_PAR_IP, 60_000)
   if (debit.bloque) {
     return NextResponse.json(
@@ -38,7 +41,7 @@ export async function POST(req: NextRequest) {
 
   const auth = await getAccessToken(req)
   const user = auth ? await fetchUser(auth.accessToken) : null
-  if (!auth || !user?.email) {
+  if (!auth || !user?.email || !compteDepuisEmail(user.email)) {
     return NextResponse.json({ error: 'Session expirée : reconnecte-toi', code: 'session_expiree' }, { status: 401 })
   }
 

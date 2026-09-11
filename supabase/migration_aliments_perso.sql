@@ -1,3 +1,4 @@
+-- Requiert public.compte_courant() : lancer d'abord migration_securite_comptes.sql.
 -- ============================================================
 -- MES PRODUITS — codes-barres absents d'Open Food Facts
 -- À coller dans Supabase > SQL Editor.
@@ -5,13 +6,13 @@
 -- Quand un code-barres scanné est inconnu (ou connu sans calories ni
 -- protéines), l'app propose de saisir le produit une fois : il est gardé ici
 -- et retrouvé directement au scan suivant, sans passer par Open Food Facts.
--- Cloisonné par compte, comme les autres tables (préfixe d'email du JWT).
+-- Cloisonné par compte, comme les autres tables (compte_courant() : e-mail du JWT en @power.app).
 -- Idempotent : relançable sans risque. Ne modifie aucune donnée existante.
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS public.aliments_perso (
   id             uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id        text        NOT NULL DEFAULT split_part(((current_setting('request.jwt.claims', true))::jsonb ->> 'email'), '@', 1),
+  user_id        text        NOT NULL DEFAULT public.compte_courant(),
   code_barres    text        NOT NULL CHECK (code_barres ~ '^[0-9]{6,14}$'),
   nom            text        NOT NULL CHECK (char_length(nom) BETWEEN 1 AND 200),
   marque         text        CHECK (marque IS NULL OR char_length(marque) <= 200),
@@ -30,14 +31,14 @@ DROP POLICY IF EXISTS "aliments_perso_update" ON public.aliments_perso;
 DROP POLICY IF EXISTS "aliments_perso_delete" ON public.aliments_perso;
 
 CREATE POLICY "aliments_perso_select" ON public.aliments_perso FOR SELECT TO authenticated
-  USING (split_part((current_setting('request.jwt.claims', true))::jsonb ->> 'email', '@', 1) = user_id);
+  USING ((SELECT public.compte_courant()) = user_id);
 CREATE POLICY "aliments_perso_insert" ON public.aliments_perso FOR INSERT TO authenticated
-  WITH CHECK (split_part((current_setting('request.jwt.claims', true))::jsonb ->> 'email', '@', 1) = user_id);
+  WITH CHECK ((SELECT public.compte_courant()) = user_id);
 CREATE POLICY "aliments_perso_update" ON public.aliments_perso FOR UPDATE TO authenticated
-  USING (split_part((current_setting('request.jwt.claims', true))::jsonb ->> 'email', '@', 1) = user_id)
-  WITH CHECK (split_part((current_setting('request.jwt.claims', true))::jsonb ->> 'email', '@', 1) = user_id);
+  USING ((SELECT public.compte_courant()) = user_id)
+  WITH CHECK ((SELECT public.compte_courant()) = user_id);
 CREATE POLICY "aliments_perso_delete" ON public.aliments_perso FOR DELETE TO authenticated
-  USING (split_part((current_setting('request.jwt.claims', true))::jsonb ->> 'email', '@', 1) = user_id);
+  USING ((SELECT public.compte_courant()) = user_id);
 
 REVOKE ALL ON public.aliments_perso FROM anon;
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { ACCESS_COOKIE, clearSessionCookies, revokeSession } from '@/lib/server/auth-session'
+import { ACCESS_COOKIE, clearSessionCookies, origineAutorisee, revokeSession } from '@/lib/server/auth-session'
 import { clientIp } from '@/lib/server/rate-limit'
 import { limiterMemoire } from '@/lib/server/memory-rate-limit'
 
@@ -11,6 +11,8 @@ const LIMITE_DEBIT_PAR_IP = 10
 
 /** Déconnexion : révoque la session côté Supabase et efface les cookies httpOnly. */
 export async function POST(req: NextRequest) {
+  // Un site tiers ne doit pas pouvoir déconnecter l'utilisateur à son insu.
+  if (!origineAutorisee(req)) return NextResponse.json({ error: 'Origine refusée' }, { status: 403 })
   const debit = limiterMemoire(`auth:${clientIp(req)}`, LIMITE_DEBIT_PAR_IP, 60_000)
   if (debit.bloque) {
     return NextResponse.json(

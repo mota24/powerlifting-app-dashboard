@@ -126,3 +126,72 @@ export async function getAccessToken(
   if (!session) return null
   return { accessToken: session.access_token, refreshed: toSessionTokens(session) }
 }
+
+/**
+ * Comptes de l'app : identifiant « 1 » ↔ e-mail « 1@power.app ».
+ * L'identité d'un compte est l'e-mail COMPLET, jamais son préfixe seul : un
+ * compte inscrit sur un autre domaine (« 1@ailleurs.com ») n'obtient rien.
+ */
+export const DOMAINE_COMPTES = 'power.app'
+const MOTIF_IDENTIFIANT = /^[a-z0-9_-]{1,64}$/
+
+/** « 1 » → « 1@power.app » ; null si l'identifiant n'a pas la forme attendue. */
+export function emailDuCompte(identifiant: string): string | null {
+  const id = identifiant.trim().toLowerCase()
+  return MOTIF_IDENTIFIANT.test(id) ? `${id}@${DOMAINE_COMPTES}` : null
+}
+
+/** « 1@power.app » → « 1 » ; null pour tout autre domaine ou toute autre forme. */
+export function compteDepuisEmail(email: string | null | undefined): string | null {
+  const [local = '', domaine, ...reste] = (email ?? '').toLowerCase().split('@')
+  return reste.length === 0 && domaine === DOMAINE_COMPTES && MOTIF_IDENTIFIANT.test(local) ? local : null
+}
+
+/**
+ * E-mail porté par un jeton d'accès, lu SANS vérifier sa signature : ne sert
+ * qu'à refuser tôt, sans appel réseau. Un jeton forgé est de toute façon
+ * rejeté par Supabase à l'étape suivante.
+ */
+export function emailDuJeton(accessToken: string): string | null {
+  const charge = accessToken.split('.')[1]
+  if (!charge) return null
+  try {
+    const { email } = JSON.parse(Buffer.from(charge, 'base64url').toString('utf8')) as { email?: unknown }
+    return typeof email === 'string' ? email : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Protection CSRF en profondeur, en plus des cookies SameSite=Lax : une requête
+ * qui modifie des données doit venir de l'app elle-même. Sans en-tête de
+ * provenance (outil en ligne de commande), rien à usurper : les cookies de la
+ * victime ne partent pas avec.
+ */
+export function origineAutorisee(req: NextRequest): boolean {
+  const site = req.headers.get('sec-fetch-site')
+  if (site) return site === 'same-origin' || site === 'none'
+  const origine = req.headers.get('origin')
+  if (!origine) return true
+  try {
+    return new URL(origine).host === req.headers.get('host')
+  } catch {
+    return false
+  }
+}
+
+/** Session d'un compte DE L'APP : jeton valide et e-mail en @power.app, sinon null. */
+export async function compteConnecte(req: NextRequest): Promise<{
+  compte: string
+  user: AuthUser
+  accessToken: string
+  refreshed: SessionTokens | null
+} | null> {
+  const auth = await getAccessToken(req)
+  // Jeton d'un autre domaine : refusé avant tout appel réseau.
+  if (!auth || !compteDepuisEmail(emailDuJeton(auth.accessToken))) return null
+  const user = await fetchUser(auth.accessToken)
+  const compte = compteDepuisEmail(user?.email)
+  return user && compte ? { compte, user, accessToken: auth.accessToken, refreshed: auth.refreshed } : null
+}

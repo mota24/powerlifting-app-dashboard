@@ -1,3 +1,4 @@
+-- Requiert public.compte_courant() : lancer d'abord migration_securite_comptes.sql.
 -- ============================================================
 -- MIGRATION PALMARÈS — à coller dans Supabase > SQL Editor
 -- Historique de compétitions : nom, date, catégorie, PDC, records
@@ -7,7 +8,7 @@
 -- 1. TABLE
 CREATE TABLE IF NOT EXISTS competitions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id TEXT NOT NULL DEFAULT split_part(((current_setting('request.jwt.claims', true))::jsonb ->> 'email'), '@', 1),
+    user_id TEXT NOT NULL DEFAULT public.compte_courant(),
     name TEXT NOT NULL,
     date DATE NOT NULL,
     category TEXT,
@@ -30,10 +31,10 @@ CREATE POLICY "competitions_authentifies"
     ON competitions
     FOR ALL
     USING (
-        split_part((current_setting('request.jwt.claims', true))::jsonb ->> 'email', '@', 1) = user_id
+        (SELECT public.compte_courant()) = user_id
     )
     WITH CHECK (
-        split_part((current_setting('request.jwt.claims', true))::jsonb ->> 'email', '@', 1) = user_id
+        (SELECT public.compte_courant()) = user_id
     );
 
 REVOKE ALL ON competitions FROM anon;

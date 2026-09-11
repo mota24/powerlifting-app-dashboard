@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAccessToken } from '@/lib/server/auth-session'
+import { compteDepuisEmail, emailDuJeton, getAccessToken } from '@/lib/server/auth-session'
 import { clientIp } from '@/lib/server/rate-limit'
 import { limiterMemoire } from '@/lib/server/memory-rate-limit'
 import { KJ_PAR_KCAL, variantesCode, type Aliment, type ProduitPartiel } from '@/lib/nutrition'
@@ -106,6 +106,7 @@ export async function GET(req: NextRequest) {
 
   const auth = await getAccessToken(req)
   if (!auth) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
+  if (!compteDepuisEmail(emailDuJeton(auth.accessToken))) return NextResponse.json({ error: 'Compte non autorisé' }, { status: 403 })
 
   const params = req.nextUrl.searchParams
   // 'ca' : ancienne langue du compte 2, encore envoyée par un onglet resté ouvert.

@@ -1,13 +1,18 @@
+import { timingSafeEqual } from 'node:crypto'
 import { NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase-admin'
 
 export const dynamic = 'force-dynamic'
 
-/**
- * Synchronisation des pas depuis l'iPhone (raccourci Apple Shortcuts).
- * Idempotente : un seul enregistrement par (user, jour), toujours la dernière valeur.
- * Le raccourci peut donc être déclenché plusieurs fois par jour sans doublon.
- */
+const MOTIF_COMPTE = /^[a-z0-9_-]{1,64}$/
+
+/** Comparaison en temps constant : la durée de réponse ne renseigne pas sur le secret. */
+function egaux(recu: string, attendu: string): boolean {
+  const a = Buffer.from(recu)
+  const b = Buffer.from(attendu)
+  return a.length === b.length && timingSafeEqual(a, b)
+}
+
 /**
  * Table jeton → compte, lue depuis SYNC_TOKENS (format "jeton:compte,jeton:compte").
  * Le raccourci envoie un jeton opaque, jamais l'identifiant de compte :
@@ -19,17 +24,24 @@ function comptePourJeton(jeton: string): string | null {
   for (const paire of table.split(',')) {
     const separateur = paire.lastIndexOf(':')
     if (separateur < 1) continue
-    if (paire.slice(0, separateur).trim() === jeton) return paire.slice(separateur + 1).trim() || null
+    const compte = paire.slice(separateur + 1).trim()
+    if (egaux(paire.slice(0, separateur).trim(), jeton)) return MOTIF_COMPTE.test(compte) ? compte : null
   }
   return null
 }
 
+/**
+ * Synchronisation des pas depuis l'iPhone (raccourci Apple Shortcuts).
+ * Idempotente : un seul enregistrement par (compte, jour), toujours la dernière valeur.
+ * Le raccourci peut donc être déclenché plusieurs fois par jour sans doublon.
+ */
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
 
   // Secret accepté en query param (simplicité Shortcuts) ou en header
-  const secret = searchParams.get('secretKey') ?? req.headers.get('x-sync-secret')
-  if (!process.env.SYNC_SECRET || secret !== process.env.SYNC_SECRET) {
+  const secret = searchParams.get('secretKey') ?? req.headers.get('x-sync-secret') ?? ''
+  const attendu = process.env.SYNC_SECRET
+  if (!attendu || !egaux(secret, attendu)) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   }
 
@@ -54,23 +66,14 @@ export async function GET(req: Request) {
   try {
     const { error } = await getSupabaseAdmin()
       .from('seances_pas')
-      .upsert(
-        { user_id: userId, date: dateFrancaise, pas: steps },
-        { onConflict: 'user_id,date' }
-      )
-
+      .upsert({ user_id: userId, date: dateFrancaise, pas: steps }, { onConflict: 'user_id,date' })
     if (error) {
-      console.error('Erreur Supabase (sync-steps):', error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      // Détail gardé dans les journaux serveur : jamais renvoyé au téléphone.
+      console.error('sync-steps : écriture refusée', error.code)
+      return NextResponse.json({ error: 'Écriture impossible' }, { status: 500 })
     }
-
-    return NextResponse.json({
-      success: true,
-      date_enregistree: dateFrancaise,
-      pas_enregistres: steps,
-    })
-  } catch (e) {
-    const message = e instanceof Error ? e.message : 'Erreur serveur'
-    return NextResponse.json({ error: message }, { status: 500 })
+    return NextResponse.json({ success: true, date_enregistree: dateFrancaise, pas_enregistres: steps })
+  } catch {
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }

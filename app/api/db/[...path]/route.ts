@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import {
   applySessionCookies,
+  compteDepuisEmail,
+  emailDuJeton,
   getAccessToken,
+  origineAutorisee,
   refreshSession,
   toSessionTokens,
   REFRESH_COOKIE,
   type SessionTokens,
 } from '@/lib/server/auth-session'
+import { cheminProxyAutorise } from '@/lib/server/proxy-db'
 import { clientIp } from '@/lib/server/rate-limit'
 import { limiterMemoire } from '@/lib/server/memory-rate-limit'
 
@@ -28,11 +32,12 @@ const FORWARD_RESPONSE_HEADERS = ['content-type', 'content-range', 'preference-a
 
 async function proxy(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
   const { path } = await ctx.params
-  const joined = (path ?? []).join('/')
-  // Seul PostgREST est exposé : ni auth, ni storage, ni functions via le proxy
-  if (!joined.startsWith('rest/v1/')) {
-    return NextResponse.json({ error: 'Chemin non autorisé' }, { status: 404 })
-  }
+  const chemin = cheminProxyAutorise(path ?? [])
+  if (!chemin) return NextResponse.json({ error: 'Chemin non autorisé' }, { status: 404 })
+
+  const lecture = req.method === 'GET' || req.method === 'HEAD'
+  // CSRF en profondeur (en plus des cookies SameSite=Lax) : une écriture doit venir de l'app.
+  if (!lecture && !origineAutorisee(req)) return NextResponse.json({ error: 'Origine refusée' }, { status: 403 })
 
   const verdict = limiterMemoire(`db:${clientIp(req)}`, LIMITE_PAR_MINUTE, 60_000)
   if (verdict.bloque) {
@@ -50,10 +55,14 @@ async function proxy(req: NextRequest, ctx: { params: Promise<{ path: string[] }
 
   const auth = await getAccessToken(req)
   if (!auth) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
+  // Jeton d'un compte étranger à l'app (inscrit sur un autre domaine) : refusé
+  // ici, en plus des policies de la base. Signature vérifiée ensuite par Supabase.
+  if (!compteDepuisEmail(emailDuJeton(auth.accessToken))) {
+    return NextResponse.json({ error: 'Compte non autorisé' }, { status: 403 })
+  }
 
-  const target = `${supabaseUrl}/${joined}${req.nextUrl.search}`
-  const hasBody = req.method !== 'GET' && req.method !== 'HEAD'
-  const body = hasBody ? await req.arrayBuffer() : undefined
+  const target = `${supabaseUrl}/${chemin}${req.nextUrl.search}`
+  const body = lecture ? undefined : await req.arrayBuffer()
 
   const forward = (accessToken: string) => {
     const headers = new Headers()

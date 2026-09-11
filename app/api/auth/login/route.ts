@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { applySessionCookies, signInWithPassword, toSessionTokens } from '@/lib/server/auth-session'
+import { applySessionCookies, emailDuCompte, origineAutorisee, signInWithPassword, toSessionTokens } from '@/lib/server/auth-session'
 import { checkRateLimit, clearFailures, clientIp, recordFailure } from '@/lib/server/rate-limit'
 import { limiterMemoire } from '@/lib/server/memory-rate-limit'
 
@@ -18,12 +18,15 @@ const LIMIT_PER_IP = 20
 // couche partagée ci-dessus.
 const LIMITE_DEBIT_PAR_IP = 10
 
+const ECHEC = 'Identifiant ou mot de passe incorrect'
+
 /**
  * Connexion : vérifie les identifiants auprès de Supabase côté serveur puis
  * dépose les jetons dans des cookies httpOnly + secure. Le navigateur ne
  * reçoit jamais les jetons en clair — seul l'utilisateur (id/email) est renvoyé.
  */
 export async function POST(req: NextRequest) {
+  if (!origineAutorisee(req)) return NextResponse.json({ error: 'Origine refusée' }, { status: 403 })
   const debit = limiterMemoire(`auth:${clientIp(req)}`, LIMITE_DEBIT_PAR_IP, 60_000)
   if (debit.bloque) {
     return NextResponse.json(
@@ -38,6 +41,10 @@ export async function POST(req: NextRequest) {
   if (!identifiant || !password) {
     return NextResponse.json({ error: 'Identifiant et mot de passe requis' }, { status: 400 })
   }
+  // Identifiant de forme impossible (« x@autre.com », espaces…) : même réponse
+  // qu'un mauvais mot de passe, pour ne rien révéler sur les comptes existants.
+  const email = emailDuCompte(identifiant)
+  if (!email) return NextResponse.json({ error: ECHEC }, { status: 401 })
 
   const keyIdentifiant = `id:${identifiant}`
   const keyIp = `ip:${clientIp(req)}`
@@ -53,12 +60,10 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  // Email fantôme : même convention qu'avant (identifiant → identifiant@power.app),
-  // mais construit côté serveur.
-  const session = await signInWithPassword(`${identifiant}@power.app`, password)
+  const session = await signInWithPassword(email, password)
   if (!session) {
     await recordFailure([keyIdentifiant, keyIp])
-    return NextResponse.json({ error: 'Identifiant ou mot de passe incorrect' }, { status: 401 })
+    return NextResponse.json({ error: ECHEC }, { status: 401 })
   }
   await clearFailures([keyIdentifiant])
 

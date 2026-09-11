@@ -13,6 +13,7 @@ import {
   type PhotoSeance,
 } from '@/lib/photos'
 import { BUCKET_PHOTOS, TABLE_PHOTOS, UUID, compteConnecte, limiterPhotos, repondre, tableAbsente } from '@/lib/server/photos'
+import { origineAutorisee } from '@/lib/server/auth-session'
 
 export const dynamic = 'force-dynamic'
 
@@ -133,6 +134,7 @@ export async function GET(req: NextRequest) {
 
 /** Une photo déjà compressée par le navigateur, avec sa vignette. */
 export async function POST(req: NextRequest) {
+  if (!origineAutorisee(req)) return NextResponse.json({ error: 'Origine refusée' }, { status: 403 })
   const bloque = limiterPhotos(req)
   if (bloque) return bloque
   const session = await compteConnecte(req)
@@ -206,6 +208,7 @@ export async function POST(req: NextRequest) {
 
 /** ?id=<uuid> : supprime une photo DU COMPTE CONNECTÉ (fichiers puis index). */
 export async function DELETE(req: NextRequest) {
+  if (!origineAutorisee(req)) return NextResponse.json({ error: 'Origine refusée' }, { status: 403 })
   const bloque = limiterPhotos(req)
   if (bloque) return bloque
   const session = await compteConnecte(req)

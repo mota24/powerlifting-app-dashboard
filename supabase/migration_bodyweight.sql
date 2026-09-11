@@ -1,7 +1,8 @@
+-- Requiert public.compte_courant() : lancer d'abord migration_securite_comptes.sql.
 -- Table pour l'historique du poids de corps
 CREATE TABLE IF NOT EXISTS bodyweight_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id TEXT NOT NULL DEFAULT split_part(((current_setting('request.jwt.claims', true))::jsonb ->> 'email'), '@', 1),
+    user_id TEXT NOT NULL DEFAULT public.compte_courant(),
     date DATE NOT NULL,
     weight NUMERIC NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -22,10 +23,10 @@ CREATE POLICY "bodyweight_logs_authentifies"
     ON bodyweight_logs
     FOR ALL
     USING (
-        split_part((current_setting('request.jwt.claims', true))::jsonb ->> 'email', '@', 1) = user_id
+        (SELECT public.compte_courant()) = user_id
     )
     WITH CHECK (
-        split_part((current_setting('request.jwt.claims', true))::jsonb ->> 'email', '@', 1) = user_id
+        (SELECT public.compte_courant()) = user_id
     );
 
 -- Interdire l'accès public

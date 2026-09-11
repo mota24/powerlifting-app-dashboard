@@ -1,16 +1,17 @@
+-- Requiert public.compte_courant() : lancer d'abord migration_securite_comptes.sql.
 -- ============================================================
 -- MODÈLES DE SÉANCE — séances types rechargées en un appui
 -- À coller dans Supabase > SQL Editor.
 --
 -- Un modèle = un nom (« Jambes ») et la liste de ses exercices : nom, séries
 -- prescrites, notes. Rien de ce qui a été réellement fait n'y est gardé.
--- Cloisonné par compte, comme les autres tables (préfixe d'email du JWT).
+-- Cloisonné par compte, comme les autres tables (compte_courant() : e-mail du JWT en @power.app).
 -- Idempotent : relançable sans risque. Ne modifie aucune donnée existante.
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS public.modeles_seance (
   id         uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id    text        NOT NULL DEFAULT split_part(((current_setting('request.jwt.claims', true))::jsonb ->> 'email'), '@', 1),
+  user_id    text        NOT NULL DEFAULT public.compte_courant(),
   nom        text        NOT NULL CHECK (char_length(nom) BETWEEN 1 AND 60),
   exercices  jsonb       NOT NULL CHECK (jsonb_typeof(exercices) = 'array' AND octet_length(exercices::text) <= 50000),
   cree_le    timestamptz NOT NULL DEFAULT now(),
@@ -28,14 +29,14 @@ DROP POLICY IF EXISTS "modeles_update" ON public.modeles_seance;
 DROP POLICY IF EXISTS "modeles_delete" ON public.modeles_seance;
 
 CREATE POLICY "modeles_select" ON public.modeles_seance FOR SELECT TO authenticated
-  USING (split_part((current_setting('request.jwt.claims', true))::jsonb ->> 'email', '@', 1) = user_id);
+  USING ((SELECT public.compte_courant()) = user_id);
 CREATE POLICY "modeles_insert" ON public.modeles_seance FOR INSERT TO authenticated
-  WITH CHECK (split_part((current_setting('request.jwt.claims', true))::jsonb ->> 'email', '@', 1) = user_id);
+  WITH CHECK ((SELECT public.compte_courant()) = user_id);
 CREATE POLICY "modeles_update" ON public.modeles_seance FOR UPDATE TO authenticated
-  USING (split_part((current_setting('request.jwt.claims', true))::jsonb ->> 'email', '@', 1) = user_id)
-  WITH CHECK (split_part((current_setting('request.jwt.claims', true))::jsonb ->> 'email', '@', 1) = user_id);
+  USING ((SELECT public.compte_courant()) = user_id)
+  WITH CHECK ((SELECT public.compte_courant()) = user_id);
 CREATE POLICY "modeles_delete" ON public.modeles_seance FOR DELETE TO authenticated
-  USING (split_part((current_setting('request.jwt.claims', true))::jsonb ->> 'email', '@', 1) = user_id);
+  USING ((SELECT public.compte_courant()) = user_id);
 
 REVOKE ALL ON public.modeles_seance FROM anon;
 

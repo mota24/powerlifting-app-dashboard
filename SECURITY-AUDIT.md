@@ -90,7 +90,7 @@ toutes les requêtes de données partent vers la même origine. Conséquences po
 | `app/api/auth/session/route.ts` | cookie | |
 | `app/api/auth/change-password/route.ts` | cookie + mot de passe actuel | Rate limité, politique de robustesse, refus des mots de passe fuités (HIBP, fail-closed) ✅ |
 | `app/api/account/delete/route.ts` | cookie | RGPD art. 17 |
-| `app/api/db/[...path]/route.ts` | cookie | Proxy PostgREST, restreint à `rest/v1/` |
+| `app/api/db/[...path]/route.ts` | cookie | Proxy PostgREST : chemins stricts, fonctions RPC en liste fermée, comptes `@power.app` seulement, CSRF (§15) |
 | `app/api/coach/route.ts` | cookie + consentement | Gemini |
 | `app/api/palmares/photo/route.ts` | cookie | Upload Storage, type/taille validés serveur |
 | `app/api/aliments/route.ts` | cookie | Relais Open Food Facts, 30 req/min, paramètres validés (§11, point 9) |
@@ -196,7 +196,7 @@ sortie de l'audit), soit une régression de 7 versions majeures qui détruirait 
 
 | Item | Avant | Après | Fichiers | Latence | Coût | Statut |
 |---|---|---|---|---|---|---|
-| RLS `workout_sets`/`training_blocks`/`user_progress` | Lisibles **et** modifiables par `anon`, sans session (incident réel) | `anon` bloqué (401) sur les 6 tables ; compte légitime voit tout | `supabase/rls-policies.sql` (exécuté par toi) | nulle (RLS = Postgres, déjà sur le chemin) | 0 — inclus Supabase Free | ✅ Corrigé, vérifié en prod |
+| RLS `workout_sets`/`training_blocks`/`user_progress` | Lisibles **et** modifiables par `anon`, sans session (incident réel) | `anon` bloqué (401) sur les 6 tables ; compte légitime voit tout | `supabase/migration_securite_comptes.sql` (remplace l'ancien `rls-policies.sql`) | nulle (RLS = Postgres, déjà sur le chemin) | 0 — inclus Supabase Free | ✅ Corrigé, vérifié en prod |
 | CSP nonce (`script-src` sans `unsafe-inline`) | `'unsafe-inline'` | **Inchangé** — Option B retenue | — | — | — | ❌ Non fait, délibérément (§10) |
 | `Permissions-Policy` | `camera=(), microphone=(), geolocation=()` | Liste complète (accelerometer, autoplay, payment, usb, etc.), `screen-wake-lock=(self)` vérifié utilisé | `next.config.mjs` | nulle (header sur réponse déjà émise) | 0 | ✅ |
 | `Cross-Origin-Opener-Policy` | absent | `same-origin` | `next.config.mjs` | nulle | 0 | ✅ |
@@ -251,10 +251,8 @@ de navigation, pas un ajout de header, hors périmètre de cet audit.
 
 1. **`'unsafe-inline'` sur `script-src`/`style-src`** — accepté (§10). Aucune surface XSS identifiée
    aujourd'hui ; à revisiter si l'app affiche un jour du contenu non maîtrisé.
-2. **RLS `USING (true)` pour `authenticated`** sur `workout_sets`, `training_blocks`, `user_progress` —
-   délibéré (app mono-athlète, tables sans colonne `user_id`), documenté dans `rls-policies.sql`.
-   Signifie que **tout compte authentifié voit et modifie toutes les données**. Acceptable à un seul
-   utilisateur ; **à revoir impérativement** avant d'ouvrir l'app à un second athlète.
+2. ~~**RLS `USING (true)` pour `authenticated`**~~ — **résolu** : cloisonnement par compte
+   (`migration_multi_utilisateur.sql`), puis identité liée à l'e-mail complet (`migration_securite_comptes.sql`, §15).
 3. **`sharp`/`postcss` vulnérables** (transitifs via `next`) — sans surface runtime ici
    (`images.unoptimized: true`, aucun usage de `next/image`). En attente d'un patch amont ; Dependabot
    notifiera. `npm audit fix --force` reste interdit (casserait `next`).
@@ -356,3 +354,34 @@ Aucune régression de rendu (`/` toujours statique), aucune dépendance payante 
 Ce qui reste ouvert n'est pas un oubli mais un choix documenté : la CSP nonce (architecture ne le
 permet pas sans casser tes contraintes), et les items du §12 qui sont entre tes mains (dashboard
 Vercel / Supabase).
+
+---
+
+## 15. Audit complet du 11/09/2026 — faille critique corrigée
+
+**Faille critique : identité de compte usurpable.** Les policies RLS et plusieurs routes serveur (clé
+`service_role`) identifiaient le compte par le **préfixe** de l'e-mail du jeton (`1` pour `1@power.app`).
+Les inscriptions publiques Supabase étaient ouvertes avec confirmation automatique
+(`disable_signup = false`, `mailer_autoconfirm = true`, lus sur `/auth/v1/settings`) et la clé anon est
+publique : n'importe qui pouvait s'inscrire en `1@autre-domaine.com`, puis lire, modifier ou effacer les
+données du compte 1 (séances, poids, nutrition), consulter ses photos privées via `/api/photos`, ou
+effacer ses pas, son poids et ses photos via `/api/account/delete`. Même chose pour le compte 2.
+
+**Correctifs :**
+- Serveur : `compteDepuisEmail()` n'accepte que `identifiant@power.app` et `compteConnecte()` centralise la
+  session ; utilisés par toutes les routes (photos, palmarès, suppression de compte, coach, mot de passe).
+  Le proxy `/api/db` et `/api/aliments` refusent en amont tout jeton d'un autre domaine.
+- Base : `migration_securite_comptes.sql` — fonction `compte_courant()` (NULL hors `@power.app`), toutes les
+  policies et valeurs par défaut de `user_id` recréées sur elle, anciennes policies supprimées table par
+  table, classement réservé aux comptes de l'app. Les migrations existantes utilisent la même fonction ;
+  les scripts obsolètes qui recréaient `USING (true)` sont retirés du dépôt.
+- **Action manuelle requise :** désactiver les inscriptions (Authentication > Sign In / Providers).
+
+**Autres durcissements :**
+- `/api/coach` lisait l'historique des **deux** comptes (clé `service_role` sans filtre) et l'envoyait à
+  Google : filtré sur le compte connecté ; erreurs internes plus renvoyées au client.
+- Proxy `/api/db` : chemins stricts (ni `..` ni séparateur encodé), fonctions RPC en liste fermée
+  (`classement_semaines`).
+- CSRF en profondeur : toute écriture exige `Sec-Fetch-Site: same-origin` (ou une `Origin` identique).
+- Upload palmarès : type réel vérifié par signature binaire, débit limité. Raccourci iPhone : secret et
+  jetons comparés en temps constant, erreurs Supabase plus renvoyées au téléphone.

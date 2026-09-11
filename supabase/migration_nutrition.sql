@@ -1,3 +1,4 @@
+-- Requiert public.compte_courant() : lancer d'abord migration_securite_comptes.sql.
 -- ============================================================
 -- PHASE 5 — Journal alimentaire (calories et protéines)
 -- À coller dans Supabase > SQL Editor.
@@ -7,13 +8,13 @@
 -- On copie les valeurs au lieu de ne garder que le code-barres : Open Food
 -- Facts évolue, et un journal ne doit pas changer après coup.
 --
--- Cloisonné par compte, comme les autres tables (préfixe d'email du JWT).
+-- Cloisonné par compte, comme les autres tables (compte_courant() : e-mail du JWT en @power.app).
 -- Idempotent : relançable sans risque. Ne modifie aucune donnée existante.
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS public.journal_alimentaire (
   id             uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id        text        NOT NULL DEFAULT split_part(((current_setting('request.jwt.claims', true))::jsonb ->> 'email'), '@', 1),
+  user_id        text        NOT NULL DEFAULT public.compte_courant(),
   date           date        NOT NULL,
   nom            text        NOT NULL CHECK (char_length(nom) BETWEEN 1 AND 200),
   marque         text        CHECK (marque IS NULL OR char_length(marque) <= 200),
@@ -35,14 +36,14 @@ DROP POLICY IF EXISTS "journal_update" ON public.journal_alimentaire;
 DROP POLICY IF EXISTS "journal_delete" ON public.journal_alimentaire;
 
 CREATE POLICY "journal_select" ON public.journal_alimentaire FOR SELECT TO authenticated
-  USING (split_part((current_setting('request.jwt.claims', true))::jsonb ->> 'email', '@', 1) = user_id);
+  USING ((SELECT public.compte_courant()) = user_id);
 CREATE POLICY "journal_insert" ON public.journal_alimentaire FOR INSERT TO authenticated
-  WITH CHECK (split_part((current_setting('request.jwt.claims', true))::jsonb ->> 'email', '@', 1) = user_id);
+  WITH CHECK ((SELECT public.compte_courant()) = user_id);
 CREATE POLICY "journal_update" ON public.journal_alimentaire FOR UPDATE TO authenticated
-  USING (split_part((current_setting('request.jwt.claims', true))::jsonb ->> 'email', '@', 1) = user_id)
-  WITH CHECK (split_part((current_setting('request.jwt.claims', true))::jsonb ->> 'email', '@', 1) = user_id);
+  USING ((SELECT public.compte_courant()) = user_id)
+  WITH CHECK ((SELECT public.compte_courant()) = user_id);
 CREATE POLICY "journal_delete" ON public.journal_alimentaire FOR DELETE TO authenticated
-  USING (split_part((current_setting('request.jwt.claims', true))::jsonb ->> 'email', '@', 1) = user_id);
+  USING ((SELECT public.compte_courant()) = user_id);
 
 REVOKE ALL ON public.journal_alimentaire FROM anon;
 

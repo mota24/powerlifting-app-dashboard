@@ -1,3 +1,4 @@
+-- Requiert public.compte_courant() : lancer d'abord migration_securite_comptes.sql.
 -- ============================================================
 -- PHASE 4 — Validation des séances le jour même
 -- À coller dans Supabase > SQL Editor.
@@ -24,7 +25,7 @@
 -- ────────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS public.validations_seance (
-  user_id   text        NOT NULL DEFAULT split_part(((current_setting('request.jwt.claims', true))::jsonb ->> 'email'), '@', 1),
+  user_id   text        NOT NULL DEFAULT public.compte_courant(),
   date      date        NOT NULL,
   type      text        NOT NULL CHECK (type IN ('seance', 'repos')),
   valide_le timestamptz NOT NULL DEFAULT now(),
@@ -37,13 +38,13 @@ DROP POLICY IF EXISTS "validations_select" ON public.validations_seance;
 DROP POLICY IF EXISTS "validations_insert_jour_meme" ON public.validations_seance;
 
 CREATE POLICY "validations_select" ON public.validations_seance FOR SELECT TO authenticated
-  USING (split_part((current_setting('request.jwt.claims', true))::jsonb ->> 'email', '@', 1) = user_id);
+  USING ((SELECT public.compte_courant()) = user_id);
 
 -- Anti-triche garanti par la base : uniquement pour son propre compte, et
 -- uniquement pour la date du jour au fuseau de l'app.
 CREATE POLICY "validations_insert_jour_meme" ON public.validations_seance FOR INSERT TO authenticated
   WITH CHECK (
-    split_part((current_setting('request.jwt.claims', true))::jsonb ->> 'email', '@', 1) = user_id
+    (SELECT public.compte_courant()) = user_id
     AND date = (now() AT TIME ZONE 'Europe/Paris')::date
   );
 
@@ -97,7 +98,7 @@ AS $$
     SELECT coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::jsonb AS c
   ),
   moi AS (
-    SELECT split_part(coalesce((SELECT c ->> 'email' FROM claims), ''), '@', 1) AS user_id
+    SELECT public.compte_courant() AS user_id
   ),
   semaines AS (
     SELECT s.debut
@@ -115,6 +116,7 @@ AS $$
     FROM public.profiles p
     JOIN auth.users u ON u.id = p.id
     WHERE p.prenom IS NOT NULL
+      AND lower(u.email) ~ '^[a-z0-9_-]{1,64}@power\.app$'
   ),
   jours AS (
     SELECT s.debut, j.user_id, j.prenom, s.debut + d AS jour

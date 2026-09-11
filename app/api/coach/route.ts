@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { getSupabaseAdmin } from '@/lib/supabase-admin'
-import { applySessionCookies, fetchUser, getAccessToken, type SessionTokens } from '@/lib/server/auth-session'
+import { applySessionCookies, compteDepuisEmail, fetchUser, getAccessToken, origineAutorisee, type SessionTokens } from '@/lib/server/auth-session'
 
 type AiSet = { reps: string; weight: string; rpe: string }
 type AiExercise = { name: string; comments: string; coachTracking: AiSet[] }
@@ -70,6 +70,7 @@ function buildHistoryContext(rows: HistoryRow[]): string {
 export async function POST(req: NextRequest) {
   // Jetons éventuellement rafraîchis pendant la requête : à ré-appliquer à la réponse
   let refreshed: SessionTokens | null = null
+  if (!origineAutorisee(req)) return NextResponse.json({ error: 'Origine refusée' }, { status: 403 })
   try {
     const apiKey = process.env.GEMINI_API_KEY
     if (!apiKey) return NextResponse.json({ error: 'Clé API Gemini absente côté serveur' }, { status: 500 })
@@ -84,6 +85,8 @@ export async function POST(req: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: 'Session expirée : recharge la page et reconnecte-toi' }, { status: 401 })
     }
+    const compte = compteDepuisEmail(user.email)
+    if (!compte) return NextResponse.json({ error: 'Compte non autorisé' }, { status: 403 })
 
     // RGPD Art. 9 / Art. 7 : le contexte transmis à Google inclut des données
     // de santé (douleur lombaire, sommeil, fatigue). Envoi conditionné à un
@@ -112,6 +115,9 @@ export async function POST(req: NextRequest) {
     const { data: historyData } = await getSupabaseAdmin()
       .from('workout_sets')
       .select('date, exercise_name, tracking_data, pain_level, fatigue_score')
+      // La clé service_role ignore la RLS : sans ce filtre, l'historique des DEUX
+      // comptes partirait chez Google.
+      .eq('user_id', compte)
       .gte('date', since)
       .lte('date', today)
       .order('date', { ascending: true })
@@ -187,6 +193,7 @@ DEMANDE DE L'ATHLÈTE : ${prompt}`
     if (/429|quota|rate.?limit|resource.?exhausted/i.test(message)) {
       return NextResponse.json({ error: 'Quota Gemini atteint — réessaie dans une minute' }, { status: 429 })
     }
-    return NextResponse.json({ error: message }, { status: 500 })
+    // Détail interne gardé dans les journaux serveur ; seuls nos propres messages sont renvoyés.
+    return NextResponse.json({ error: message.startsWith("L'IA") ? message : 'Le coach IA est indisponible, réessaie dans un instant' }, { status: 500 })
   }
 }

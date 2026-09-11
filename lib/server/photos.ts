@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { applySessionCookies, fetchUser, getAccessToken, type SessionTokens } from '@/lib/server/auth-session'
+import { applySessionCookies, type SessionTokens } from '@/lib/server/auth-session'
 import { clientIp } from '@/lib/server/rate-limit'
 import { limiterMemoire } from '@/lib/server/memory-rate-limit'
 
@@ -18,14 +18,9 @@ export function limiterPhotos(req: NextRequest) {
   return NextResponse.json({ error: 'Trop de requêtes' }, { status: 429, headers: { 'Retry-After': String(verdict.retryAfterSeconds) } })
 }
 
-export async function compteConnecte(req: NextRequest): Promise<{ compte: string; refreshed: SessionTokens | null } | null> {
-  const auth = await getAccessToken(req)
-  if (!auth) return null
-  const user = await fetchUser(auth.accessToken)
-  const compte = user?.email?.split('@')[0] ?? ''
-  // Le compte sert de dossier dans le stockage : aucun caractère de chemin.
-  return /^[A-Za-z0-9_-]{1,64}$/.test(compte) ? { compte, refreshed: auth.refreshed } : null
-}
+// Compte de la session : seulement pour un e-mail de l'app (identifiant@power.app).
+// L'identifiant sert de dossier dans le stockage : sa forme est déjà vérifiée.
+export { compteConnecte } from '@/lib/server/auth-session'
 
 /** Ré-applique à la réponse la session rafraîchie, s'il y en a une. */
 export function avecSession<T extends NextResponse>(res: T, refreshed: SessionTokens | null): T {

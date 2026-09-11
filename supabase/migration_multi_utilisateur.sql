@@ -1,3 +1,4 @@
+-- Requiert public.compte_courant() : lancer d'abord migration_securite_comptes.sql.
 -- ============================================================
 -- MIGRATION MULTI-UTILISATEUR — à coller dans Supabase > SQL Editor
 --
@@ -69,7 +70,7 @@ REVOKE ALL ON profiles FROM anon;
 ALTER TABLE workout_sets ADD COLUMN IF NOT EXISTS user_id TEXT;
 UPDATE workout_sets SET user_id = '1' WHERE user_id IS NULL;  -- tout l'historique existant est le tien
 ALTER TABLE workout_sets
-  ALTER COLUMN user_id SET DEFAULT split_part(((current_setting('request.jwt.claims', true))::jsonb ->> 'email'), '@', 1);
+  ALTER COLUMN user_id SET DEFAULT public.compte_courant();
 ALTER TABLE workout_sets ALTER COLUMN user_id SET NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_workout_sets_user_date ON workout_sets (user_id, date);
 
@@ -77,7 +78,7 @@ CREATE INDEX IF NOT EXISTS idx_workout_sets_user_date ON workout_sets (user_id, 
 ALTER TABLE training_blocks ADD COLUMN IF NOT EXISTS user_id TEXT;
 UPDATE training_blocks SET user_id = '1' WHERE user_id IS NULL;
 ALTER TABLE training_blocks
-  ALTER COLUMN user_id SET DEFAULT split_part(((current_setting('request.jwt.claims', true))::jsonb ->> 'email'), '@', 1);
+  ALTER COLUMN user_id SET DEFAULT public.compte_courant();
 ALTER TABLE training_blocks ALTER COLUMN user_id SET NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_training_blocks_user ON training_blocks (user_id, start_date);
 
@@ -85,7 +86,7 @@ CREATE INDEX IF NOT EXISTS idx_training_blocks_user ON training_blocks (user_id,
 ALTER TABLE user_progress ADD COLUMN IF NOT EXISTS user_id TEXT;
 UPDATE user_progress SET user_id = '1' WHERE user_id IS NULL;
 ALTER TABLE user_progress
-  ALTER COLUMN user_id SET DEFAULT split_part(((current_setting('request.jwt.claims', true))::jsonb ->> 'email'), '@', 1);
+  ALTER COLUMN user_id SET DEFAULT public.compte_courant();
 ALTER TABLE user_progress ALTER COLUMN user_id SET NOT NULL;
 -- Un seul compteur de progression par personne
 CREATE UNIQUE INDEX IF NOT EXISTS idx_user_progress_user ON user_progress (user_id);
@@ -94,7 +95,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_user_progress_user ON user_progress (user_
 -- ────────────────────────────────────────────────────────────
 -- 3. POLICIES RLS — chacun ne voit que ses propres lignes
 --    (même modèle que bodyweight_logs / competitions : comparaison
---    au préfixe d'email du JWT, pas à auth.uid())
+--    à public.compte_courant() : e-mail du JWT en @power.app, pas auth.uid())
 -- ────────────────────────────────────────────────────────────
 
 -- workout_sets
@@ -104,14 +105,14 @@ DROP POLICY IF EXISTS "workout_sets_update" ON workout_sets;
 DROP POLICY IF EXISTS "workout_sets_delete" ON workout_sets;
 DROP POLICY IF EXISTS "workout_sets_authentifies" ON workout_sets;
 CREATE POLICY "workout_sets_select" ON workout_sets FOR SELECT TO authenticated
-  USING (split_part((current_setting('request.jwt.claims', true))::jsonb ->> 'email', '@', 1) = user_id);
+  USING ((SELECT public.compte_courant()) = user_id);
 CREATE POLICY "workout_sets_insert" ON workout_sets FOR INSERT TO authenticated
-  WITH CHECK (split_part((current_setting('request.jwt.claims', true))::jsonb ->> 'email', '@', 1) = user_id);
+  WITH CHECK ((SELECT public.compte_courant()) = user_id);
 CREATE POLICY "workout_sets_update" ON workout_sets FOR UPDATE TO authenticated
-  USING (split_part((current_setting('request.jwt.claims', true))::jsonb ->> 'email', '@', 1) = user_id)
-  WITH CHECK (split_part((current_setting('request.jwt.claims', true))::jsonb ->> 'email', '@', 1) = user_id);
+  USING ((SELECT public.compte_courant()) = user_id)
+  WITH CHECK ((SELECT public.compte_courant()) = user_id);
 CREATE POLICY "workout_sets_delete" ON workout_sets FOR DELETE TO authenticated
-  USING (split_part((current_setting('request.jwt.claims', true))::jsonb ->> 'email', '@', 1) = user_id);
+  USING ((SELECT public.compte_courant()) = user_id);
 
 -- training_blocks
 DROP POLICY IF EXISTS "training_blocks_select" ON training_blocks;
@@ -120,14 +121,14 @@ DROP POLICY IF EXISTS "training_blocks_update" ON training_blocks;
 DROP POLICY IF EXISTS "training_blocks_delete" ON training_blocks;
 DROP POLICY IF EXISTS "training_blocks_authentifies" ON training_blocks;
 CREATE POLICY "training_blocks_select" ON training_blocks FOR SELECT TO authenticated
-  USING (split_part((current_setting('request.jwt.claims', true))::jsonb ->> 'email', '@', 1) = user_id);
+  USING ((SELECT public.compte_courant()) = user_id);
 CREATE POLICY "training_blocks_insert" ON training_blocks FOR INSERT TO authenticated
-  WITH CHECK (split_part((current_setting('request.jwt.claims', true))::jsonb ->> 'email', '@', 1) = user_id);
+  WITH CHECK ((SELECT public.compte_courant()) = user_id);
 CREATE POLICY "training_blocks_update" ON training_blocks FOR UPDATE TO authenticated
-  USING (split_part((current_setting('request.jwt.claims', true))::jsonb ->> 'email', '@', 1) = user_id)
-  WITH CHECK (split_part((current_setting('request.jwt.claims', true))::jsonb ->> 'email', '@', 1) = user_id);
+  USING ((SELECT public.compte_courant()) = user_id)
+  WITH CHECK ((SELECT public.compte_courant()) = user_id);
 CREATE POLICY "training_blocks_delete" ON training_blocks FOR DELETE TO authenticated
-  USING (split_part((current_setting('request.jwt.claims', true))::jsonb ->> 'email', '@', 1) = user_id);
+  USING ((SELECT public.compte_courant()) = user_id);
 
 -- user_progress
 DROP POLICY IF EXISTS "user_progress_select" ON user_progress;
@@ -136,14 +137,14 @@ DROP POLICY IF EXISTS "user_progress_update" ON user_progress;
 DROP POLICY IF EXISTS "user_progress_delete" ON user_progress;
 DROP POLICY IF EXISTS "user_progress_authentifies" ON user_progress;
 CREATE POLICY "user_progress_select" ON user_progress FOR SELECT TO authenticated
-  USING (split_part((current_setting('request.jwt.claims', true))::jsonb ->> 'email', '@', 1) = user_id);
+  USING ((SELECT public.compte_courant()) = user_id);
 CREATE POLICY "user_progress_insert" ON user_progress FOR INSERT TO authenticated
-  WITH CHECK (split_part((current_setting('request.jwt.claims', true))::jsonb ->> 'email', '@', 1) = user_id);
+  WITH CHECK ((SELECT public.compte_courant()) = user_id);
 CREATE POLICY "user_progress_update" ON user_progress FOR UPDATE TO authenticated
-  USING (split_part((current_setting('request.jwt.claims', true))::jsonb ->> 'email', '@', 1) = user_id)
-  WITH CHECK (split_part((current_setting('request.jwt.claims', true))::jsonb ->> 'email', '@', 1) = user_id);
+  USING ((SELECT public.compte_courant()) = user_id)
+  WITH CHECK ((SELECT public.compte_courant()) = user_id);
 CREATE POLICY "user_progress_delete" ON user_progress FOR DELETE TO authenticated
-  USING (split_part((current_setting('request.jwt.claims', true))::jsonb ->> 'email', '@', 1) = user_id);
+  USING ((SELECT public.compte_courant()) = user_id);
 
 REVOKE ALL ON workout_sets, training_blocks, user_progress FROM anon;
 
