@@ -13,7 +13,7 @@ import { toLocalDateStr, parseLocalDate, weeksOut, type UpcomingCompetition, typ
 import { ThemeProvider, type Langue } from './ThemeContext'
 import { EcranConnexion } from '@/components/power/ecran-connexion'
 import { BarreNavigation } from '@/components/power/barre-navigation'
-import { purgerRecordsLocaux, type AuthUser } from '@/lib/compte'
+import { lireSession, purgerRecordsLocaux, type AuthUser } from '@/lib/compte'
 import { vueDepuisUrl, type Vue } from '@/lib/navigation'
 import { traducteurPour, langueDuProfil, LOCALES } from '@/lib/i18n'
 import dynamic from 'next/dynamic'
@@ -49,6 +49,8 @@ const GaleriePhotos = dynamic(() => import('@/components/power/galerie-photos').
 export default function Page() {
   const [session, setSession] = useState<AuthUser | null>(null)
   const [loadingAuth, setLoadingAuth] = useState(true)
+  const [reseauIndisponible, setReseauIndisponible] = useState(false)
+  const [tentative, setTentative] = useState(0)
   
   const [isRestDayMode, setIsRestDayMode] = useState(false)
   // Pas rattachés à leur date : une autre date n'affiche rien tant que les siens ne sont pas chargés.
@@ -157,17 +159,24 @@ export default function Page() {
       }
     } catch { }
 
-    fetch('/api/auth/session')
-      .then(async (res) => (res.ok ? ((await res.json()) as { user: AuthUser | null }).user : null))
-      .catch(() => null)
-      .then((user) => {
-        // Aucune purge ici : une session expirée, une coupure réseau ou une
-        // limite de débit renvoient null, et les records saisis à la main
-        // étaient effacés au passage. Ils ne partent qu'à la déconnexion.
-        setSession(user)
-        setLoadingAuth(false)
-      })
-  }, [])
+    let annule = false
+    const charger = async () => {
+      let resultat = await lireSession()
+      // Réseau capricieux (salle en sous-sol) : un second essai avant de
+      // conclure quoi que ce soit. Aucune purge des records au passage :
+      // seule une déconnexion volontaire les efface.
+      if (resultat.statut === 'indisponible') {
+        await new Promise((r) => setTimeout(r, 1500))
+        resultat = await lireSession()
+      }
+      if (annule) return
+      setSession(resultat.statut === 'connecte' ? resultat.user : null)
+      setReseauIndisponible(resultat.statut === 'indisponible')
+      setLoadingAuth(false)
+    }
+    void charger()
+    return () => { annule = true }
+  }, [tentative])
 
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {})
@@ -236,6 +245,23 @@ export default function Page() {
     return (
       <div className="min-h-dvh flex items-center justify-center bg-background">
         <RefreshCw className="size-8 text-foreground animate-spin" />
+      </div>
+    )
+  }
+
+  // Serveur injoignable : on le dit, plutôt que d'afficher l'écran de
+  // connexion à quelqu'un dont la session est parfaitement valide.
+  if (reseauIndisponible) {
+    return (
+      <div className="min-h-dvh flex flex-col items-center justify-center gap-6 bg-background p-6 text-center">
+        <h1 className="text-lg font-black uppercase tracking-widest text-foreground">{t('connexionImpossible')}</h1>
+        <p className="max-w-sm text-sm text-muted-foreground">{t('verifieConnexion')}</p>
+        <button
+          onClick={() => { setLoadingAuth(true); setReseauIndisponible(false); setTentative((n) => n + 1) }}
+          className="flex items-center gap-2 rounded-xl bg-primary px-6 py-3 text-[11px] font-black uppercase tracking-widest text-primary-foreground hover:opacity-90"
+        >
+          <RefreshCw className="size-4" /> {t('reessayer')}
+        </button>
       </div>
     )
   }

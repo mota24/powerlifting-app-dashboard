@@ -449,6 +449,8 @@ const fr = {
   envoiEnCours: 'Envoi…',
   retirerPhoto: 'Retirer la photo',
   ajouterAuPalmares: 'Ajouter au palmarès',
+  connexionImpossible: 'Connexion au serveur impossible',
+  verifieConnexion: 'Vérifie ta connexion, puis réessaie. Tes données sont intactes.',
 } as const
 
 export type CleTraduction = keyof typeof fr
@@ -865,6 +867,8 @@ const es: Record<CleTraduction, string> = {
   envoiEnCours: 'Enviando…',
   retirerPhoto: 'Quitar la foto',
   ajouterAuPalmares: 'Añadir al palmarés',
+  connexionImpossible: 'No se puede conectar con el servidor',
+  verifieConnexion: 'Comprueba tu conexión e inténtalo de nuevo. Tus datos están intactos.',
 }
 
 const DICTIONNAIRES: Record<Langue, Record<CleTraduction, string>> = { fr, es }
