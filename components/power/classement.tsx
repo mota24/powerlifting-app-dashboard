@@ -6,16 +6,22 @@ import { supabase } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
 import { useT, useLocale } from '@/app/ThemeContext'
 import type { Traducteur } from '@/lib/i18n'
-import { parseLocalDate } from '@/lib/powerlifting'
-import { grouperParMois, joursRestants, libelleMois, palmares, type LigneClassement, type LigneRangee, type MoisClasse } from '@/lib/classement'
+import { toLocalDateStr } from '@/lib/powerlifting'
+import { PalmaresMois, RecapSemaine } from '@/components/power/classement-recap'
+import {
+  estDernierJourDuMois, estDimanche, gagnants, grouperParMois, grouperParSemaine, joursRestants,
+  joursRestantsSemaine, libelleMois, MEDAILLES,
+  type LigneClassement, type LigneRangee, type LigneSemaine, type MoisClasse,
+} from '@/lib/classement'
 
 const NB_MOIS = 12
-const MEDAILLES = ['🥇', '🥈', '🥉']
+const NB_SEMAINES = 2
 
 export function Classement() {
   const t = useT()
   const locale = useLocale()
   const [mois, setMois] = useState<MoisClasse[] | null>(null)
+  const [semaines, setSemaines] = useState<MoisClasse[]>([])
   const [erreur, setErreur] = useState(false)
   const [chargement, setChargement] = useState(true)
   // Incrémenté par le bouton d'actualisation : relancer l'effet plutôt que
@@ -25,15 +31,17 @@ export function Classement() {
 
   useEffect(() => {
     let annule = false
-    supabase.rpc('classement_mois', { p_nb: NB_MOIS }).then(({ data, error }) => {
+    Promise.all([
+      supabase.rpc('classement_mois', { p_nb: NB_MOIS }),
+      supabase.rpc('classement_semaines', { p_nb: NB_SEMAINES }),
+    ]).then(([reponseMois, reponseSemaines]) => {
       if (annule) return
       setChargement(false)
-      if (error) {
-        setErreur(true)
-        return
-      }
-      setErreur(false)
-      setMois(grouperParMois((data ?? []) as LigneClassement[]))
+      setErreur(Boolean(reponseMois.error))
+      if (!reponseMois.error) setMois(grouperParMois((reponseMois.data ?? []) as LigneClassement[]))
+      // Le récapitulatif de la semaine est un bonus : s'il manque, le
+      // classement du mois s'affiche quand même.
+      setSemaines(reponseSemaines.error ? [] : grouperParSemaine((reponseSemaines.data ?? []) as LigneSemaine[]))
     })
     return () => { annule = true }
   }, [demande])
@@ -56,13 +64,20 @@ export function Classement() {
   }
 
   const [courant, ...passes] = mois
-  const restants = joursRestants(courant.mois, new Date())
-  const dernierJour = restants <= 1
-  // Une égalité à zéro n'en est pas une : en début de mois, personne n'a encore joué.
-  const egalite = courant.lignes.length > 1 && courant.lignes.every((ligne) => ligne.rang === 1) && courant.lignes.some((ligne) => ligne.points > 0)
-  // Le classement a démarré en cours de mois : on le dit, pour que personne
-  // ne cherche les points des premiers jours.
-  const partiel = courant.depuis > courant.mois
+  const [semaineCourante, semainePassee] = semaines
+  const aujourdhui = new Date()
+  // Le mois en cours peut ne pas avoir encore démarré : tant qu'il est à
+  // venir, c'est la semaine qui fait le classement plutôt qu'un écran de zéros.
+  const moisDemarre = courant.depuis <= toLocalDateStr(aujourdhui)
+  const periode = moisDemarre || !semaineCourante ? courant : semaineCourante
+  const surLeMois = periode === courant
+
+  const restants = surLeMois ? joursRestants(courant.mois, aujourdhui) : joursRestantsSemaine(aujourdhui)
+  const clotureCeSoir = surLeMois ? estDernierJourDuMois(aujourdhui) : estDimanche(aujourdhui)
+  const premiers = gagnants(periode.lignes)
+  const annonce = !clotureCeSoir || premiers.length === 0 ? ''
+    : premiers.length === 1 ? t(surLeMois ? 'gagneLeMois' : 'gagneLaSemaine', { prenom: premiers[0].prenom })
+    : t('egalite')
 
   return (
     <div className="space-y-6">
@@ -70,16 +85,15 @@ export function Classement() {
         <div className="flex items-end justify-between gap-3">
           <div className="min-w-0">
             <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-              {libelleMois(courant.mois, locale)}
-              {partiel && ` · ${t('compteDepuis', { date: parseLocalDate(courant.depuis).toLocaleDateString(locale, { day: 'numeric', month: 'short' }) })}`}
+              {surLeMois ? libelleMois(courant.mois, locale) : t('semaineEnCours')}
             </p>
             <h2 className="text-2xl font-black text-foreground">
-              {dernierJour ? t('resultatsMois') : t('classement')}
+              {clotureCeSoir ? t(surLeMois ? 'resultatsMois' : 'resultatsSemaine') : t('classement')}
             </h2>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <span className="rounded-full border border-border bg-secondary px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-foreground">
-              {dernierJour ? t('dernierJour') : t('joursRestants', { n: restants })}
+              {clotureCeSoir ? t('dernierJour') : t('joursRestants', { n: restants })}
             </span>
             <button
               onClick={rafraichir}
@@ -91,14 +105,24 @@ export function Classement() {
           </div>
         </div>
 
+        {annonce && (
+          <p className="rounded-2xl border border-primary bg-card px-4 py-3 text-sm font-black text-foreground">
+            {MEDAILLES[0]} {annonce}
+          </p>
+        )}
+
         <div className="grid gap-3 sm:grid-cols-2">
-          {courant.lignes.map((ligne) => (
-            <CarteJoueur key={ligne.prenom} ligne={ligne} egalite={egalite} t={t} />
+          {periode.lignes.map((ligne) => (
+            <CarteJoueur key={ligne.prenom} ligne={ligne} premiers={premiers} surLeMois={surLeMois} t={t} />
           ))}
         </div>
       </section>
 
-      <Palmares passes={passes} joueurs={courant.lignes.map((l) => l.prenom)} t={t} locale={locale} />
+      {moisDemarre && semaineCourante && (
+        <RecapSemaine courante={semaineCourante} passee={semainePassee} dimanche={estDimanche(aujourdhui)} t={t} />
+      )}
+
+      <PalmaresMois passes={passes} joueurs={courant.lignes.map((l) => l.prenom)} t={t} locale={locale} />
 
       <section className="space-y-3 rounded-2xl border border-border bg-card p-5">
         <h3 className="text-xs font-bold uppercase tracking-widest text-foreground">{t('reglesTitre')}</h3>
@@ -122,13 +146,13 @@ export function Classement() {
   )
 }
 
-function CarteJoueur({ ligne, egalite, t }: { ligne: LigneRangee; egalite: boolean; t: Traducteur }) {
+function CarteJoueur({ ligne, premiers, surLeMois, t }: { ligne: LigneRangee; premiers: LigneRangee[]; surLeMois: boolean; t: Traducteur }) {
   const enTete = ligne.rang === 1
   const criteres = [
     { icone: Footprints, libelle: t('critere8000'), valeur: String(ligne.jours_8000), points: ligne.pts_pas },
     { icone: Dumbbell, libelle: t('critereSeances'), valeur: String(ligne.seances), points: ligne.pts_seances },
-    { icone: Target, libelle: t('critereObjectif'), valeur: `${ligne.objectif_fait}/${ligne.objectif_semaines}`, points: ligne.pts_objectif },
-    { icone: Flame, libelle: t('critereSerie'), valeur: t('joursCourt', { n: ligne.serie }), points: ligne.pts_serie },
+    { icone: Target, libelle: t(surLeMois ? 'critereObjectif' : 'critereObjectifSemaine'), valeur: `${ligne.objectif_fait}/${ligne.objectif_semaines}`, points: ligne.pts_objectif },
+    { icone: Flame, libelle: t(surLeMois ? 'critereSerie' : 'critereSerieSemaine'), valeur: t('joursCourt', { n: ligne.serie }), points: ligne.pts_serie },
   ]
 
   return (
@@ -147,7 +171,7 @@ function CarteJoueur({ ligne, egalite, t }: { ligne: LigneRangee; egalite: boole
           </div>
           <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
             {t('niveauCourt')} {ligne.niveau} · {t('streakActuel')} {ligne.streak}
-            {enTete && egalite ? ` · ${t('egalite')}` : ''}
+            {premiers.length > 1 && premiers.includes(ligne) ? ` · ${t('egalite')}` : ''}
           </p>
         </div>
         <div className="text-right">
@@ -169,41 +193,5 @@ function CarteJoueur({ ligne, egalite, t }: { ligne: LigneRangee; egalite: boole
         ))}
       </ul>
     </article>
-  )
-}
-
-function Palmares({ passes, joueurs, t, locale }: { passes: MoisClasse[]; joueurs: string[]; t: Traducteur; locale: string }) {
-  const { victoires, egalites, joues } = palmares(passes, joueurs)
-
-  return (
-    <section className="space-y-3 rounded-2xl border border-border bg-card p-5">
-      <h3 className="text-xs font-bold uppercase tracking-widest text-foreground">{t('palmaresMois')}</h3>
-      {joues.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{t('aucunMoisTermine')}</p>
-      ) : (
-        <>
-          <p className="text-sm font-bold text-foreground">
-            {t('victoires')} {[...victoires.entries()].map(([prenom, n]) => `${prenom} ${n}`).join(' · ')}
-            {egalites > 0 ? ` · ${t('egalites')} ${egalites}` : ''}
-          </p>
-          <ul className="divide-y divide-border">
-            {joues.map((mois) => {
-              const gagnants = mois.lignes.filter((ligne) => ligne.rang === 1)
-              return (
-                <li key={mois.mois} className="flex items-center justify-between gap-3 py-2.5 text-sm">
-                  <span className="shrink-0 text-muted-foreground">{libelleMois(mois.mois, locale)}</span>
-                  <span className="min-w-0 truncate text-right font-bold text-foreground">
-                    {gagnants.length === 1 ? `🥇 ${gagnants[0].prenom}` : t('egalite')}
-                    <span className="ml-2 font-normal tabular-nums text-muted-foreground">
-                      {mois.lignes.map((ligne) => ligne.points).join(' – ')}
-                    </span>
-                  </span>
-                </li>
-              )
-            })}
-          </ul>
-        </>
-      )}
-    </section>
   )
 }

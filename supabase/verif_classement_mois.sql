@@ -68,42 +68,23 @@ validations AS (
   WHERE v.date BETWEEN b.premier_jour AND b.dernier_jour
   GROUP BY v.user_id, v.date
 ),
-prevus AS (
-  SELECT w.user_id, w.date AS jour
-  FROM public.workout_sets w, bornes b
-  WHERE w.date BETWEEN b.premier_jour AND b.dernier_jour
-    AND coalesce(w.exercise_name, '') NOT IN ('Repos', 'Jour de Repos')
-    AND (
-      EXISTS (
-        SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(w.coach_tracking_data) = 'array' THEN w.coach_tracking_data ELSE '[]'::jsonb END) AS e
-        WHERE coalesce(e ->> 'reps', '') ~ '[1-9]' OR coalesce(e ->> 'weight', '') ~ '[1-9]'
-      )
-      OR EXISTS (
-        SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(w.tracking_data) = 'array' THEN w.tracking_data ELSE '[]'::jsonb END) AS e
-        WHERE coalesce(e ->> 'reps', '') ~ '[1-9]' OR coalesce(e ->> 'weight', '') ~ '[1-9]'
-      )
-    )
-  GROUP BY w.user_id, w.date
-),
 detail AS (
   SELECT
     jr.debut, jr.user_id, jr.prenom, jr.jour,
     greatest(coalesce(ps.pas, 0), coalesce(pw.pas, 0)) AS pas,
     coalesce(v.seance, false) AS seance_validee,
-    (v.jour IS NOT NULL) AS jour_valide,
-    (pr.jour IS NOT NULL) AS prevu
+    (v.jour IS NOT NULL) AS jour_valide
   FROM jours jr
   LEFT JOIN pas_synchro ps ON ps.user_id = jr.user_id AND ps.jour = jr.jour
   LEFT JOIN pas_saisis pw ON pw.user_id = jr.user_id AND pw.jour = jr.jour
   LEFT JOIN validations v ON v.user_id = jr.user_id AND v.jour = jr.jour
-  LEFT JOIN prevus pr ON pr.user_id = jr.user_id AND pr.jour = jr.jour
 ),
 ilots AS (
   SELECT
     dt.debut, dt.user_id,
     dt.jour - (row_number() OVER (PARTITION BY dt.debut, dt.user_id ORDER BY dt.jour))::integer AS ilot
   FROM detail dt
-  WHERE dt.jour_valide OR dt.pas >= 8000 OR NOT dt.prevu
+  WHERE dt.jour_valide OR dt.pas >= 8000
 ),
 series AS (
   SELECT x.debut, x.user_id, max(x.longueur)::integer AS plus_longue

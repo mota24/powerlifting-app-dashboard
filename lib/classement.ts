@@ -24,8 +24,17 @@ export interface LigneClassement {
   streak: number
 }
 
+/** Une ligne renvoyée par classement_semaines : même barème, période plus courte. */
+export interface LigneSemaine extends Omit<LigneClassement, 'mois' | 'depuis' | 'objectif_semaines'> {
+  semaine: string
+  /** Séances à valider dans la semaine pour décrocher l'objectif (3). */
+  objectif_seances: number
+}
+
 export type LigneRangee = LigneClassement & { rang: number }
 export type MoisClasse = { mois: string; depuis: string; lignes: LigneRangee[] }
+
+export const MEDAILLES = ['🥇', '🥈', '🥉']
 
 /** Rang « olympique » : deux scores égaux partagent la même place. */
 export function ranger(lignes: LigneClassement[]): LigneRangee[] {
@@ -46,6 +55,21 @@ export function grouperParMois(lignes: LigneClassement[]): MoisClasse[] {
     .sort(([a], [b]) => (a < b ? 1 : -1))
     .map(([mois, groupe]) => ({ mois, depuis: groupe[0]?.depuis ?? mois, lignes: ranger(groupe) }))
 }
+
+/**
+ * La semaine s'affiche avec les mêmes cartes que le mois : on la ramène au
+ * format commun. « objectif 2/3 séances » pour la semaine, « 1/2 semaines
+ * réussies » pour le mois : la même paire de champs dit les deux.
+ */
+export function grouperParSemaine(lignes: LigneSemaine[]): MoisClasse[] {
+  return grouperParMois(lignes.map(({ semaine, objectif_seances, ...reste }) => ({
+    ...reste, mois: semaine, depuis: semaine, objectif_semaines: objectif_seances,
+  })))
+}
+
+/** Les premiers, une fois des points marqués : à zéro partout, il n'y a pas de vainqueur. */
+export const gagnants = (lignes: LigneRangee[]): LigneRangee[] =>
+  lignes.filter((ligne) => ligne.rang === 1 && ligne.points > 0)
 
 /**
  * Palmarès : un mois n'est compté que s'il a rapporté des points à quelqu'un,
@@ -72,9 +96,15 @@ export function joursRestants(mois: string, aujourdhui: Date): number {
   return Math.max(0, jours) + 1
 }
 
+/** Jours restants dans la semaine, aujourd'hui compris (1 = dimanche, dernier jour). */
+export const joursRestantsSemaine = (aujourdhui: Date) => 8 - ((aujourdhui.getDay() + 6) % 7 + 1)
+
 /** Dernier jour du mois : le classement se clôt ce soir-là. */
 export const estDernierJourDuMois = (date = new Date()) =>
   date.getDate() === new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
+
+/** Dimanche : la semaine se clôt ce soir-là, on en fait le récapitulatif. */
+export const estDimanche = (date = new Date()) => date.getDay() === 0
 
 /** Libellé du mois dans la langue du profil, première lettre en majuscule. */
 export function libelleMois(mois: string, locale: string): string {
