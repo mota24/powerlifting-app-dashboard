@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { joursProgrammes, nouvelleSerie, type LigneJour } from '../lib/serie'
 import { chargeSuivante, cleExercice, seriePrescrite, suggererProgression } from '../lib/progression'
-import { estCardio, exerciceVide, formatDateAffichage, creerExerciceVierge, minutesCardio, type ExerciceRow } from '../lib/seance'
+import { copierVersLesSuivantes, estCardio, exerciceVide, formatDateAffichage, creerExerciceVierge, minutesCardio, serieSuivante, type ExerciceRow } from '../lib/seance'
 import { setsTonnage } from '../lib/powerlifting'
 import { DEFAULT_WORK, buildSequence, clampConfig, formatDuree, normalizeWorkTimes } from '../lib/circuit'
 
@@ -82,6 +82,22 @@ test('un exercice sans rien saisi n est pas enregistre', () => {
   assert.equal(exerciceVide(exercice({ painLevel: 0 })), false)
   // Des espaces ne sont pas une saisie.
   assert.equal(exerciceVide(exercice({ name: '   ' })), true)
+})
+
+test('un 3x10 ne se saisit qu une fois', () => {
+  const plan = [serie('10', '60'), serie('', ''), serie('', '')]
+  assert.deepEqual(copierVersLesSuivantes(plan, 0), [serie('10', '60'), serie('10', '60'), serie('10', '60')])
+  // Copier depuis une ligne laisse les precedentes intactes.
+  const partiel = copierVersLesSuivantes([serie('5', '100'), serie('8', '80'), serie('', '')], 1)
+  assert.deepEqual(partiel[0], serie('5', '100'))
+  assert.deepEqual(partiel[2], serie('8', '80'))
+  assert.deepEqual(copierVersLesSuivantes([], 0), [])
+})
+
+test('la serie ajoutee au plan reprend la precedente quand elle est remplie', () => {
+  assert.deepEqual(serieSuivante([serie('10', '60', '8')]), serie('10', '60', '8'))
+  assert.deepEqual(serieSuivante([serie('', '')]), serie('', ''))
+  assert.deepEqual(serieSuivante([]), serie('', ''))
 })
 
 test('un exercice nomme cardio se note en duree, pas en series', () => {

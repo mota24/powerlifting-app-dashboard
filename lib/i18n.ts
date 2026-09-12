@@ -467,6 +467,8 @@ const fr = {
   cardioRameur: 'Rameur',
   cardioElliptique: 'Elliptique',
   cardioMarche: 'Marche',
+  repeter: 'Répéter',
+  repeterAide: 'Copier la 1re série sur les suivantes',
 } as const
 
 export type CleTraduction = keyof typeof fr
@@ -900,6 +902,8 @@ const es: Record<CleTraduction, string> = {
   cardioRameur: 'Remo',
   cardioElliptique: 'Elíptica',
   cardioMarche: 'Caminar',
+  repeter: 'Repetir',
+  repeterAide: 'Copiar la 1.ª serie en las siguientes',
 }
 
 const DICTIONNAIRES: Record<Langue, Record<CleTraduction, string>> = { fr, es }

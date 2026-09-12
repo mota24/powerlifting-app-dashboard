@@ -9,7 +9,7 @@ import { useLocale, useT, useTheme } from '@/app/ThemeContext'
 import type { CleTraduction } from '@/lib/i18n'
 import { bestE1RM, classifyLift, parseLocalDate, sessionTonnage, setsTonnage, suggestionsExercices, toLocalDateStr, type LiftCategory, type SetData, type UpcomingCompetition } from '@/lib/powerlifting'
 import { appliquerPoints, pointsGagnes } from '@/lib/xp'
-import { REST_NAMES, creerExerciceVierge, estCardio, exerciceVide, formatDateAffichage, videSet, type ExerciceRow, type UserProgress, type WorkoutSetRow } from '@/lib/seance'
+import { REST_NAMES, copierVersLesSuivantes, creerExerciceVierge, estCardio, exerciceVide, serieSuivante, formatDateAffichage, videSet, type ExerciceRow, type UserProgress, type WorkoutSetRow } from '@/lib/seance'
 import { joursProgrammes, nouvelleSerie, type LigneJour } from '@/lib/serie'
 import { cleExercice, seriePrescrite, suggererProgression, type SeanceExercice } from '@/lib/progression'
 import { proposerAnnulation } from '@/lib/annulation'
@@ -278,8 +278,9 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
       return newExercices;
     });
   }, [mode, t])
-  const ajouterSerie = useCallback((exIndex: number, list: 'coachTracking' | 'tracking') => { setExercices((prev) => prev.map((ex, i) => { if (i !== exIndex) return ex; if (list === 'coachTracking') return { ...ex, coachTracking: [...ex.coachTracking, videSet()], tracking: [...ex.tracking, videSet()] }; return { ...ex, tracking: [...ex.tracking, videSet()] } })) }, [])
+  const ajouterSerie = useCallback((exIndex: number, list: 'coachTracking' | 'tracking') => { setExercices((prev) => prev.map((ex, i) => { if (i !== exIndex) return ex; if (list === 'coachTracking') return { ...ex, coachTracking: [...ex.coachTracking, serieSuivante(ex.coachTracking)], tracking: [...ex.tracking, videSet()] }; return { ...ex, tracking: [...ex.tracking, videSet()] } })) }, [])
   const supprimerSerie = useCallback((exIndex: number, list: 'coachTracking' | 'tracking', setIndex: number) => { setExercices((prev) => prev.map((ex, i) => { if (i !== exIndex) return ex; if (list === 'coachTracking') { const coachTracking = ex.coachTracking.filter((_, j) => j !== setIndex); const tracking = ex.tracking.length > coachTracking.length ? ex.tracking.filter((_, j) => j !== setIndex) : ex.tracking; return { ...ex, coachTracking, tracking } } return { ...ex, tracking: ex.tracking.filter((_, j) => j !== setIndex) } })) }, [])
+  const repeterSerie = useCallback((exIndex: number, setIndex: number) => { setExercices((prev) => prev.map((ex, i) => (i === exIndex ? { ...ex, coachTracking: copierVersLesSuivantes(ex.coachTracking, setIndex) } : ex))) }, [])
   const copierCoach = useCallback((exIndex: number) => { setExercices((prev) => prev.map((ex, i) => { if (i !== exIndex) return ex; const tracking: SetData[] = ex.coachTracking.map((cSet, j) => ({ reps: cSet.reps, weight: cSet.weight, rpe: ex.tracking[j]?.rpe ?? '', })); if (ex.tracking.length > ex.coachTracking.length) { tracking.push(...ex.tracking.slice(ex.coachTracking.length)) } return { ...ex, tracking } })) }, [])
   const appliquerSuggestion = useCallback((exIndex: number, poids: number, ancien: number) => { setExercices((prev) => prev.map((ex, i) => i !== exIndex ? ex : { ...ex, coachTracking: ex.coachTracking.map((s) => (parseFloat(s.weight) === ancien || (s.weight.trim() === '' && s.reps.trim() !== '') ? { ...s, weight: String(poids) } : s)) })) }, [])
   const validerSerieCoach = useCallback((exIndex: number, setIndex: number) => { setExercices((prev) => prev.map((ex, i) => { if (i !== exIndex) return ex; const coach = ex.coachTracking[setIndex]; if (!coach) return ex; const tracking = ex.tracking.map((s, j) => j === setIndex ? { ...s, reps: coach.reps, weight: coach.weight } : s); return { ...ex, tracking } })); if (typeof navigator !== 'undefined') navigator.vibrate?.(50) }, [])
@@ -389,7 +390,7 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
         <datalist id={listId}>{suggestionsDuJour.map((nomExo) => <option key={nomExo} value={nomExo} />)}</datalist>
 
         {exercices.map((ex, exIndex) => (
-          <ExerciseCard key={ex.uid} ex={ex} exIndex={exIndex} isLast={exIndex === exercices.length - 1} listId={listId} onPatch={patchExercice} onUpdateSerie={updateSerie} onAjouterSerie={ajouterSerie} onSupprimerSerie={supprimerSerie} onDeplacer={deplacerExercice} onSupprimer={supprimerExercice} onCopierCoach={copierCoach} onValiderSerie={validerSerieCoach} suggestionPoids={suggestions[exIndex]?.poids ?? null} suggestionAncien={suggestions[exIndex]?.ancien ?? null} onAppliquerSuggestion={appliquerSuggestion} />
+          <ExerciseCard key={ex.uid} ex={ex} exIndex={exIndex} isLast={exIndex === exercices.length - 1} listId={listId} onPatch={patchExercice} onUpdateSerie={updateSerie} onAjouterSerie={ajouterSerie} onSupprimerSerie={supprimerSerie} onDeplacer={deplacerExercice} onSupprimer={supprimerExercice} onCopierCoach={copierCoach} onRepeterSerie={repeterSerie} onValiderSerie={validerSerieCoach} suggestionPoids={suggestions[exIndex]?.poids ?? null} suggestionAncien={suggestions[exIndex]?.ancien ?? null} onAppliquerSuggestion={appliquerSuggestion} />
         ))}
 
         <button onClick={ajouterExercice} className="w-full py-6 border border-border hover:border-ring hover:bg-card text-muted-foreground hover:text-foreground rounded-2xl flex items-center justify-center gap-2 transition-colors text-[10px] font-bold uppercase tracking-widest">

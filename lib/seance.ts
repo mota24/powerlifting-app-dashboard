@@ -26,6 +26,18 @@ export function minutesCardio(series: SetData[]): number {
   }, 0)
 }
 
+/** Copie une série sur toutes celles qui suivent : un 3×10 ne se tape qu'une fois. */
+export function copierVersLesSuivantes(series: SetData[], depuis: number): SetData[] {
+  const modele = series[depuis]
+  return modele ? series.map((s, i) => (i > depuis ? { ...modele } : s)) : series
+}
+
+/** Série ajoutée au plan : reprise de la dernière si elle est déjà remplie. */
+export function serieSuivante(series: SetData[]): SetData {
+  const derniere = series[series.length - 1]
+  return derniere && (valeurRemplie(derniere.reps) || valeurRemplie(derniere.weight)) ? { ...derniere } : videSet()
+}
+
 export const formatDateAffichage = (dateStr: string, locale: string) => parseLocalDate(dateStr).toLocaleDateString(locale)
 export const valeurRemplie = (v: unknown) => String(v ?? '').trim() !== ''
 // Rien de saisi (nom, séries, notes, douleur) : pas de ligne en base pour cet exercice.
