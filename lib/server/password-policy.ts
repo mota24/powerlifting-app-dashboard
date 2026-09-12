@@ -8,9 +8,6 @@ import { createHash } from 'node:crypto'
 //     caractères hexadécimaux du hash SHA-1 sont envoyés — jamais le mot
 //     de passe, ni même son hash complet.
 
-export const PASSWORD_RULES_HINT =
-  '12 caractères minimum, avec au moins une majuscule, une minuscule et un chiffre.'
-
 /** Renvoie la liste des règles non respectées (vide = mot de passe conforme). */
 export function validatePasswordStrength(password: string): string[] {
   const manques: string[] = []

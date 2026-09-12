@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Play, Pause, X, RotateCcw, Minus, Plus, Flag, Volume2, VolumeX } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useModale } from '@/lib/use-modale'
 import { useT } from '@/app/ThemeContext'
 import type { CleTraduction } from '@/lib/i18n'
 
@@ -266,11 +267,7 @@ export default function CircuitTimer({ onClose }: Props) {
     }
   }, [status])
 
-  useEffect(() => {
-    const previous = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => { document.body.style.overflow = previous }
-  }, [])
+  useModale()
 
   const demarrer = () => {
     try { contexteAudio() } catch { }

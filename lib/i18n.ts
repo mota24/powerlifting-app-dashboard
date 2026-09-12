@@ -18,7 +18,6 @@ const fr = {
   saisisIdentifiants: 'Saisis tes identifiants',
   identifiant: 'Identifiant',
   motDePasse: 'Mot de passe',
-  seConnecter: 'Se connecter',
   chargement: 'Chargement...',
 
   // — Navigation
@@ -115,7 +114,6 @@ const fr = {
   scannerRecherche: 'Recherche du produit…',
   cameraRefusee: 'Accès à la caméra refusé : autorise-le dans les réglages, ou saisis le code.',
   cameraIndisponible: 'Caméra indisponible : saisis le code à la main.',
-  produitIntrouvable: 'Produit {code} introuvable : cherche-le par son nom ou saisis-le à la main.',
   serviceIndisponible: 'Service indisponible, réessaie dans un instant.',
   reessayer: 'Réessayer',
   codeBarres: 'Code-barres',
@@ -152,7 +150,6 @@ const fr = {
   poidsInvalide: 'Veuillez entrer un poids valide',
   erreurSauvegarde: 'Erreur lors de la sauvegarde',
   aucunHistoriquePoids: 'Aucun historique de poids. Saisis ton premier poids !',
-  erreurAuth: 'Erreur auth, introuvable',
 
   // — Analytique
   progressionLifts: 'Progression des lifts',
@@ -190,9 +187,6 @@ const fr = {
   chargementMajuscule: 'CHARGEMENT...',
   aucuneSeance: 'AUCUNE SÉANCE ENREGISTRÉE.',
   supprimerBloc: 'SUPPRIMER CE BLOC DÉFINITIVEMENT ?',
-  erreurDeuxPoints: 'Erreur :',
-  erreurExport: "Erreur d'export :",
-  erreurSauvegardeDeuxPoints: 'Erreur de sauvegarde :',
   securiseA: 'SÉCURISÉ À {heure}',
   // Fenêtre de changement de mot de passe
   mdpTitre: 'Sécurité',
@@ -404,7 +398,6 @@ const es: Record<CleTraduction, string> = {
   saisisIdentifiants: 'Introduce tus credenciales',
   identifiant: 'Usuario',
   motDePasse: 'Contraseña',
-  seConnecter: 'Iniciar sesión',
   chargement: 'Cargando...',
 
   accueil: 'Inicio',
@@ -495,7 +488,6 @@ const es: Record<CleTraduction, string> = {
   scannerRecherche: 'Buscando el producto…',
   cameraRefusee: 'Acceso a la cámara denegado: autorízalo en los ajustes o escribe el código.',
   cameraIndisponible: 'Cámara no disponible: escribe el código a mano.',
-  produitIntrouvable: 'Producto {code} no encontrado: búscalo por su nombre o introdúcelo a mano.',
   serviceIndisponible: 'Servicio no disponible, vuelve a intentarlo en un momento.',
   reessayer: 'Reintentar',
   codeBarres: 'Código de barras',
@@ -531,7 +523,6 @@ const es: Record<CleTraduction, string> = {
   poidsInvalide: 'Introduce un peso válido',
   erreurSauvegarde: 'Error al guardar',
   aucunHistoriquePoids: 'Todavía no hay historial. ¡Introduce tu primer peso!',
-  erreurAuth: 'Error de autenticación',
 
   progressionLifts: 'Progresión de los levantamientos',
   progressionCharges: 'Progresión de las cargas',
@@ -566,9 +557,6 @@ const es: Record<CleTraduction, string> = {
   chargementMajuscule: 'CARGANDO...',
   aucuneSeance: 'NINGUNA SESIÓN REGISTRADA.',
   supprimerBloc: '¿BORRAR ESTE BLOQUE DEFINITIVAMENTE?',
-  erreurDeuxPoints: 'Error:',
-  erreurExport: 'Error de exportación:',
-  erreurSauvegardeDeuxPoints: 'Error al guardar:',
   securiseA: 'GUARDADO A LAS {heure}',
   mdpTitre: 'Seguridad',
   mdpActuel: 'Actual',

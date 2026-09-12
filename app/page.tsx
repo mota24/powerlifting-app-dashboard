@@ -309,8 +309,8 @@ export default function Page() {
             <div className="p-4 bg-secondary text-foreground rounded-full mb-4 ring-1 ring-border">
               <Lock className="size-8" />
             </div>
-            <h1 className="text-2xl font-black text-foreground">Accès Réservé</h1>
-            <p className="text-sm text-muted-foreground mt-1">Saisis tes identifiants</p>
+            <h1 className="text-2xl font-black text-foreground">{t('accesReserve')}</h1>
+            <p className="text-sm text-muted-foreground mt-1">{t('saisisIdentifiants')}</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-5">
@@ -322,7 +322,7 @@ export default function Page() {
 
             <div className="space-y-2">
               <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-                <User className="size-3" /> Identifiant
+                <User className="size-3" /> {t('identifiant')}
               </label>
               <input
                 type="text"
@@ -336,7 +336,7 @@ export default function Page() {
 
             <div className="space-y-2">
               <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-                <Lock className="size-3" /> Mot de passe
+                <Lock className="size-3" /> {t('motDePasse')}
               </label>
               <input
                 type="password"

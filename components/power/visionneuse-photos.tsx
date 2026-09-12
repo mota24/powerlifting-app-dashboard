@@ -5,6 +5,7 @@ import { CalendarDays, ChevronLeft, ChevronRight, Download, RefreshCw, Trash2, X
 import { cn } from '@/lib/utils'
 import type { Traducteur } from '@/lib/i18n'
 import { joursAvantSuppression, libelleDate, type PhotoSeance } from '@/lib/photos'
+import { useModale } from '@/lib/use-modale'
 
 /**
  * Photo en plein écran : glisser ou flèches pour passer à la voisine, Échap
@@ -42,11 +43,7 @@ export function VisionneusePhotos({ photos, idOuvert, onChanger, onFermer, onSup
     return () => document.removeEventListener('keydown', surTouche)
   }, [index, photos, onChanger, onFermer])
 
-  useEffect(() => {
-    const precedent = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => { document.body.style.overflow = precedent }
-  }, [])
+  useModale()
 
   if (!photo) return null
   // Majuscule sur la première lettre seulement : la classe CSS capitalize

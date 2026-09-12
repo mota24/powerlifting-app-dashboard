@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useModale } from '@/lib/use-modale'
 import { ArrowLeftRight, Columns2, Images, RefreshCw, X } from 'lucide-react'
 import { useLocale, useT } from '@/app/ThemeContext'
 import { PastilleExpiration, VisionneusePhotos } from '@/components/power/visionneuse-photos'
@@ -232,18 +233,7 @@ function Comparaison({ a, b, t, locale, onFermer, onErreurLien }: {
   const [position, setPosition] = useState(50)
   const zone = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    const surTouche = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onFermer()
-    }
-    document.addEventListener('keydown', surTouche)
-    const precedent = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.removeEventListener('keydown', surTouche)
-      document.body.style.overflow = precedent
-    }
-  }, [onFermer])
+  useModale(onFermer)
 
   const deplacer = (clientX: number) => {
     const cadre = zone.current?.getBoundingClientRect()
