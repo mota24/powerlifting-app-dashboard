@@ -161,7 +161,9 @@ export default function Page() {
       .then(async (res) => (res.ok ? ((await res.json()) as { user: AuthUser | null }).user : null))
       .catch(() => null)
       .then((user) => {
-        if (!user) purgerRecordsLocaux()
+        // Aucune purge ici : une session expirée, une coupure réseau ou une
+        // limite de débit renvoient null, et les records saisis à la main
+        // étaient effacés au passage. Ils ne partent qu'à la déconnexion.
         setSession(user)
         setLoadingAuth(false)
       })

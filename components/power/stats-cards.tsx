@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { calculateIPFGL, classifyLift, setE1RM, toLocalDateStr, CATEGORIES_PAR_MODE, type ModeApp, type SetData } from '@/lib/powerlifting'
 import { Trophy, Edit2, Check, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { toast } from '@/components/power/toaster'
 import { useTheme, useT } from '@/app/ThemeContext'
 
 type Records = { squat: number; bench: number; deadlift: number }
@@ -25,6 +26,15 @@ function lireRecords(mode: ModeApp): Records {
   }
 }
 
+/** Copie locale : elle sert d'affichage immédiat et de secours hors ligne. */
+function ecrireCache(mode: ModeApp, records: Records) {
+  try { localStorage.setItem(clePrs(mode), JSON.stringify(records)) } catch { }
+}
+
+const vides = (r: Records) => r.squat === 0 && r.bench === 0 && r.deadlift === 0
+const enregistrerRecords = (records: Records) =>
+  supabase.from('records_perso').upsert({ ...records, modifie_le: new Date().toISOString() }, { onConflict: 'user_id' })
+
 export function StatsCards() {
   const { mode } = useTheme()
   // Remonté à chaque changement de mode : les records locaux sont relus pour le bon compte.
@@ -41,6 +51,27 @@ function StatsCardsMode({ mode }: { mode: ModeApp }) {
   const [tempPrs, setTempPrs] = useState(realPrs)
   const [theoPrs, setTheoPrs] = useState(RECORDS_VIDES)
   const [bodyweight, setBodyweight] = useState<number | null>(null)
+
+  // Les records vivaient seulement dans ce navigateur : un stockage vidé et ils
+  // étaient à ressaisir. Ils sont désormais gardés dans la base, par compte.
+  useEffect(() => {
+    let cancelled = false
+    supabase.from('records_perso').select('squat, bench, deadlift').maybeSingle().then(({ data, error }) => {
+      // Table absente (migration pas encore lancée) ou hors ligne : la copie locale fait foi.
+      if (cancelled || error) return
+      if (data) {
+        const enregistres = { squat: Number(data.squat) || 0, bench: Number(data.bench) || 0, deadlift: Number(data.deadlift) || 0 }
+        setRealPrs(enregistres)
+        ecrireCache(mode, enregistres)
+        return
+      }
+      // Rien en base : on y remonte ce qui a déjà été saisi sur cet appareil.
+      // Le .then() est indispensable : une requête Supabase ne part qu'une fois attendue.
+      const locaux = lireRecords(mode)
+      if (!vides(locaux)) enregistrerRecords(locaux).then(() => { })
+    })
+    return () => { cancelled = true }
+  }, [mode])
 
   useEffect(() => {
     let cancelled = false
@@ -76,10 +107,13 @@ function StatsCardsMode({ mode }: { mode: ModeApp }) {
     setIsEditing(true)
   }
 
-  const handleSaveRealPrs = () => {
+  const handleSaveRealPrs = async () => {
     setRealPrs(tempPrs)
-    try { localStorage.setItem(clePrs(mode), JSON.stringify(tempPrs)) } catch { }
+    ecrireCache(mode, tempPrs)
     setIsEditing(false)
+    const { error } = await enregistrerRecords(tempPrs)
+    // PGRST205 : la table n'existe pas encore, la copie locale suffit.
+    if (error && error.code !== 'PGRST205') toast(t('erreurSauvegarde'), 'error')
   }
 
   const totalReel = realPrs.squat + realPrs.bench + realPrs.deadlift
