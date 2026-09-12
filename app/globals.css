@@ -252,3 +252,15 @@
     @apply font-sans;
   }
 }
+
+/* iOS Safari zoome toute la page quand on tape dans un champ dont le texte
+   fait moins de 16 px, et ne dézoome jamais ensuite : il faut pincer pour
+   revenir. On impose donc 16 px aux champs sur les appareils tactiles ;
+   l'affichage sur ordinateur ne bouge pas. */
+@media (pointer: coarse) {
+  input:not([type='range']),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}

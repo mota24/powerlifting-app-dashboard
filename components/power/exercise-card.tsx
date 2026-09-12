@@ -51,9 +51,9 @@ export const ExerciseCard = memo(function ExerciseCard({ ex, exIndex, isLast, li
             {ex.coachTracking.map((set, setIndex) => (
               <div key={setIndex} className={cn('grid gap-2 items-center', avecRpe ? 'grid-cols-[auto_1fr_1fr_1fr_auto]' : 'grid-cols-[auto_1fr_1fr_auto]')}>
                 <span className="w-6 text-[10px] font-bold text-muted-foreground text-center uppercase tracking-widest">S{setIndex + 1}</span>
-                <input type="text" value={set.reps} onChange={(e) => onUpdateSerie(exIndex, 'coachTracking', setIndex, 'reps', e.target.value)} className="w-full p-3 bg-secondary rounded-lg text-foreground text-sm font-black text-center outline-none focus:bg-accent tabular-nums" />
-                <input type="text" value={set.weight} onChange={(e) => onUpdateSerie(exIndex, 'coachTracking', setIndex, 'weight', e.target.value)} className="w-full p-3 bg-secondary rounded-lg text-foreground text-sm font-black text-center outline-none focus:bg-accent tabular-nums" />
-                {avecRpe && <input type="text" value={set.rpe} onChange={(e) => onUpdateSerie(exIndex, 'coachTracking', setIndex, 'rpe', e.target.value)} className="w-full p-3 bg-secondary rounded-lg text-foreground text-sm font-black text-center outline-none focus:bg-accent tabular-nums" />}
+                <input type="text" value={set.reps} onChange={(e) => onUpdateSerie(exIndex, 'coachTracking', setIndex, 'reps', e.target.value)} className="w-full px-2 py-3 sm:p-3 bg-secondary rounded-lg text-foreground text-sm font-black text-center outline-none focus:bg-accent tabular-nums" />
+                <input type="text" value={set.weight} onChange={(e) => onUpdateSerie(exIndex, 'coachTracking', setIndex, 'weight', e.target.value)} className="w-full px-2 py-3 sm:p-3 bg-secondary rounded-lg text-foreground text-sm font-black text-center outline-none focus:bg-accent tabular-nums" />
+                {avecRpe && <input type="text" value={set.rpe} onChange={(e) => onUpdateSerie(exIndex, 'coachTracking', setIndex, 'rpe', e.target.value)} className="w-full px-2 py-3 sm:p-3 bg-secondary rounded-lg text-foreground text-sm font-black text-center outline-none focus:bg-accent tabular-nums" />}
                 <button onClick={() => onSupprimerSerie(exIndex, 'coachTracking', setIndex)} className="h-11 w-9 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"><X className="size-4" /></button>
               </div>
             ))}
@@ -75,9 +75,9 @@ export const ExerciseCard = memo(function ExerciseCard({ ex, exIndex, isLast, li
               return (
                 <div key={setIndex} className={cn('grid gap-1.5 items-center', avecRpe ? 'grid-cols-[auto_1fr_1fr_1fr_auto_auto]' : 'grid-cols-[auto_1fr_1fr_auto_auto]')}>
                   <span className="w-5 text-[10px] font-bold text-muted-foreground text-center uppercase tracking-widest">S{setIndex + 1}</span>
-                  <input type="text" inputMode="decimal" enterKeyHint="next" value={set.reps} onChange={(e) => onUpdateSerie(exIndex, 'tracking', setIndex, 'reps', e.target.value)} className="w-full p-3 bg-secondary rounded-lg text-foreground text-sm font-black text-center outline-none focus:bg-accent tabular-nums focus:ring-1 focus:ring-ring" />
-                  <input type="text" inputMode="decimal" enterKeyHint="next" value={set.weight} onChange={(e) => onUpdateSerie(exIndex, 'tracking', setIndex, 'weight', e.target.value)} className="w-full p-3 bg-secondary rounded-lg text-foreground text-sm font-black text-center outline-none focus:bg-accent tabular-nums focus:ring-1 focus:ring-ring" />
-                  {avecRpe && <input type="text" inputMode="decimal" enterKeyHint="done" value={set.rpe} onChange={(e) => onUpdateSerie(exIndex, 'tracking', setIndex, 'rpe', e.target.value)} className="w-full p-3 bg-secondary rounded-lg text-foreground text-sm font-black text-center outline-none focus:bg-accent tabular-nums focus:ring-1 focus:ring-ring" />}
+                  <input type="text" inputMode="decimal" enterKeyHint="next" value={set.reps} onChange={(e) => onUpdateSerie(exIndex, 'tracking', setIndex, 'reps', e.target.value)} className="w-full px-2 py-3 sm:p-3 bg-secondary rounded-lg text-foreground text-sm font-black text-center outline-none focus:bg-accent tabular-nums focus:ring-1 focus:ring-ring" />
+                  <input type="text" inputMode="decimal" enterKeyHint="next" value={set.weight} onChange={(e) => onUpdateSerie(exIndex, 'tracking', setIndex, 'weight', e.target.value)} className="w-full px-2 py-3 sm:p-3 bg-secondary rounded-lg text-foreground text-sm font-black text-center outline-none focus:bg-accent tabular-nums focus:ring-1 focus:ring-ring" />
+                  {avecRpe && <input type="text" inputMode="decimal" enterKeyHint="done" value={set.rpe} onChange={(e) => onUpdateSerie(exIndex, 'tracking', setIndex, 'rpe', e.target.value)} className="w-full px-2 py-3 sm:p-3 bg-secondary rounded-lg text-foreground text-sm font-black text-center outline-none focus:bg-accent tabular-nums focus:ring-1 focus:ring-ring" />}
                   <button onClick={() => onValiderSerie(exIndex, setIndex)} disabled={!coachRemplie} className={cn('h-11 w-9 flex items-center justify-center rounded-lg transition-colors disabled:opacity-20', serieFaite ? 'bg-primary text-primary-foreground' : 'bg-secondary text-muted-foreground hover:text-foreground')}><Check className="size-4" /></button>
                   <button onClick={() => onSupprimerSerie(exIndex, 'tracking', setIndex)} className="h-11 w-9 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"><X className="size-4" /></button>
                 </div>
@@ -156,7 +156,7 @@ function BlocCardio({ ex, exIndex, onUpdateSerie, onAjouterSerie, onSupprimerSer
                 value={ligne.reps}
                 onChange={(e) => onUpdateSerie(exIndex, 'tracking', setIndex, 'reps', e.target.value)}
                 aria-label={t('minutesCourt')}
-                className="w-full min-w-0 p-3 bg-transparent rounded-lg text-foreground text-sm font-black text-right tabular-nums outline-none"
+                className="w-full min-w-0 px-2 py-3 sm:p-3 bg-transparent rounded-lg text-foreground text-sm font-black text-right tabular-nums outline-none"
               />
               <span className="shrink-0 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t('minutesCourt')}</span>
             </div>
