@@ -26,7 +26,7 @@ export function PlateVisualizer() {
   }
 
   return (
-    <div className="p-6 sm:p-8 bg-zinc-950 border border-zinc-900 rounded-2xl">
+    <div className="min-w-0 p-6 sm:p-8 bg-zinc-950 border border-zinc-900 rounded-2xl">
       <div className="flex items-center gap-3 mb-8">
         <Dumbbell className="size-5 text-white" />
         <div>
@@ -36,11 +36,14 @@ export function PlateVisualizer() {
       </div>
 
       <div className="mb-8 flex items-end gap-4">
-        <label className="flex-1">
+        {/* min-w-0 : un <input type="number"> a une largeur naturelle d'une
+            vingtaine de caractères qu'il ne réduit pas tout seul. Sans ça, la
+            carte débordait de l'écran sur téléphone. */}
+        <label className="min-w-0 flex-1">
           <span className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-zinc-500">{t('poidsCible')}</span>
           <input type="number" step={2.5} inputMode="decimal" value={targetText} onChange={handleTargetChange} className="w-full rounded-xl bg-zinc-900 px-4 py-4 font-black text-2xl text-white outline-none focus:ring-2 focus:ring-zinc-700 tabular-nums transition-all" />
         </label>
-        <div className="text-right pb-3">
+        <div className="shrink-0 text-right pb-3">
           <span className="block text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1">{t('parCote')}</span>
           <span className="font-black text-3xl tabular-nums text-white">{perSide > 0 ? perSide : 0}</span>
         </div>
