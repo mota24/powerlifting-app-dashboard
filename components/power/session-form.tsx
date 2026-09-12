@@ -378,7 +378,7 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
         <div className="flex flex-col sm:flex-row gap-3 p-2 bg-card border border-border rounded-2xl">
           <div className="flex-1 flex items-center gap-3 bg-secondary px-4 py-3 rounded-xl">
             <Sparkles className="size-4 text-foreground shrink-0" />
-            <input type="text" maxLength={1000} placeholder={t('exempleIA')} value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handleAIGeneration() }} className="w-full bg-transparent text-foreground outline-none placeholder:text-muted-foreground text-[10px] uppercase font-bold tracking-widest" disabled={isGenerating} />
+            <input type="text" maxLength={1000} placeholder={t('exempleIA')} value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handleAIGeneration() }} className="w-full bg-transparent text-foreground outline-none placeholder:text-muted-foreground text-sm font-bold" disabled={isGenerating} />
           </div>
           <button onClick={handleAIGeneration} disabled={isGenerating || !aiPrompt.trim()} className="px-8 py-3 bg-primary hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed text-primary-foreground text-[10px] uppercase tracking-widest font-black rounded-xl transition-colors">
             {isGenerating ? <RefreshCw className="size-4 animate-spin" /> : t('generer')}

@@ -219,7 +219,7 @@ export default function ConfigPanel() {
                 value={block.name || ''} 
                 onChange={(e) => updateBlock(block.id, 'name', e.target.value)}
                 placeholder={t('exempleNomBloc')}
-                className="bg-black border border-zinc-800 rounded-xl p-3 text-xs font-bold text-white uppercase tracking-widest outline-none focus:border-white w-full xl:w-48 transition-colors"
+                className="bg-black border border-zinc-800 rounded-xl p-3 text-sm font-bold text-white outline-none focus:border-white w-full xl:w-48 transition-colors"
               />
               <datalist id="block-names">
                 <option value="RÉÉDUCATION" />
@@ -236,7 +236,7 @@ export default function ConfigPanel() {
                 type="date" 
                 value={block.start_date} 
                 onChange={(e) => updateBlock(block.id, 'start_date', e.target.value)}
-                className="bg-black border border-zinc-800 rounded-xl p-3 text-xs font-bold text-white uppercase tracking-widest outline-none focus:border-white w-full xl:w-40 transition-colors"
+                className="bg-black border border-zinc-800 rounded-xl p-3 text-sm font-bold text-white outline-none focus:border-white w-full xl:w-40 transition-colors"
               />
             </div>
 

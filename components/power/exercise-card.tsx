@@ -21,7 +21,7 @@ export const ExerciseCard = memo(function ExerciseCard({ ex, exIndex, isLast, li
     <div className="p-4 sm:p-6 rounded-2xl border border-border bg-card space-y-6">
       <div className="flex items-center gap-1.5 sm:gap-3 w-full max-w-full">
         <div className="shrink-0 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-lg font-black tabular-nums">{exIndex + 1}</div>
-        <input list={listId} placeholder={t('nomDuMouvement')} className="flex-1 min-w-0 p-3 bg-input border border-border rounded-xl text-foreground text-sm font-black uppercase tracking-widest outline-none focus:border-ring focus:ring-1 focus:ring-ring placeholder:text-muted-foreground transition-colors truncate" value={ex.name} onChange={(e) => onPatch(exIndex, { name: e.target.value })} />
+        <input list={listId} placeholder={t('nomDuMouvement')} className="flex-1 min-w-0 p-3 bg-input border border-border rounded-xl text-foreground text-sm font-black uppercase outline-none focus:border-ring focus:ring-1 focus:ring-ring placeholder:text-muted-foreground transition-colors truncate" value={ex.name} onChange={(e) => onPatch(exIndex, { name: e.target.value })} />
 
         <div className="shrink-0 flex items-center bg-secondary border border-border rounded-xl">
           <button onClick={() => onDeplacer(exIndex, 'up')} disabled={exIndex === 0} className="p-3 text-muted-foreground hover:text-foreground disabled:opacity-20 transition-colors border-r border-border"><ChevronUp className="size-4" /></button>
@@ -104,7 +104,7 @@ export const ExerciseCard = memo(function ExerciseCard({ ex, exIndex, isLast, li
 
       <div className="pt-2 border-t border-border">
         <span className="block text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2 ml-1">{t('notesEtTempo')}</span>
-        <input placeholder={t('exempleTempo')} value={ex.comments} onChange={(e) => onPatch(exIndex, { comments: e.target.value })} className="w-full p-4 bg-secondary border border-border rounded-xl text-xs font-bold uppercase tracking-widest text-foreground outline-none focus:ring-1 focus:ring-ring focus:border-ring placeholder:text-muted-foreground" />
+        <input placeholder={t('exempleTempo')} value={ex.comments} onChange={(e) => onPatch(exIndex, { comments: e.target.value })} className="w-full p-4 bg-secondary border border-border rounded-xl text-sm font-bold text-foreground outline-none focus:ring-1 focus:ring-ring focus:border-ring placeholder:text-muted-foreground" />
       </div>
 
       <div className="flex flex-wrap items-center gap-2 pt-1">
