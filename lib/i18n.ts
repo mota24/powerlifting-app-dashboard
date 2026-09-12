@@ -451,6 +451,22 @@ const fr = {
   ajouterAuPalmares: 'Ajouter au palmarès',
   connexionImpossible: 'Connexion au serveur impossible',
   verifieConnexion: 'Vérifie ta connexion, puis réessaie. Tes données sont intactes.',
+
+  // — Séance : validation et cardio
+  seanceTerminee: 'Séance terminée',
+  reposValide: 'Repos validé',
+  cardioFait: 'Cardio réalisé',
+  typeCardio: 'Tapis, escaliers, vélo…',
+  minutesCourt: 'min',
+  ajouterCardio: 'Ajouter un cardio',
+  totalMinutes: '{n} min au total',
+  cardioTapis: 'Tapis de course',
+  cardioEscaliers: 'Escaliers',
+  cardioCourse: 'Course dehors',
+  cardioVelo: 'Vélo',
+  cardioRameur: 'Rameur',
+  cardioElliptique: 'Elliptique',
+  cardioMarche: 'Marche',
 } as const
 
 export type CleTraduction = keyof typeof fr
@@ -869,6 +885,21 @@ const es: Record<CleTraduction, string> = {
   ajouterAuPalmares: 'Añadir al palmarés',
   connexionImpossible: 'No se puede conectar con el servidor',
   verifieConnexion: 'Comprueba tu conexión e inténtalo de nuevo. Tus datos están intactos.',
+
+  seanceTerminee: 'Sesión terminada',
+  reposValide: 'Descanso validado',
+  cardioFait: 'Cardio realizado',
+  typeCardio: 'Cinta, escaleras, bici…',
+  minutesCourt: 'min',
+  ajouterCardio: 'Añadir un cardio',
+  totalMinutes: '{n} min en total',
+  cardioTapis: 'Cinta de correr',
+  cardioEscaliers: 'Escaleras',
+  cardioCourse: 'Correr fuera',
+  cardioVelo: 'Bicicleta',
+  cardioRameur: 'Remo',
+  cardioElliptique: 'Elíptica',
+  cardioMarche: 'Caminar',
 }
 
 const DICTIONNAIRES: Record<Langue, Record<CleTraduction, string>> = { fr, es }

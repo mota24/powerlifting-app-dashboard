@@ -184,7 +184,7 @@ export function bestE1RM(sets: SetData[] | null | undefined): number {
 export const LIFT_SQUAT = ['Back Squat', 'Paused Squat', 'Front Squat', 'Tempo Squat', 'Pin Squat']
 export const LIFT_BENCH = ['Bench Press', 'Paused Bench', 'Close Grip Bench', 'Incline Bench', 'Spoto Press', 'Larsen Press']
 export const LIFT_DEADLIFT = ['Deadlift', 'Sumo Deadlift', 'Deficit Deadlift', 'Paused Deadlift', 'RDL', 'Block Pulls']
-export const ACCESSORIES = ['Pull-ups', 'Barbell Row', 'Lat Pulldown', 'Leg Press', 'Bulgarian Split Squat', 'Leg Extensions', 'Leg Curls', 'Bicep Curls', 'Tricep Extensions', 'Gainage (Planche)', 'Ab Rollout']
+export const ACCESSORIES = ['Cardio', 'Pull-ups', 'Barbell Row', 'Lat Pulldown', 'Leg Press', 'Bulgarian Split Squat', 'Leg Extensions', 'Leg Curls', 'Bicep Curls', 'Tricep Extensions', 'Gainage (Planche)', 'Ab Rollout']
 
 // ————————————————————————————————————————————————
 // Catalogue FITNESS (salle, sans compétition) — compte en mode 'fitness'.
@@ -196,7 +196,7 @@ export const ACCESSORIES = ['Pull-ups', 'Barbell Row', 'Lat Pulldown', 'Leg Pres
 export const FIT_JAMBES = ['Squat', 'Hip Thrust', 'Peso muerto rumano', 'Prensa de piernas', 'Extensión de cuádriceps', 'Curl femoral', 'Zancadas con mancuernas', 'Sentadilla búlgara', 'Abductores en máquina', 'Aductores en máquina', 'Gemelos de pie', 'Subidas al banco', 'Patada de glúteo en polea']
 export const FIT_POUSSEE = ['Press de banca con mancuernas', 'Press de pecho en máquina', 'Press inclinado con mancuernas', 'Aperturas en polea', 'Contractora (Pec Deck)', 'Press de hombros en máquina', 'Elevaciones laterales', 'Extensión de tríceps en polea', 'Fondos asistidos']
 export const FIT_TIRAGE = ['Jalón al pecho', 'Remo en máquina', 'Remo bajo en polea', 'Remo con mancuerna', 'Face Pull', 'Curl de bíceps con mancuernas', 'Curl Scott', 'Dominadas asistidas']
-export const FIT_ACCESSOIRES = ['Plancha', 'Crunch en polea', 'Elevación de piernas', 'Abdominales en máquina', 'Russian Twist', 'Bicicleta', 'Cinta de correr', 'Remo (ergómetro)', 'Elíptica', 'Estiramientos', 'Movilidad de cadera']
+export const FIT_ACCESSOIRES = ['Cardio', 'Plancha', 'Crunch en polea', 'Elevación de piernas', 'Abdominales en máquina', 'Russian Twist', 'Bicicleta', 'Cinta de correr', 'Remo (ergómetro)', 'Elíptica', 'Estiramientos', 'Movilidad de cadera']
 
 export type LiftCategory = 'squat' | 'bench' | 'deadlift'
 export type ModeApp = 'powerlifting' | 'fitness'

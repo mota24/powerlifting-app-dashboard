@@ -1,11 +1,11 @@
 'use client'
 
 import { memo } from 'react'
-import { Check, ChevronDown, ChevronUp, Trash2, TrendingUp, X } from 'lucide-react'
+import { Check, ChevronDown, ChevronUp, Plus, Timer, Trash2, TrendingUp, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useLocale, useT, useTheme } from '@/app/ThemeContext'
 import { PAIN_LEVELS, bestE1RM, classifyLift, type SetData } from '@/lib/powerlifting'
-import type { ExerciceRow } from '@/lib/seance'
+import { CARDIOS, estCardio, minutesCardio, type ExerciceRow } from '@/lib/seance'
 
 interface ExerciseCardProps { ex: ExerciceRow; exIndex: number; isLast: boolean; listId: string; onPatch: (index: number, patch: Partial<ExerciceRow>) => void; onUpdateSerie: (exIndex: number, list: 'coachTracking' | 'tracking', setIndex: number, champ: keyof SetData, valeur: string) => void; onAjouterSerie: (exIndex: number, list: 'coachTracking' | 'tracking') => void; onSupprimerSerie: (exIndex: number, list: 'coachTracking' | 'tracking', setIndex: number) => void; onDeplacer: (index: number, direction: 'up' | 'down') => void; onSupprimer: (index: number, ex: ExerciceRow) => void; onCopierCoach: (exIndex: number) => void; onValiderSerie: (exIndex: number, setIndex: number) => void; suggestionPoids: number | null; suggestionAncien: number | null; onAppliquerSuggestion: (exIndex: number, poids: number, ancien: number) => void; }
 
@@ -38,6 +38,9 @@ export const ExerciseCard = memo(function ExerciseCard({ ex, exIndex, isLast, li
         </div>
       )}
 
+      {estCardio(ex.name) ? (
+        <BlocCardio ex={ex} exIndex={exIndex} onUpdateSerie={onUpdateSerie} onAjouterSerie={onAjouterSerie} onSupprimerSerie={onSupprimerSerie} />
+      ) : (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="p-4 rounded-xl border border-border bg-background flex flex-col h-full">
           <h3 className="text-[10px] font-bold text-muted-foreground mb-4 uppercase tracking-widest">{t('prescription')}</h3>
@@ -87,6 +90,7 @@ export const ExerciseCard = memo(function ExerciseCard({ ex, exIndex, isLast, li
           </div>
         </div>
       </div>
+      )}
 
       <div className="pt-2 border-t border-border">
         <span className="block text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2 ml-1">{t('notesEtTempo')}</span>
@@ -104,3 +108,68 @@ export const ExerciseCard = memo(function ExerciseCard({ ex, exIndex, isLast, li
     </div>
   )
 })
+
+/** Saisie d'un cardio : quel appareil, combien de minutes. Une ligne par bloc. */
+function BlocCardio({ ex, exIndex, onUpdateSerie, onAjouterSerie, onSupprimerSerie }: {
+  ex: ExerciceRow
+  exIndex: number
+  onUpdateSerie: (exIndex: number, list: 'coachTracking' | 'tracking', setIndex: number, champ: keyof SetData, valeur: string) => void
+  onAjouterSerie: (exIndex: number, list: 'coachTracking' | 'tracking') => void
+  onSupprimerSerie: (exIndex: number, list: 'coachTracking' | 'tracking', setIndex: number) => void
+}) {
+  const t = useT()
+  const locale = useLocale()
+  const total = minutesCardio(ex.tracking)
+  const listeCardios = `cardios-${exIndex}`
+
+  return (
+    <div className="p-4 rounded-xl border border-border bg-background space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="flex items-center gap-2 text-[10px] font-bold text-foreground uppercase tracking-widest">
+          <Timer className="size-4" /> {t('cardioFait')}
+        </h3>
+        {total > 0 && (
+          <span className="text-[10px] font-black text-foreground tabular-nums tracking-widest">
+            {t('totalMinutes', { n: total.toLocaleString(locale) })}
+          </span>
+        )}
+      </div>
+
+      <datalist id={listeCardios}>{CARDIOS.map((cle) => <option key={cle} value={t(cle)} />)}</datalist>
+
+      <div className="space-y-2">
+        {ex.tracking.map((ligne, setIndex) => (
+          <div key={setIndex} className="grid grid-cols-[1fr_5.5rem_auto] items-center gap-2">
+            <input
+              list={listeCardios}
+              value={ligne.weight}
+              onChange={(e) => onUpdateSerie(exIndex, 'tracking', setIndex, 'weight', e.target.value)}
+              placeholder={t('typeCardio')}
+              aria-label={t('cardioFait')}
+              className="min-w-0 p-3 bg-secondary rounded-lg text-foreground text-sm font-bold outline-none focus:bg-accent focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
+            />
+            <div className="flex items-center gap-1 rounded-lg bg-secondary pr-2">
+              <input
+                type="text"
+                inputMode="numeric"
+                enterKeyHint="done"
+                value={ligne.reps}
+                onChange={(e) => onUpdateSerie(exIndex, 'tracking', setIndex, 'reps', e.target.value)}
+                aria-label={t('minutesCourt')}
+                className="w-full min-w-0 p-3 bg-transparent rounded-lg text-foreground text-sm font-black text-right tabular-nums outline-none"
+              />
+              <span className="shrink-0 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t('minutesCourt')}</span>
+            </div>
+            <button onClick={() => onSupprimerSerie(exIndex, 'tracking', setIndex)} aria-label={t('supprimer')} className="h-11 w-9 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors">
+              <X className="size-4" />
+            </button>
+          </div>
+        ))}
+      </div>
+
+      <button onClick={() => onAjouterSerie(exIndex, 'tracking')} className="flex w-full items-center justify-center gap-2 py-3 bg-secondary text-muted-foreground hover:text-foreground text-[10px] font-bold uppercase tracking-widest rounded-lg transition-colors">
+        <Plus className="size-4" /> {t('ajouterCardio')}
+      </button>
+    </div>
+  )
+}

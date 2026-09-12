@@ -1,14 +1,15 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
-import { Activity, Award, Coffee, Copy, Dumbbell, Plus, RefreshCw, Sparkles, Trash2, Trophy } from 'lucide-react'
+import { Activity, Award, Check, Coffee, Copy, Dumbbell, Plus, RefreshCw, Sparkles, Trash2, Trophy } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
 import { toast } from '@/components/power/toaster'
 import { useLocale, useT, useTheme } from '@/app/ThemeContext'
+import type { CleTraduction } from '@/lib/i18n'
 import { bestE1RM, classifyLift, parseLocalDate, sessionTonnage, setsTonnage, suggestionsExercices, toLocalDateStr, type LiftCategory, type SetData, type UpcomingCompetition } from '@/lib/powerlifting'
 import { appliquerPoints, pointsGagnes } from '@/lib/xp'
-import { REST_NAMES, creerExerciceVierge, exerciceVide, formatDateAffichage, videSet, type ExerciceRow, type UserProgress, type WorkoutSetRow } from '@/lib/seance'
+import { REST_NAMES, creerExerciceVierge, estCardio, exerciceVide, formatDateAffichage, videSet, type ExerciceRow, type UserProgress, type WorkoutSetRow } from '@/lib/seance'
 import { joursProgrammes, nouvelleSerie, type LigneJour } from '@/lib/serie'
 import { cleExercice, seriePrescrite, suggererProgression, type SeanceExercice } from '@/lib/progression'
 import { proposerAnnulation } from '@/lib/annulation'
@@ -36,6 +37,9 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
   const isOnline = useSyncExternalStore(abonnerReseau, () => navigator.onLine, () => true)
   const marquerPending = (v: boolean) => { savePendingRef.current = v; setSavePending(v) }
   const [isValidating, setIsValidating] = useState(false)
+  // Dernier jour validé : le bouton doit dire « séance terminée » plutôt que
+  // de rester identique, sinon on ne sait plus si on a appuyé.
+  const [dernierJourValide, setDernierJourValide] = useState<string | null>(null)
   const [isPropagating, setIsPropagating] = useState(false)
   const [isResetting, setIsResetting] = useState(false)
   const loadedDateRef = useRef<string | null>(null)
@@ -64,6 +68,15 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
   // Une séance ne se valide que le jour même : pas de rattrapage des jours passés.
   const estAujourdhui = dateFormatee === toLocalDateStr(new Date())
   const suggestionsDuJour = useMemo(() => suggestionsExercices(mode, jourSemaine), [mode, jourSemaine])
+  const dejaValide = estAujourdhui && dernierJourValide === dateFormatee
+
+  useEffect(() => {
+    let annule = false
+    supabase.from('user_progress').select('last_completed_date').limit(1).maybeSingle().then(({ data, error }) => {
+      if (!annule && !error) setDernierJourValide((data?.last_completed_date as string | null) ?? null)
+    })
+    return () => { annule = true }
+  }, [dateFormatee])
 
   const pasDuJourRef = useRef(pasDuJour)
   useEffect(() => { pasDuJourRef.current = pasDuJour }, [pasDuJour])
@@ -71,7 +84,7 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
   const [pasRecus, setPasRecus] = useState(pasDuJour)
   if (pasDuJour !== pasRecus) { setPasRecus(pasDuJour); if (pasDuJour !== null) setPas(pasDuJour) }
 
-  useEffect(() => { let cancelled = false; loadedDateRef.current = null; empreinteEnregistreeRef.current = null; idsCreesRef.current.clear(); const chargerSeance = async () => { const { data, error } = await supabase.from('workout_sets').select('*').eq('date', dateFormatee).order('order_index', { ascending: true }); if (cancelled) return; if (error) { toast(t('erreurChargement'), 'error'); return } const rows = (data ?? []) as WorkoutSetRow[]; if (rows.length > 0) { const isExplicitRest = rows.some((item) => REST_NAMES.includes(item.exercise_name ?? '')); const vraisExercices = rows.filter((item) => !REST_NAMES.includes(item.exercise_name ?? '')); if (isExplicitRest && vraisExercices.length === 0) setIsRestDayMode(true); else if (vraisExercices.length > 0) setIsRestDayMode(false); else setIsRestDayMode(jourSemaine === 0 || jourSemaine === 5); if (vraisExercices.length > 0) { setExercices(vraisExercices.map((item) => { const fallbackCoach: SetData[] = item.coach_reps ? [{ reps: String(item.coach_reps), weight: item.coach_weight != null ? String(item.coach_weight) : '', rpe: item.coach_rpe != null ? String(item.coach_rpe) : '' }] : [videSet()]; const coachTracking = item.coach_tracking_data ?? fallbackCoach; const tracking = [...(item.tracking_data ?? [videSet()])]; while (tracking.length < coachTracking.length) tracking.push(videSet()); return { id: item.id, uid: crypto.randomUUID(), name: item.exercise_name ?? '', coachTracking, tracking, comments: item.comments ?? '', painLevel: item.pain_level ?? null, } })) } else { setExercices([creerExerciceVierge()]) } const derniereLigne = rows[rows.length - 1]; setFatigue(derniereLigne.fatigue_score ?? 5); setSommeil(derniereLigne.sleep_hours ?? 8); setPas(pasDuJourRef.current ?? derniereLigne.steps_count ?? 0) } else { setIsRestDayMode(jourSemaine === 0 || jourSemaine === 5); setExercices([creerExerciceVierge()]); setFatigue(5); setSommeil(8); setPas(pasDuJourRef.current ?? 0) } loadedDateRef.current = dateFormatee; setChargements((n) => n + 1) }; chargerSeance(); return () => { cancelled = true } }, [dateFormatee, jourSemaine, setIsRestDayMode, t])
+  useEffect(() => { let cancelled = false; loadedDateRef.current = null; empreinteEnregistreeRef.current = null; idsCreesRef.current.clear(); const chargerSeance = async () => { const { data, error } = await supabase.from('workout_sets').select('*').eq('date', dateFormatee).order('order_index', { ascending: true }); if (cancelled) return; if (error) { toast(t('erreurChargement'), 'error'); return } const rows = (data ?? []) as WorkoutSetRow[]; if (rows.length > 0) { const isExplicitRest = rows.some((item) => REST_NAMES.includes(item.exercise_name ?? '')); const vraisExercices = rows.filter((item) => !REST_NAMES.includes(item.exercise_name ?? '')); if (isExplicitRest && vraisExercices.length === 0) setIsRestDayMode(true); else if (vraisExercices.length > 0) setIsRestDayMode(false); else setIsRestDayMode(jourSemaine === 0 || jourSemaine === 5); if (vraisExercices.length > 0) { setExercices(vraisExercices.map((item) => { const fallbackCoach: SetData[] = item.coach_reps ? [{ reps: String(item.coach_reps), weight: item.coach_weight != null ? String(item.coach_weight) : '', rpe: item.coach_rpe != null ? String(item.coach_rpe) : '' }] : [videSet()]; const coachTracking = item.coach_tracking_data ?? fallbackCoach; const tracking = [...(item.tracking_data ?? [videSet()])]; while (tracking.length < coachTracking.length) tracking.push(videSet()); if (tracking.length === 0) tracking.push(videSet()); return { id: item.id, uid: crypto.randomUUID(), name: item.exercise_name ?? '', coachTracking, tracking, comments: item.comments ?? '', painLevel: item.pain_level ?? null, } })) } else { setExercices([creerExerciceVierge()]) } const derniereLigne = rows[rows.length - 1]; setFatigue(derniereLigne.fatigue_score ?? 5); setSommeil(derniereLigne.sleep_hours ?? 8); setPas(pasDuJourRef.current ?? derniereLigne.steps_count ?? 0) } else { setIsRestDayMode(jourSemaine === 0 || jourSemaine === 5); setExercices([creerExerciceVierge()]); setFatigue(5); setSommeil(8); setPas(pasDuJourRef.current ?? 0) } loadedDateRef.current = dateFormatee; setChargements((n) => n + 1) }; chargerSeance(); return () => { cancelled = true } }, [dateFormatee, jourSemaine, setIsRestDayMode, t])
   useEffect(() => { let cancelled = false; const fetchSemainePrec = async () => { const d = parseLocalDate(dateFormatee); d.setDate(d.getDate() - 7); const { data } = await supabase.from('workout_sets').select('tracking_data').eq('date', toLocalDateStr(d)); if (cancelled) return; const total = (data ?? []).reduce((sum, row) => sum + setsTonnage(row.tracking_data as SetData[] | null), 0); setTonnageSemainePrec(total > 0 ? Math.round(total) : null) }; fetchSemainePrec(); return () => { cancelled = true } }, [dateFormatee])
   // Progression suggérée (muscu) : pour chaque exercice, la dernière séance des 60 jours précédents où il avait un plan.
   useEffect(() => {
@@ -102,7 +115,7 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
   useEffect(() => { if (chargements === 0 || loadedDateRef.current !== dateFormatee) return; if (empreinteEnregistreeRef.current === null) { empreinteEnregistreeRef.current = empreinte; return } if (empreinte === empreinteEnregistreeRef.current) return; const timeoutId = setTimeout(async () => { const ok = await sauvegardeRef.current(dateFormatee); if (ok) { empreinteEnregistreeRef.current = empreinte; setLastSaved(new Date()); if (savePendingRef.current) marquerPending(false) } else { marquerPending(true) } }, 1500); return () => clearTimeout(timeoutId) }, [empreinte, dateFormatee, chargements])
   useEffect(() => { const onOnline = async () => { if (!savePendingRef.current || loadedDateRef.current === null) return; const ok = await sauvegardeRef.current(loadedDateRef.current); if (ok) { marquerPending(false); setLastSaved(new Date()); toast(t('synchronise'), 'success') } }; window.addEventListener('online', onOnline); return () => window.removeEventListener('online', onOnline) }, [t])
   const handleAIGeneration = async () => { if (!aiPrompt.trim()) return; let aiConsent = false; try { aiConsent = localStorage.getItem('powerapp_ai_consent') === '1' } catch { } if (!aiConsent) { const ok = confirm(t('autoriserIA')); if (!ok) return; try { localStorage.setItem('powerapp_ai_consent', '1') } catch { } } setIsGenerating(true); try { const res = await fetch('/api/coach', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-ai-consent': '1' }, body: JSON.stringify({ prompt: aiPrompt }), }); if (!res.ok) throw new Error('Erreur API'); const aiData = (await res.json()) as { name: string; comments: string; coachTracking: SetData[] }[]; const newExercices: ExerciceRow[] = aiData.map((ex) => { const coachTracking = ex.coachTracking?.length ? ex.coachTracking : [videSet()]; return { id: null, uid: crypto.randomUUID(), name: ex.name, comments: ex.comments || '', coachTracking, tracking: coachTracking.map(() => videSet()), painLevel: null, } }); setExercices((prev) => prev.length === 1 && prev[0].name === '' ? newExercices : [...prev, ...newExercices]); setAiPrompt('') } catch (e) { toast(t('erreurIA'), 'error') } finally { setIsGenerating(false) } }
-  const validerMission = async () => { if (dateFormatee !== toLocalDateStr(new Date())) { toast(t('validationJourMeme'), 'info'); return } setIsValidating(true); const savedOk = await executerSauvegarde(dateFormatee); if (!savedOk) { marquerPending(true); toast(t('sauvegardeImpossible'), 'error'); setIsValidating(false); return } try { const { data } = await supabase.from('user_progress').select('*').limit(1).single(); const progress = data as UserProgress | null; if (!progress) throw new Error('Profil introuvable'); if (progress.last_completed_date === dateFormatee) { toast(t('dejaValide'), 'info'); return } const { error: erreurValidation } = await supabase.from('validations_seance').insert({ date: dateFormatee, type: isRestDayMode ? 'repos' : 'seance' }); /* Journal absent (migration pas encore lancée) : on valide quand même, la règle du jour même est déjà vérifiée plus haut. */ const journalAbsent = erreurValidation?.code === 'PGRST205'; if (erreurValidation && !journalAbsent) { const attendue = erreurValidation.code === '23505' || erreurValidation.code === '42501'; toast(erreurValidation.code === '23505' ? t('dejaValide') : erreurValidation.code === '42501' ? t('validationJourMeme') : t('erreur'), attendue ? 'info' : 'error'); return } let programmes = new Set<string>(); if (progress.last_completed_date && progress.last_completed_date < dateFormatee) { const { data: lignesEcart } = await supabase.from('workout_sets').select('date, exercise_name, tracking_data, coach_tracking_data').gt('date', progress.last_completed_date).lt('date', dateFormatee); programmes = joursProgrammes((lignesEcart ?? []) as LigneJour[]) } const newStreak = nouvelleSerie(progress.streak_days ?? 0, progress.last_completed_date, dateFormatee, programmes); const finalXP = pointsGagnes({ repos: isRestDayMode, pas, sommeil, exercices, mode }, newStreak); const { level: newLevel, current_xp: newCurrentXP, total_xp: newTotalXP, monteDeNiveau: aLevelUp } = appliquerPoints(progress, finalXP); const { error: erreurXp } = await supabase.from('user_progress').update({ level: newLevel, current_xp: newCurrentXP, total_xp: newTotalXP, streak_days: newStreak, last_completed_date: dateFormatee, }).eq('id', progress.id); if (erreurXp) throw erreurXp; window.dispatchEvent(new Event('user-progress-updated')); setXpGained(finalXP); setNewStreakState(newStreak); setLeveledUp(aLevelUp); setShowModal(true) } catch (e) { toast(t('erreur'), 'error') } finally { setIsValidating(false) } }
+  const validerMission = async () => { if (dateFormatee !== toLocalDateStr(new Date())) { toast(t('validationJourMeme'), 'info'); return } setIsValidating(true); const savedOk = await executerSauvegarde(dateFormatee); if (!savedOk) { marquerPending(true); toast(t('sauvegardeImpossible'), 'error'); setIsValidating(false); return } try { const { data } = await supabase.from('user_progress').select('*').limit(1).single(); const progress = data as UserProgress | null; if (!progress) throw new Error('Profil introuvable'); if (progress.last_completed_date === dateFormatee) { setDernierJourValide(dateFormatee); toast(t('dejaValide'), 'info'); return } const { error: erreurValidation } = await supabase.from('validations_seance').insert({ date: dateFormatee, type: isRestDayMode ? 'repos' : 'seance' }); /* Journal absent (migration pas encore lancée) : on valide quand même, la règle du jour même est déjà vérifiée plus haut. */ const journalAbsent = erreurValidation?.code === 'PGRST205'; if (erreurValidation && !journalAbsent) { const attendue = erreurValidation.code === '23505' || erreurValidation.code === '42501'; toast(erreurValidation.code === '23505' ? t('dejaValide') : erreurValidation.code === '42501' ? t('validationJourMeme') : t('erreur'), attendue ? 'info' : 'error'); return } let programmes = new Set<string>(); if (progress.last_completed_date && progress.last_completed_date < dateFormatee) { const { data: lignesEcart } = await supabase.from('workout_sets').select('date, exercise_name, tracking_data, coach_tracking_data').gt('date', progress.last_completed_date).lt('date', dateFormatee); programmes = joursProgrammes((lignesEcart ?? []) as LigneJour[]) } const newStreak = nouvelleSerie(progress.streak_days ?? 0, progress.last_completed_date, dateFormatee, programmes); const finalXP = pointsGagnes({ repos: isRestDayMode, pas, sommeil, exercices, mode }, newStreak); const { level: newLevel, current_xp: newCurrentXP, total_xp: newTotalXP, monteDeNiveau: aLevelUp } = appliquerPoints(progress, finalXP); const { error: erreurXp } = await supabase.from('user_progress').update({ level: newLevel, current_xp: newCurrentXP, total_xp: newTotalXP, streak_days: newStreak, last_completed_date: dateFormatee, }).eq('id', progress.id); if (erreurXp) throw erreurXp; window.dispatchEvent(new Event('user-progress-updated')); setDernierJourValide(dateFormatee); setXpGained(finalXP); setNewStreakState(newStreak); setLeveledUp(aLevelUp); setShowModal(true) } catch (e) { toast(t('erreur'), 'error') } finally { setIsValidating(false) } }
   const propagerSemaine1VersBloc = async () => { if (!confirm(t('propager'))) return; setIsPropagating(true); try { const savedOk = await executerSauvegarde(dateFormatee); if (!savedOk) throw new Error('Sauvegarde impossible'); const { data: semaine1Data, error: fetchError } = await supabase.from('workout_sets').select('*').eq('date', dateFormatee); if (fetchError) throw fetchError; if (!semaine1Data || semaine1Data.length === 0) throw new Error('Vide'); const datesCibles = [7, 14, 21, 28].map((delta) => { const d = parseLocalDate(dateFormatee); d.setDate(d.getDate() + delta); return toLocalDateStr(d) }); const insertions = datesCibles.flatMap((dateCibleStr) => (semaine1Data as (WorkoutSetRow & { created_at?: string })[]).map(({ id: _id, created_at: _creeLe, ...dataToCopy }) => ({ ...dataToCopy, date: dateCibleStr }))); const { error: erreurEffacement } = await supabase.from('workout_sets').delete().in('date', datesCibles); if (erreurEffacement) throw erreurEffacement; const { error: insertError } = await supabase.from('workout_sets').insert(insertions); if (insertError) throw insertError; toast(t('propage'), 'success') } catch (e) { toast(t('erreur'), 'error') } finally { setIsPropagating(false) } }
   const reinitialiserFutur = async () => {
     if (!confirm(t('effacerFutur'))) return
@@ -216,7 +229,14 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
     })
   }, [t, dateFormatee])
   const deplacerExercice = useCallback((index: number, direction: 'up' | 'down') => { setExercices((prev) => { const newIndex = direction === 'up' ? index - 1 : index + 1; if (newIndex < 0 || newIndex >= prev.length) return prev; const liste = [...prev]; [liste[index], liste[newIndex]] = [liste[newIndex], liste[index]]; return liste }) }, [])
-  const patchExercice = useCallback((index: number, patch: Partial<ExerciceRow>) => { setExercices((prev) => prev.map((ex, i) => (i === index ? { ...ex, ...patch } : ex))) }, [])
+  const patchExercice = useCallback((index: number, patch: Partial<ExerciceRow>) => {
+    setExercices((prev) => prev.map((ex, i) => {
+      if (i !== index) return ex
+      const suivant = { ...ex, ...patch }
+      // Dès que l'exercice devient un cardio, la ligne de saisie est déjà là.
+      return estCardio(suivant.name) && suivant.tracking.length === 0 ? { ...suivant, tracking: [videSet()] } : suivant
+    }))
+  }, [])
   const updateSerie = useCallback((exIndex: number, list: 'coachTracking' | 'tracking', setIndex: number, champ: keyof SetData, valeur: string) => {
     setExercices((prev) => {
       const newExercices = [...prev];
@@ -348,9 +368,7 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
 
           <PhotosSeance date={dateFormatee} />
 
-          <button onClick={validerMission} disabled={isValidating || !estAujourdhui} className="w-full p-6 rounded-full font-black text-sm uppercase tracking-widest bg-primary hover:opacity-90 text-primary-foreground transition-all flex justify-center items-center gap-3 disabled:opacity-40 disabled:cursor-not-allowed">
-            {isValidating ? <RefreshCw className="size-5 animate-spin" /> : <><Award className="size-5" /> {t('validerRepos')}</>}
-          </button>
+          <BoutonValidation onValider={validerMission} enCours={isValidating} dejaValide={dejaValide} estAujourdhui={estAujourdhui} cleFaire="validerRepos" cleFait="reposValide" />
           {!estAujourdhui && <p className="text-center text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t('validationJourMeme')}</p>}
         </div>
       ) : (
@@ -410,9 +428,7 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
             </button>
           </div>
 
-          <button onClick={validerMission} disabled={isValidating || !estAujourdhui} className="w-full p-6 rounded-full font-black text-sm uppercase tracking-widest bg-primary hover:opacity-90 text-primary-foreground transition-all flex justify-center items-center gap-3 disabled:opacity-40 disabled:cursor-not-allowed">
-            {isValidating ? <RefreshCw className="size-5 animate-spin" /> : <><Award className="size-5" /> {t('terminerSeance')}</>}
-          </button>
+          <BoutonValidation onValider={validerMission} enCours={isValidating} dejaValide={dejaValide} estAujourdhui={estAujourdhui} cleFaire="terminerSeance" cleFait="seanceTerminee" />
           {!estAujourdhui && <p className="text-center text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t('validationJourMeme')}</p>}
         </div>
       </div>
@@ -450,5 +466,35 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
         </div>
       )}
     </div>
+  )
+}
+
+/** Bouton de fin de journée : il change d'aspect une fois la validation passée. */
+function BoutonValidation({ onValider, enCours, dejaValide, estAujourdhui, cleFaire, cleFait }: {
+  onValider: () => void
+  enCours: boolean
+  dejaValide: boolean
+  estAujourdhui: boolean
+  cleFaire: CleTraduction
+  cleFait: CleTraduction
+}) {
+  const t = useT()
+  return (
+    <button
+      onClick={onValider}
+      disabled={enCours || !estAujourdhui || dejaValide}
+      className={cn(
+        'w-full p-6 rounded-full font-black text-sm uppercase tracking-widest transition-all flex justify-center items-center gap-3 disabled:cursor-not-allowed',
+        dejaValide
+          ? 'border-2 border-primary bg-secondary text-foreground'
+          : 'bg-primary hover:opacity-90 text-primary-foreground disabled:opacity-40'
+      )}
+    >
+      {enCours
+        ? <RefreshCw className="size-5 animate-spin" />
+        : dejaValide
+          ? <><Check className="size-5" /> {t(cleFait)}</>
+          : <><Award className="size-5" /> {t(cleFaire)}</>}
+    </button>
   )
 }

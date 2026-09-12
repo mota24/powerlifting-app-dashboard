@@ -2,7 +2,8 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { joursProgrammes, nouvelleSerie, type LigneJour } from '../lib/serie'
 import { chargeSuivante, cleExercice, seriePrescrite, suggererProgression } from '../lib/progression'
-import { exerciceVide, formatDateAffichage, creerExerciceVierge, type ExerciceRow } from '../lib/seance'
+import { estCardio, exerciceVide, formatDateAffichage, creerExerciceVierge, minutesCardio, type ExerciceRow } from '../lib/seance'
+import { setsTonnage } from '../lib/powerlifting'
 import { DEFAULT_WORK, buildSequence, clampConfig, formatDuree, normalizeWorkTimes } from '../lib/circuit'
 
 const serie = (reps: string, poids: string, rpe = '') => ({ reps, weight: poids, rpe })
@@ -81,6 +82,17 @@ test('un exercice sans rien saisi n est pas enregistre', () => {
   assert.equal(exerciceVide(exercice({ painLevel: 0 })), false)
   // Des espaces ne sont pas une saisie.
   assert.equal(exerciceVide(exercice({ name: '   ' })), true)
+})
+
+test('un exercice nomme cardio se note en duree, pas en series', () => {
+  assert.equal(estCardio('Cardio'), true)
+  assert.equal(estCardio('CARDIO tapis'), true)
+  assert.equal(estCardio('cardio'), true)
+  assert.equal(estCardio('Back Squat'), false)
+  assert.equal(minutesCardio([serie('20', 'Tapis de course'), serie('10,5', 'Vélo')]), 30.5)
+  assert.equal(minutesCardio([serie('', 'Tapis de course')]), 0)
+  // Le type d'appareil occupe la colonne du poids : aucun tonnage ne doit en sortir.
+  assert.equal(setsTonnage([serie('20', 'Tapis de course')]), 0)
 })
 
 test('la date affichee suit la locale, sans decalage de fuseau', () => {
