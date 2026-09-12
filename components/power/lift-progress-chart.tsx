@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ComposedChart, Bar, Line, LineChart, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { supabase } from '@/lib/supabase'
-import { classifyLift, setsTonnage, setE1RM, toLocalDateStr, CATEGORIES_PAR_MODE, type LiftCategory, type SetData } from '@/lib/powerlifting'
+import { classifyLift, setsTonnage, setE1RM, parseLocalDate, toLocalDateStr, CATEGORIES_PAR_MODE, type LiftCategory, type SetData } from '@/lib/powerlifting'
 import { cn } from '@/lib/utils'
 import { RefreshCw, HeartPulse } from 'lucide-react'
 import { useTheme, useT, useLocale } from '@/app/ThemeContext'
@@ -13,7 +13,7 @@ interface ChartRow { date: string; exercise_name: string | null; tracking_data: 
 interface Point { label: string; date: string; tonnage: number; topSet: number; e1rm: number; douleur: number | null; }
 /** Une séance = un jour ; une semaine = volume cumulé (utile en powerlifting). */
 type Granularite = 'seance' | 'semaine'
-function mondayOf(dateStr: string): string { const [y, m, d] = dateStr.split('-').map(Number); const date = new Date(y, m - 1, d); const day = date.getDay(); date.setDate(date.getDate() - day + (day === 0 ? -6 : 1)); return toLocalDateStr(date); }
+function mondayOf(dateStr: string): string { const date = parseLocalDate(dateStr); const day = date.getDay(); date.setDate(date.getDate() - day + (day === 0 ? -6 : 1)); return toLocalDateStr(date); }
 function jourMois(dateStr: string): string { const [, m, d] = dateStr.split('-'); return `${d}/${m}` }
 
 export function LiftProgressChart({ onSelectSession }: { onSelectSession?: (date: string) => void }) {
@@ -135,16 +135,16 @@ export function LiftProgressChart({ onSelectSession }: { onSelectSession?: (date
           <div className={cn('h-[300px] w-full', onSelectSession && 'cursor-pointer')}>
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={points} margin={{ top: 10, right: 0, left: -10, bottom: 0 }} onClick={handleChartClick}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                <XAxis dataKey="label" stroke="#71717a" fontSize={10} tickLine={false} axisLine={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                <XAxis dataKey="label" stroke="var(--muted-foreground)" fontSize={10} tickLine={false} axisLine={false} />
                 {/* Une décimale : sur une seule séance, arrondir au millier
                     affichait « 2t » deux fois de suite sur l'axe. */}
-                <YAxis yAxisId="tonnage" stroke="#71717a" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v: number) => `${(v / 1000).toFixed(1)}t`} />
-                <YAxis yAxisId="topset" orientation="right" stroke="#ffffff" fontSize={10} tickLine={false} axisLine={false} domain={['dataMin - 10', 'auto']} />
-                <Tooltip contentStyle={{ backgroundColor: '#09090b', borderColor: '#27272a', borderRadius: '12px', color: '#ffffff', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }} itemStyle={{ fontWeight: '900' }} formatter={(value, name) => name === t('tonnage') ? [`${Number(value).toLocaleString(locale)} kg`, name] : [`${value} kg`, name]} />
-                <Bar yAxisId="tonnage" dataKey="tonnage" name={t('tonnage')} fill="#3f3f46" radius={[4, 4, 0, 0]} />
-                <Line yAxisId="topset" type="monotone" dataKey="topSet" name={t('topSet')} stroke="#ffffff" strokeWidth={3} dot={{ r: 4, fill: '#ffffff', strokeWidth: 0 }} activeDot={{ r: 6 }} connectNulls />
-                <Line yAxisId="topset" type="monotone" dataKey="e1rm" name="e1RM" stroke="#a1a1aa" strokeWidth={2} strokeDasharray="4 4" dot={false} activeDot={{ r: 4 }} connectNulls />
+                <YAxis yAxisId="tonnage" stroke="var(--muted-foreground)" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v: number) => `${(v / 1000).toFixed(1)}t`} />
+                <YAxis yAxisId="topset" orientation="right" stroke="var(--foreground)" fontSize={10} tickLine={false} axisLine={false} domain={['dataMin - 10', 'auto']} />
+                <Tooltip contentStyle={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)', borderRadius: '12px', color: 'var(--foreground)', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }} itemStyle={{ fontWeight: '900' }} formatter={(value, name) => name === t('tonnage') ? [`${Number(value).toLocaleString(locale)} kg`, name] : [`${value} kg`, name]} />
+                <Bar yAxisId="tonnage" dataKey="tonnage" name={t('tonnage')} fill="var(--muted-foreground)" fillOpacity={0.45} radius={[4, 4, 0, 0]} />
+                <Line yAxisId="topset" type="monotone" dataKey="topSet" name={t('topSet')} stroke="var(--foreground)" strokeWidth={3} dot={{ r: 4, fill: 'var(--foreground)', strokeWidth: 0 }} activeDot={{ r: 6 }} connectNulls />
+                <Line yAxisId="topset" type="monotone" dataKey="e1rm" name="e1RM" stroke="var(--muted-foreground)" strokeWidth={2} strokeDasharray="4 4" dot={false} activeDot={{ r: 4 }} connectNulls />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
@@ -165,11 +165,11 @@ export function LiftProgressChart({ onSelectSession }: { onSelectSession?: (date
               <div className="h-[120px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={points} margin={{ top: 5, right: 0, left: -25, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                    <XAxis dataKey="label" stroke="#71717a" fontSize={10} tickLine={false} axisLine={false} />
-                    <YAxis domain={[0, 3]} ticks={[0, 1, 2, 3]} stroke="#71717a" fontSize={10} tickLine={false} axisLine={false} />
-                    <Tooltip contentStyle={{ backgroundColor: '#09090b', borderColor: '#27272a', borderRadius: '12px', color: '#ffffff' }} />
-                    <Line type="monotone" dataKey="douleur" name={t('douleur')} stroke="#ffffff" strokeWidth={2} dot={{ r: 3, fill: '#ffffff', strokeWidth: 0 }} connectNulls />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                    <XAxis dataKey="label" stroke="var(--muted-foreground)" fontSize={10} tickLine={false} axisLine={false} />
+                    <YAxis domain={[0, 3]} ticks={[0, 1, 2, 3]} stroke="var(--muted-foreground)" fontSize={10} tickLine={false} axisLine={false} />
+                    <Tooltip contentStyle={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)', borderRadius: '12px', color: 'var(--foreground)' }} />
+                    <Line type="monotone" dataKey="douleur" name={t('douleur')} stroke="var(--foreground)" strokeWidth={2} dot={{ r: 3, fill: 'var(--foreground)', strokeWidth: 0 }} connectNulls />
                   </LineChart>
                 </ResponsiveContainer>
               </div>

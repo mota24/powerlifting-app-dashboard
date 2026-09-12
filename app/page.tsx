@@ -3,29 +3,16 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Header } from '@/components/power/header'
-import { StatsCards } from '@/components/power/stats-cards'
-import { LiftProgressChart } from '@/components/power/lift-progress-chart'
-import { BodyweightTracker } from '@/components/power/bodyweight-tracker'
 import { WeekCalendar } from '@/components/power/week-calendar'
 import SessionForm from '@/components/power/session-form'
-import { PlateVisualizer } from '@/components/power/plate-visualizer'
-import { WarmupGenerator } from '@/components/power/warmup-generator'
 import { Card, CardTitle } from '@/components/power/card'
 import { LineChart, Menu, X, Home, BarChart2, Wrench, Settings, Calculator, Lock, LogOut, RefreshCw, User, KeyRound, Timer, Trophy, Medal, Apple, Images } from 'lucide-react'
-import ChangePasswordModal from '@/components/power/change-password-modal'
-import CircuitTimer from '@/components/power/circuit-timer'
 import { toast } from '@/components/power/toaster'
 import { cn } from '@/lib/utils'
 import { toLocalDateStr, parseLocalDate, weeksOut, type UpcomingCompetition, type ModeApp } from '@/lib/powerlifting'
-import ConfigPanel from '@/components/power/config-panel'
-import CalculatorPanel from '@/components/power/calculator-panel'
-import GLCalculator from '@/components/power/GLCalculator';
-import { Palmares } from '@/components/power/palmares'
-import { Classement } from '@/components/power/classement'
-import { Nutrition } from '@/components/power/nutrition'
-import { GaleriePhotos } from '@/components/power/galerie-photos'
 import { ThemeProvider, type Langue } from './ThemeContext'
 import { traducteurPour, langueDuProfil, LOCALES } from '@/lib/i18n'
+import dynamic from 'next/dynamic'
 
 interface AuthUser {
   id: string;
@@ -39,6 +26,26 @@ interface TrainingBlockRow {
   duration_weeks: number | null;
   name?: string | null;
 }
+
+// Écrans chargés à la demande : l'accueil n'embarque pas le code de ceux
+// qu'on n'ouvre pas (graphiques, palmarès, nutrition, photos, outils).
+const enChargement = () => (
+  <div className="flex justify-center py-16 text-muted-foreground"><RefreshCw className="size-5 animate-spin" /></div>
+)
+const StatsCards = dynamic(() => import('@/components/power/stats-cards').then((m) => m.StatsCards), { loading: enChargement })
+const LiftProgressChart = dynamic(() => import('@/components/power/lift-progress-chart').then((m) => m.LiftProgressChart), { loading: enChargement })
+const BodyweightTracker = dynamic(() => import('@/components/power/bodyweight-tracker').then((m) => m.BodyweightTracker), { loading: enChargement })
+const PlateVisualizer = dynamic(() => import('@/components/power/plate-visualizer').then((m) => m.PlateVisualizer), { loading: enChargement })
+const WarmupGenerator = dynamic(() => import('@/components/power/warmup-generator').then((m) => m.WarmupGenerator), { loading: enChargement })
+const ChangePasswordModal = dynamic(() => import('@/components/power/change-password-modal'), { loading: enChargement })
+const CircuitTimer = dynamic(() => import('@/components/power/circuit-timer'), { loading: enChargement })
+const ConfigPanel = dynamic(() => import('@/components/power/config-panel'), { loading: enChargement })
+const CalculatorPanel = dynamic(() => import('@/components/power/calculator-panel'), { loading: enChargement })
+const GLCalculator = dynamic(() => import('@/components/power/GLCalculator'), { loading: enChargement })
+const Palmares = dynamic(() => import('@/components/power/palmares').then((m) => m.Palmares), { loading: enChargement })
+const Classement = dynamic(() => import('@/components/power/classement').then((m) => m.Classement), { loading: enChargement })
+const Nutrition = dynamic(() => import('@/components/power/nutrition').then((m) => m.Nutrition), { loading: enChargement })
+const GaleriePhotos = dynamic(() => import('@/components/power/galerie-photos').then((m) => m.GaleriePhotos), { loading: enChargement })
 
 const VUES = ['accueil', 'analytique', 'outils', 'calculatrice', 'configuration', 'palmares', 'classement', 'nutrition', 'photos'] as const
 type Vue = (typeof VUES)[number]
