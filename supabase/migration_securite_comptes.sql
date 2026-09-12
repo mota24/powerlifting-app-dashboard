@@ -169,46 +169,27 @@ AS $$
     CROSS JOIN joueurs j
     CROSS JOIN generate_series(0, 6) AS d
   ),
+  -- Pas du jour : ceux du raccourci téléphone, ou ceux saisis dans la séance.
   pas_synchro AS (
     SELECT sp.user_id, sp.date AS jour, max(sp.pas) AS pas
     FROM public.seances_pas sp, bornes b
     WHERE sp.date BETWEEN b.premier_jour AND b.dernier_jour
     GROUP BY sp.user_id, sp.date
   ),
-  validations AS (
-    SELECT v.user_id, v.date AS jour
-    FROM public.validations_seance v, bornes b
-    WHERE v.type = 'seance'
-      AND v.date BETWEEN b.premier_jour AND b.dernier_jour
-  ),
-  lignes AS (
-    SELECT
-      w.user_id,
-      w.date AS jour,
-      coalesce(w.steps_count, 0) AS pas_saisis,
-      coalesce(w.exercise_name, '') NOT IN ('Repos', 'Jour de Repos') AS est_seance,
-      EXISTS (
-        SELECT 1
-        FROM jsonb_array_elements(CASE WHEN jsonb_typeof(w.tracking_data) = 'array' THEN w.tracking_data ELSE '[]'::jsonb END) AS e
-        WHERE coalesce(e ->> 'reps', '') ~ '[1-9]' OR coalesce(e ->> 'weight', '') ~ '[1-9]'
-      ) AS a_des_series,
-      EXISTS (
-        SELECT 1
-        FROM jsonb_array_elements(CASE WHEN jsonb_typeof(w.coach_tracking_data) = 'array' THEN w.coach_tracking_data ELSE '[]'::jsonb END) AS e
-        WHERE coalesce(e ->> 'reps', '') ~ '[1-9]' OR coalesce(e ->> 'weight', '') ~ '[1-9]'
-      ) AS a_une_prescription
+  pas_saisis AS (
+    SELECT w.user_id, w.date AS jour, max(coalesce(w.steps_count, 0)) AS pas
     FROM public.workout_sets w, bornes b
     WHERE w.date BETWEEN b.premier_jour AND b.dernier_jour
+    GROUP BY w.user_id, w.date
   ),
-  par_jour AS (
-    SELECT
-      l.user_id,
-      l.jour,
-      max(l.pas_saisis) AS pas_saisis,
-      bool_or(l.est_seance AND l.a_des_series) AS series_notees,
-      bool_or(l.est_seance AND l.a_une_prescription) AS prevue
-    FROM lignes l
-    GROUP BY l.user_id, l.jour
+  -- La validation du jour fait foi : c'est le geste volontaire de l'athlète.
+  -- On ne rejuge pas après coup le contenu de la grille, qui peut être vidé
+  -- ou remanié plus tard.
+  validations AS (
+    SELECT v.user_id, v.date AS jour, bool_or(v.type = 'seance') AS seance
+    FROM public.validations_seance v, bornes b
+    WHERE v.date BETWEEN b.premier_jour AND b.dernier_jour
+    GROUP BY v.user_id, v.date
   ),
   detail AS (
     SELECT
@@ -216,23 +197,24 @@ AS $$
       jr.user_id,
       jr.prenom,
       jr.jour,
-      greatest(coalesce(ps.pas, 0), coalesce(pj.pas_saisis, 0)) AS pas,
-      (coalesce(pj.series_notees, false) AND vs.jour IS NOT NULL) AS realisee,
-      coalesce(pj.prevue, false) AS prevue
+      greatest(coalesce(ps.pas, 0), coalesce(pw.pas, 0)) AS pas,
+      coalesce(v.seance, false) AS seance_validee,
+      (v.jour IS NOT NULL) AS jour_valide
     FROM jours jr
     LEFT JOIN pas_synchro ps ON ps.user_id = jr.user_id AND ps.jour = jr.jour
-    LEFT JOIN par_jour pj ON pj.user_id = jr.user_id AND pj.jour = jr.jour
-    LEFT JOIN validations vs ON vs.user_id = jr.user_id AND vs.jour = jr.jour
+    LEFT JOIN pas_saisis pw ON pw.user_id = jr.user_id AND pw.jour = jr.jour
+    LEFT JOIN validations v ON v.user_id = jr.user_id AND v.jour = jr.jour
   ),
-  -- Série : jours actifs consécutifs. Soustraire le rang à la date donne
-  -- la même valeur à tous les jours d'une même suite ininterrompue.
+  -- Série : jours actifs consécutifs. Un jour de repos validé compte, comme
+  -- dans la série de l'app. Soustraire le rang à la date donne la même valeur
+  -- à tous les jours d'une même suite ininterrompue.
   ilots AS (
     SELECT
       dt.debut,
       dt.user_id,
       dt.jour - (row_number() OVER (PARTITION BY dt.debut, dt.user_id ORDER BY dt.jour))::integer AS ilot
     FROM detail dt
-    WHERE dt.realisee OR dt.pas >= 8000
+    WHERE dt.jour_valide OR dt.pas >= 8000
   ),
   series AS (
     SELECT x.debut, x.user_id, max(x.longueur)::integer AS plus_longue
@@ -249,9 +231,7 @@ AS $$
       dt.user_id,
       dt.prenom,
       count(*) FILTER (WHERE dt.pas >= 8000)::integer AS nb_8000,
-      count(*) FILTER (WHERE dt.realisee)::integer AS nb_seances,
-      count(*) FILTER (WHERE dt.prevue)::integer AS nb_prevues,
-      count(*) FILTER (WHERE dt.prevue AND dt.realisee)::integer AS nb_prevues_faites
+      count(*) FILTER (WHERE dt.seance_validee)::integer AS nb_seances
     FROM detail dt
     GROUP BY dt.debut, dt.user_id, dt.prenom
   ),
@@ -263,8 +243,10 @@ AS $$
       t.nb_8000,
       t.nb_seances,
       coalesce(s.plus_longue, 0) AS nb_serie,
-      CASE WHEN t.nb_prevues > 0 THEN t.nb_prevues_faites ELSE t.nb_seances END AS obj_fait,
-      CASE WHEN t.nb_prevues > 0 THEN t.nb_prevues ELSE 3 END AS obj_cible
+      -- Objectif FIXE : le même pour tout le monde. L'ancien barème comptait
+      -- « toutes les séances prévues », donc planifier son bloc à l'avance
+      -- rendait l'objectif inatteignable.
+      3 AS obj_cible
     FROM totaux t
     LEFT JOIN series s ON s.debut = t.debut AND s.user_id = t.user_id
   )
@@ -272,16 +254,16 @@ AS $$
     sc.debut,
     sc.prenom,
     sc.user_id = (SELECT user_id FROM moi),
-    (sc.nb_8000 * 10 + sc.nb_seances * 20 + CASE WHEN sc.obj_fait >= sc.obj_cible THEN 30 ELSE 0 END + least(sc.nb_serie, 7) * 5)::integer,
+    (sc.nb_8000 * 10 + sc.nb_seances * 20 + CASE WHEN sc.nb_seances >= sc.obj_cible THEN 30 ELSE 0 END + least(sc.nb_serie, 7) * 5)::integer,
     (sc.nb_8000 * 10)::integer,
     (sc.nb_seances * 20)::integer,
-    (CASE WHEN sc.obj_fait >= sc.obj_cible THEN 30 ELSE 0 END)::integer,
+    (CASE WHEN sc.nb_seances >= sc.obj_cible THEN 30 ELSE 0 END)::integer,
     (least(sc.nb_serie, 7) * 5)::integer,
     sc.nb_8000,
     sc.nb_seances,
-    sc.obj_fait::integer,
+    least(sc.nb_seances, sc.obj_cible)::integer,
     sc.obj_cible::integer,
-    sc.obj_fait >= sc.obj_cible,
+    sc.nb_seances >= sc.obj_cible,
     sc.nb_serie::integer,
     coalesce(up.level, 1),
     coalesce(up.streak_days, 0)
