@@ -1,11 +1,13 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Play, Pause, X, RotateCcw, Minus, Plus, Flag, Volume2, VolumeX } from 'lucide-react'
+import { Flag, Pause, Play, RotateCcw, Volume2, VolumeX, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useModale } from '@/lib/use-modale'
 import { useT } from '@/app/ThemeContext'
 import type { CleTraduction } from '@/lib/i18n'
+import { CONFIG_KEY, WORK_MAX, WORK_MIN, buildSequence, formatDuree, lireConfig, normalizeWorkTimes, type CircuitConfig, type Phase, type PhaseKind, type Status } from '@/lib/circuit'
+import { Stepper } from '@/components/power/circuit-stepper'
 
 // ————————————————————————————————————————————————
 // Générateur de son (Web Audio API)
@@ -52,100 +54,8 @@ interface Props {
   onClose: () => void;
 }
 
-interface CircuitConfig {
-  prep: number;
-  exercices: number;
-  workTimes: number[];
-  rest: number;
-  tours: number;
-  longRest: number;
-}
-
-const WORK_MIN = 5
-const WORK_MAX = 3600 
-const DEFAULT_WORK = 40
-
-const DEFAULT_CONFIG: CircuitConfig = { prep: 5, exercices: 3, workTimes: [40, 40, 40], rest: 15, tours: 3, longRest: 40 }
-const CONFIG_KEY = 'circuit_timer_config'
-
-function normalizeWorkTimes(workTimes: number[] | undefined, exercices: number): number[] {
-  const source = Array.isArray(workTimes) ? workTimes : []
-  const out = source.slice(0, exercices)
-  while (out.length < exercices) {
-    out.push(out.length > 0 ? out[out.length - 1] : DEFAULT_WORK)
-  }
-  return out
-}
-
-type PhaseKind = 'prep' | 'work' | 'rest' | 'longRest'
-
-interface Phase {
-  kind: PhaseKind;
-  duration: number;
-  exercice: number;
-  tour: number;
-}
-
-type Status = 'config' | 'running' | 'paused' | 'finished'
-
-function buildSequence(cfg: CircuitConfig): Phase[] {
-  const phases: Phase[] = []
-  const workTimes = normalizeWorkTimes(cfg.workTimes, cfg.exercices)
-  if (cfg.prep > 0) phases.push({ kind: 'prep', duration: cfg.prep, exercice: 1, tour: 1 })
-  for (let tour = 1; tour <= cfg.tours; tour++) {
-    for (let ex = 1; ex <= cfg.exercices; ex++) {
-      phases.push({ kind: 'work', duration: workTimes[ex - 1] ?? DEFAULT_WORK, exercice: ex, tour })
-      if (ex < cfg.exercices && cfg.rest > 0) {
-        phases.push({ kind: 'rest', duration: cfg.rest, exercice: ex + 1, tour })
-      }
-    }
-    if (tour < cfg.tours && cfg.longRest > 0) {
-      phases.push({ kind: 'longRest', duration: cfg.longRest, exercice: 1, tour: tour + 1 })
-    }
-  }
-  return phases
-}
-
-function clampConfig(raw: Partial<CircuitConfig> & { work?: unknown }): Partial<CircuitConfig> {
-  const clamp = (v: unknown, min: number, max: number) =>
-    typeof v === 'number' && Number.isFinite(v) ? Math.min(max, Math.max(min, Math.round(v))) : undefined
-  const out: Partial<CircuitConfig> = {}
-  const prep = clamp(raw.prep, 0, 60); if (prep !== undefined) out.prep = prep
-  const exercices = clamp(raw.exercices, 1, 20); if (exercices !== undefined) out.exercices = exercices
-  const rest = clamp(raw.rest, 0, 3600); if (rest !== undefined) out.rest = rest
-  const tours = clamp(raw.tours, 1, 20); if (tours !== undefined) out.tours = tours
-  const longRest = clamp(raw.longRest, 0, 3600); if (longRest !== undefined) out.longRest = longRest
-  if (Array.isArray(raw.workTimes)) {
-    const arr = raw.workTimes
-      .map((w) => clamp(w, WORK_MIN, WORK_MAX))
-      .filter((w): w is number => w !== undefined)
-    if (arr.length > 0) out.workTimes = arr
-  } else {
-    const legacy = clamp(raw.work, WORK_MIN, WORK_MAX)
-    if (legacy !== undefined) out.workTimes = [legacy]
-  }
-  return out
-}
-
-function lireConfig(): CircuitConfig {
-  try {
-    const saved = localStorage.getItem(CONFIG_KEY)
-    if (!saved) return DEFAULT_CONFIG
-    const merged = { ...DEFAULT_CONFIG, ...clampConfig(JSON.parse(saved)) }
-    return { ...merged, workTimes: normalizeWorkTimes(merged.workTimes, merged.exercices) }
-  } catch {
-    return DEFAULT_CONFIG
-  }
-}
-
 const vibrer = (pattern: number | number[]) => {
   if (typeof navigator !== 'undefined') navigator.vibrate?.(pattern)
-}
-
-const formatDuree = (totalSec: number) => {
-  const m = Math.floor(totalSec / 60)
-  const s = totalSec % 60
-  return m > 0 ? `${m}:${String(s).padStart(2, '0')}` : `${s}`
 }
 
 // Couleurs professionnelles, brutes et saturées (style app élite)
@@ -453,98 +363,6 @@ export default function CircuitTimer({ onClose }: Props) {
           />
         </div>
       )}
-    </div>
-  )
-}
-
-// ————————————————————————————————————————————————
-// Stepper : Design Brutaliste/Minimaliste
-// ————————————————————————————————————————————————
-function Stepper({ label, value, onChange, min, max, step, unit }: {
-  label: string;
-  value: number;
-  onChange: (v: number) => void;
-  min: number;
-  max: number;
-  step: number;
-  unit?: string;
-}) {
-  const [inputValue, setInputValue] = useState(value.toString());
-  const [isEditing, setIsEditing] = useState(false);
-
-  const handleBlur = () => {
-    setIsEditing(false);
-    let str = inputValue.trim();
-    let parsed = parseInt(str, 10);
-
-    if (unit === 's') {
-      if (str.includes(':')) {
-        const parts = str.split(':');
-        const m = parseInt(parts[0], 10) || 0;
-        const s = parseInt(parts[1], 10) || 0;
-        parsed = m * 60 + s;
-      } else if (str.length >= 3 && str.endsWith('00')) {
-        const m = parseInt(str.slice(0, -2), 10);
-        parsed = m * 60;
-      }
-    }
-
-    if (isNaN(parsed)) {
-      setInputValue(value.toString());
-      return;
-    }
-
-    const clamped = Math.max(min, Math.min(max, parsed));
-    onChange(clamped);
-    setInputValue(clamped.toString());
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      e.currentTarget.blur();
-    }
-  };
-
-  return (
-    <div className="flex items-center justify-between p-3 rounded-2xl bg-zinc-900/50 hover:bg-zinc-900 transition-colors">
-      <span className="text-sm font-medium text-zinc-300 ml-1">{label}</span>
-      <div className="flex items-center gap-1 shrink-0">
-        <button
-          onClick={() => onChange(Math.max(min, value - step))}
-          disabled={value <= min}
-          className="h-10 w-10 flex items-center justify-center rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 disabled:opacity-20 transition-all"
-        >
-          <Minus className="size-4" />
-        </button>
-
-        <div className="relative flex items-center justify-center w-16">
-          <input
-            type="text"
-            inputMode={unit === 's' ? 'decimal' : 'numeric'}
-            value={isEditing ? inputValue : value}
-            onFocus={(e) => {
-              setInputValue(value.toString());
-              setIsEditing(true);
-              e.target.select();
-            }}
-            onBlur={handleBlur}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={handleKeyDown}
-            className={cn(
-              "w-full bg-transparent text-center text-lg font-bold text-white tabular-nums outline-none rounded-lg py-1 transition-all",
-              isEditing && "bg-black/50"
-            )}
-          />
-        </div>
-
-        <button
-          onClick={() => onChange(Math.min(max, value + step))}
-          disabled={value >= max}
-          className="h-10 w-10 flex items-center justify-center rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 disabled:opacity-20 transition-all"
-        >
-          <Plus className="size-4" />
-        </button>
-      </div>
     </div>
   )
 }
