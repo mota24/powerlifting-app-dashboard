@@ -69,9 +69,11 @@ RETURNS TABLE (
   objectif_semaines integer,
   objectif_atteint  boolean,
   serie             integer,
-  niveau            integer,,
+  niveau            integer,
+  streak            integer,
   pts_eau           integer,
-  jours_eau         integer
+  jours_eau         integer
+)
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
@@ -157,7 +159,7 @@ AS $$
     WHERE v.date BETWEEN b.premier_jour AND b.dernier_jour
     GROUP BY v.user_id, v.date
   ),
-  -- Eau bue dans la journée, en millilitres : une ligne par jour.
+  -- Eau bue dans la journee, en millilitres : une ligne par jour.
   eau AS (
     SELECT e.user_id, e.date AS jour, max(e.ml) AS ml
     FROM public.journal_eau e, bornes b
@@ -300,9 +302,11 @@ RETURNS TABLE (
   objectif_seances integer,
   objectif_atteint boolean,
   serie            integer,
-  niveau           integer,,
+  niveau           integer,
+  streak           integer,
   pts_eau           integer,
-  jours_eau         integer
+  jours_eau         integer
+)
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
@@ -363,7 +367,7 @@ AS $$
     WHERE v.date BETWEEN b.premier_jour AND b.dernier_jour
     GROUP BY v.user_id, v.date
   ),
-  -- Eau bue dans la journée, en millilitres : une ligne par jour.
+  -- Eau bue dans la journee, en millilitres : une ligne par jour.
   eau AS (
     SELECT e.user_id, e.date AS jour, max(e.ml) AS ml
     FROM public.journal_eau e, bornes b
