@@ -7,7 +7,7 @@
 
 const SEGMENT = /^[A-Za-z0-9_]+$/
 
-export const RPC_AUTORISEES: ReadonlySet<string> = new Set(['classement_semaines'])
+export const RPC_AUTORISEES: ReadonlySet<string> = new Set(['classement_mois', 'classement_semaines'])
 
 /** 'rest/v1/<table>' ou 'rest/v1/rpc/<fonction autorisée>' ; null pour tout le reste. */
 export function cheminProxyAutorise(segments: readonly string[]): string | null {

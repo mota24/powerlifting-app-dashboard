@@ -15,6 +15,7 @@ import { EcranConnexion } from '@/components/power/ecran-connexion'
 import { BarreNavigation } from '@/components/power/barre-navigation'
 import { lireSession, purgerRecordsLocaux, type AuthUser } from '@/lib/compte'
 import { vueDepuisUrl, type Vue } from '@/lib/navigation'
+import { estDernierJourDuMois } from '@/lib/classement'
 import { traducteurPour, langueDuProfil, LOCALES } from '@/lib/i18n'
 import dynamic from 'next/dynamic'
 
@@ -326,14 +327,14 @@ export default function Page() {
 
           {vueActive === 'accueil' && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              {new Date().getDay() === 0 && (
+              {estDernierJourDuMois() && (
                 <button
                   onClick={() => changerVue('classement')}
                   className="w-full flex items-center justify-between gap-3 rounded-2xl border border-primary bg-card p-4 text-left transition-colors hover:bg-secondary"
                 >
                   <span className="flex min-w-0 items-center gap-3">
                     <span className="text-2xl leading-none" aria-hidden>🏆</span>
-                    <span className="text-sm font-black text-foreground">{t('dimancheBanniere')}</span>
+                    <span className="text-sm font-black text-foreground">{t('banniereFinDeMois')}</span>
                   </span>
                   <span className="shrink-0 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t('voirPodium')} →</span>
                 </button>
