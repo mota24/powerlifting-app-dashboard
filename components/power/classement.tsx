@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Footprints, Dumbbell, Target, Flame, RefreshCw } from 'lucide-react'
+import { Footprints, Dumbbell, Droplets, Target, Flame, RefreshCw } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
 import { useT, useLocale } from '@/app/ThemeContext'
@@ -129,6 +129,7 @@ export function Classement() {
         <ul className="space-y-2.5">
           {([
             [Footprints, t('regle8000')],
+            [Droplets, t('regleEau')],
             [Dumbbell, t('regleSeance')],
             [Target, t('regleObjectif')],
             [Flame, t('regleSerie')],
@@ -150,6 +151,8 @@ function CarteJoueur({ ligne, premiers, surLeMois, t }: { ligne: LigneRangee; pr
   const enTete = ligne.rang === 1
   const criteres = [
     { icone: Footprints, libelle: t('critere8000'), valeur: String(ligne.jours_8000), points: ligne.pts_pas },
+    // Critère absent de la base tant que la migration de l'eau n'est pas lancée.
+    ...(ligne.jours_eau === undefined ? [] : [{ icone: Droplets, libelle: t('critereEau'), valeur: String(ligne.jours_eau), points: ligne.pts_eau ?? 0 }]),
     { icone: Dumbbell, libelle: t('critereSeances'), valeur: String(ligne.seances), points: ligne.pts_seances },
     { icone: Target, libelle: t(surLeMois ? 'critereObjectif' : 'critereObjectifSemaine'), valeur: `${ligne.objectif_fait}/${ligne.objectif_semaines}`, points: ligne.pts_objectif },
     { icone: Flame, libelle: t(surLeMois ? 'critereSerie' : 'critereSerieSemaine'), valeur: t('joursCourt', { n: ligne.serie }), points: ligne.pts_serie },

@@ -16,6 +16,7 @@ export function FenetreObjectifs({ actuels, t, locale, onFermer, onEnregistre }:
 }) {
   const [kcal, setKcal] = useState(actuels?.kcal != null ? String(actuels.kcal) : '')
   const [prot, setProt] = useState(actuels?.proteines != null ? String(actuels.proteines) : '')
+  const [eau, setEau] = useState(actuels?.eau != null ? String(actuels.eau) : '')
   const [poids, setPoids] = useState<number | null>(null)
   const [envoi, setEnvoi] = useState(false)
 
@@ -31,16 +32,26 @@ export function FenetreObjectifs({ actuels, t, locale, onFermer, onEnregistre }:
 
   const kcalLu = lireObjectif(kcal)
   const protLu = lireObjectif(prot)
-  const valide = kcalLu !== 'invalide' && protLu !== 'invalide' && objectifValide(kcalLu, LIMITES_OBJECTIFS.kcal) && objectifValide(protLu, LIMITES_OBJECTIFS.proteines)
+  const eauLue = lireObjectif(eau)
+  const valide = kcalLu !== 'invalide' && protLu !== 'invalide' && eauLue !== 'invalide'
+    && objectifValide(kcalLu, LIMITES_OBJECTIFS.kcal)
+    && objectifValide(protLu, LIMITES_OBJECTIFS.proteines)
+    && objectifValide(eauLue, LIMITES_OBJECTIFS.eau)
   const repere = poids !== null ? repereProteines(poids) : null
-  const aDesObjectifs = actuels !== null && (actuels.kcal !== null || actuels.proteines !== null)
+  const aDesObjectifs = actuels !== null && (actuels.kcal !== null || actuels.proteines !== null || actuels.eau !== null)
   const classeChamp = 'h-12 w-full rounded-xl bg-secondary px-3 text-base font-bold tabular-nums text-foreground outline-none'
 
   const enregistrer = async (valeurs: ObjectifsNutrition) => {
     setEnvoi(true)
-    const { error } = await supabase
+    const commun = { kcal: valeurs.kcal, proteines: valeurs.proteines, modifie_le: new Date().toISOString() }
+    let { error } = await supabase
       .from('objectifs_nutrition')
-      .upsert({ kcal: valeurs.kcal, proteines: valeurs.proteines, modifie_le: new Date().toISOString() }, { onConflict: 'user_id' })
+      .upsert({ ...commun, eau: valeurs.eau }, { onConflict: 'user_id' })
+    // Colonne d'eau absente (migration pas encore lancée) : on enregistre au
+    // moins les calories et les protéines plutôt que de tout perdre.
+    if (error?.code === 'PGRST204') {
+      ({ error } = await supabase.from('objectifs_nutrition').upsert(commun, { onConflict: 'user_id' }))
+    }
     setEnvoi(false)
     if (error) {
       toast(error.code === 'PGRST205' ? t('objectifsIndisponibles') : t('erreur'), 'error')
@@ -55,7 +66,7 @@ export function FenetreObjectifs({ actuels, t, locale, onFermer, onEnregistre }:
       <form
         onSubmit={(e) => {
           e.preventDefault()
-          if (valide && !envoi) void enregistrer({ kcal: kcalLu, proteines: protLu })
+          if (valide && !envoi) void enregistrer({ kcal: kcalLu, proteines: protLu, eau: eauLue })
         }}
         className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4"
       >
@@ -66,6 +77,10 @@ export function FenetreObjectifs({ actuels, t, locale, onFermer, onEnregistre }:
         <label className="block">
           <span className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t('objectifProteines')}</span>
           <input value={prot} onChange={(e) => setProt(e.target.value)} inputMode="numeric" placeholder="120" className={classeChamp} />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{t('objectifEau')}</span>
+          <input value={eau} onChange={(e) => setEau(e.target.value)} inputMode="numeric" placeholder="2000" className={classeChamp} />
         </label>
         {repere && poids !== null && (
           <div className="flex items-center justify-between gap-3 rounded-xl bg-secondary p-3">
@@ -87,7 +102,7 @@ export function FenetreObjectifs({ actuels, t, locale, onFermer, onEnregistre }:
           <button
             type="button"
             disabled={envoi}
-            onClick={() => void enregistrer({ kcal: null, proteines: null })}
+            onClick={() => void enregistrer({ kcal: null, proteines: null, eau: null })}
             className="h-11 w-full rounded-xl border border-border text-xs font-black uppercase tracking-widest text-muted-foreground hover:bg-secondary disabled:opacity-40"
           >
             {t('effacerObjectifs')}

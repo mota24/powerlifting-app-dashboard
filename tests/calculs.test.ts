@@ -6,7 +6,8 @@ import {
   toLocalDateStr, weeksOut,
 } from '../lib/powerlifting'
 import {
-  GRAMMES_MAX, LIMITES_OBJECTIFS, etatObjectif, grammesValides, lireObjectif, objectifValide,
+  EAU_CLASSEMENT_ML, EAU_MAX_ML, GRAMMES_MAX, LIMITES_OBJECTIFS, VERRE_ML, ajusterEau, enLitres,
+  etatObjectif, grammesValides, lireObjectif, objectifValide,
   pourGrammes, recents, repereProteines, totauxDuJour, variantesCode, type EntreeJournal,
 } from '../lib/nutrition'
 
@@ -181,6 +182,24 @@ test('l etat de l objectif distingue reste, atteint et depasse', () => {
   // Depasser les proteines est une reussite, pas un depassement.
   assert.equal(etatObjectif(150, 120, true).etat, 'atteint')
   assert.equal(repereProteines(100).conseil, 180)
+})
+
+test('les verres d eau s ajoutent sans depasser les bornes', () => {
+  assert.equal(ajusterEau(0, VERRE_ML), 250)
+  assert.equal(ajusterEau(250, -VERRE_ML), 0)
+  // Pas de total negatif, meme en retirant un verre de trop.
+  assert.equal(ajusterEau(100, -VERRE_ML), 0)
+  assert.equal(ajusterEau(EAU_MAX_ML, VERRE_ML), EAU_MAX_ML)
+  // Le seuil du classement est fixe, il ne suit pas l objectif personnel.
+  assert.equal(EAU_CLASSEMENT_ML, 2000)
+  assert.equal(objectifValide(300, LIMITES_OBJECTIFS.eau), false)
+  assert.equal(objectifValide(2000, LIMITES_OBJECTIFS.eau), true)
+})
+
+test('un volume d eau s affiche en litres dans la langue du profil', () => {
+  assert.equal(enLitres(1500, 'fr-FR'), '1,5')
+  assert.equal(enLitres(2000, 'es-ES'), '2,0')
+  assert.equal(enLitres(0, 'fr-FR'), '0,0')
 })
 
 test('un code-barres a 12 chiffres est aussi cherche avec son zero', () => {

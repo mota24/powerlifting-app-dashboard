@@ -71,9 +71,28 @@ export function recents(entrees: EntreeJournal[], max = 12): Aliment[] {
 export interface ObjectifsNutrition {
   kcal: number | null
   proteines: number | null
+  eau: number | null
 }
 
-export const LIMITES_OBJECTIFS = { kcal: [800, 8000], proteines: [20, 400] } as const
+export const LIMITES_OBJECTIFS = { kcal: [800, 8000], proteines: [20, 400], eau: [500, 6000] } as const
+
+/** Un verre : l'ajout rapide de l'écran nutrition. */
+export const VERRE_ML = 250
+export const EAU_MAX_ML = LIMITES_OBJECTIFS.eau[1]
+
+/**
+ * Seuil d'eau du classement, commun aux deux comptes. L'objectif personnel
+ * sert au suivi du jour ; s'il donnait les points, il suffirait de le baisser.
+ */
+export const EAU_CLASSEMENT_ML = 2000
+
+/** Ajout ou retrait d'un verre, borné : ni négatif, ni au-delà du raisonnable. */
+export const ajusterEau = (actuel: number, delta: number) =>
+  Math.min(EAU_MAX_ML, Math.max(0, Math.round(actuel + delta)))
+
+/** 1 500 ml → « 1,5 L » dans la langue du profil. */
+export const enLitres = (ml: number, locale: string) =>
+  (ml / 1000).toLocaleString(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
 
 /** Champ saisi : vide = pas d'objectif, entier = objectif, le reste est invalide. */
 export function lireObjectif(saisie: string): number | null | 'invalide' {

@@ -10,6 +10,7 @@ import { parseLocalDate, toLocalDateStr } from '@/lib/powerlifting'
 import type { Traducteur } from '@/lib/i18n'
 import { GRAMMES_MAX, grammesValides, pourGrammes, recents, totauxDuJour, type Aliment, type EntreeJournal, type ObjectifsNutrition } from '@/lib/nutrition'
 import { Total, arrondi, arrondi1 } from '@/components/power/nutrition-elements'
+import { CarteEau } from '@/components/power/nutrition-eau'
 import { FenetreAjout } from '@/components/power/nutrition-ajout'
 import { FenetreObjectifs } from '@/components/power/nutrition-objectifs'
 
@@ -30,6 +31,8 @@ export function Nutrition() {
   const [erreur, setErreur] = useState(false)
   const [ajoutOuvert, setAjoutOuvert] = useState(false)
   const [version, setVersion] = useState(0)
+  // null tant que la table d'eau n'est pas là : la carte reste masquée.
+  const [eau, setEau] = useState<number | null>(null)
   const [objectifs, setObjectifs] = useState<ObjectifsNutrition | null>(null)
   const [versionObjectifs, setVersionObjectifs] = useState(0)
   const [objectifsOuverts, setObjectifsOuverts] = useState(false)
@@ -42,9 +45,13 @@ export function Nutrition() {
     Promise.all([
       supabase.from('journal_alimentaire').select('*').eq('date', jour).order('cree_le', { ascending: true }),
       supabase.from('journal_alimentaire').select('*').order('cree_le', { ascending: false }).limit(60),
-    ]).then(([duJour, recentes]) => {
+      supabase.from('journal_eau').select('ml').eq('date', jour).maybeSingle(),
+    ]).then(([duJour, recentes, eauDuJour]) => {
       if (annule) return
       setChargement(false)
+      // Table absente (migration pas encore lancée) : la carte d'eau disparaît,
+      // le reste de l'écran fonctionne.
+      setEau(eauDuJour.error ? null : Number(eauDuJour.data?.ml ?? 0))
       if (duJour.error) {
         setErreur(true)
         return
@@ -58,10 +65,12 @@ export function Nutrition() {
 
   useEffect(() => {
     let annule = false
-    supabase.from('objectifs_nutrition').select('kcal, proteines').maybeSingle().then(({ data, error }) => {
+    // select('*') : la colonne d'eau peut manquer tant que la migration n'est
+    // pas lancée, une liste de colonnes ferait échouer toute la requête.
+    supabase.from('objectifs_nutrition').select('*').maybeSingle().then(({ data, error }) => {
       // Table absente (migration pas encore lancée) : simplement pas d'objectifs.
       if (annule || error) return
-      setObjectifs(data ? { kcal: data.kcal ?? null, proteines: data.proteines ?? null } : null)
+      setObjectifs(data ? { kcal: data.kcal ?? null, proteines: data.proteines ?? null, eau: data.eau ?? null } : null)
     })
     return () => { annule = true }
   }, [versionObjectifs])
@@ -71,6 +80,19 @@ export function Nutrition() {
     setObjectifsOuverts(false)
     setVersionObjectifs((v) => v + 1)
   }, [])
+
+  // Affichage immédiat, écriture derrière : chaque envoi porte le total du
+  // jour, la dernière réponse fait foi.
+  const changerEau = async (valeur: number) => {
+    setEau(valeur)
+    const { error } = await supabase
+      .from('journal_eau')
+      .upsert({ date: jour, ml: valeur, modifie_le: new Date().toISOString() }, { onConflict: 'user_id,date' })
+    if (error) {
+      toast(t('erreur'), 'error')
+      recharger()
+    }
+  }
 
   const totaux = useMemo(() => totauxDuJour(entrees), [entrees])
   const alimentsRecents = useMemo(() => recents(historique), [historique])
@@ -162,11 +184,15 @@ export function Nutrition() {
         <Total libelle={t('proteines')} valeur={totaux.prot} arrondir={arrondi1} unite="g" objectif={objectifs?.proteines ?? null} depasserReussit t={t} locale={locale} />
       </div>
 
+      {eau !== null && (
+        <CarteEau ml={eau} objectif={objectifs?.eau ?? null} t={t} locale={locale} onChange={(ml) => void changerEau(ml)} />
+      )}
+
       <button
         onClick={() => setObjectifsOuverts(true)}
         className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-border text-[10px] font-black uppercase tracking-widest text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
       >
-        <Target className="size-4" /> {objectifs?.kcal || objectifs?.proteines ? t('modifierObjectifs') : t('definirObjectifs')}
+        <Target className="size-4" /> {objectifs?.kcal || objectifs?.proteines || objectifs?.eau ? t('modifierObjectifs') : t('definirObjectifs')}
       </button>
 
       <button
