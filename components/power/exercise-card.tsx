@@ -1,15 +1,15 @@
 'use client'
 
 import { memo } from 'react'
-import { Check, ChevronDown, ChevronUp, CopyPlus, Plus, Timer, Trash2, TrendingUp, X } from 'lucide-react'
+import { Check, ChevronDown, ChevronUp, Plus, Timer, Trash2, TrendingUp, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useLocale, useT, useTheme } from '@/app/ThemeContext'
 import { PAIN_LEVELS, bestE1RM, classifyLift, type SetData } from '@/lib/powerlifting'
 import { CARDIOS, estCardio, minutesCardio, type ExerciceRow } from '@/lib/seance'
 
-interface ExerciseCardProps { ex: ExerciceRow; exIndex: number; isLast: boolean; listId: string; onPatch: (index: number, patch: Partial<ExerciceRow>) => void; onUpdateSerie: (exIndex: number, list: 'coachTracking' | 'tracking', setIndex: number, champ: keyof SetData, valeur: string) => void; onAjouterSerie: (exIndex: number, list: 'coachTracking' | 'tracking') => void; onSupprimerSerie: (exIndex: number, list: 'coachTracking' | 'tracking', setIndex: number) => void; onDeplacer: (index: number, direction: 'up' | 'down') => void; onSupprimer: (index: number, ex: ExerciceRow) => void; onCopierCoach: (exIndex: number) => void; onRepeterSerie: (exIndex: number, setIndex: number) => void; onValiderSerie: (exIndex: number, setIndex: number) => void; suggestionPoids: number | null; suggestionAncien: number | null; onAppliquerSuggestion: (exIndex: number, poids: number, ancien: number) => void; }
+interface ExerciseCardProps { ex: ExerciceRow; exIndex: number; isLast: boolean; listId: string; onPatch: (index: number, patch: Partial<ExerciceRow>) => void; onUpdateSerie: (exIndex: number, list: 'coachTracking' | 'tracking', setIndex: number, champ: keyof SetData, valeur: string) => void; onAjouterSerie: (exIndex: number, list: 'coachTracking' | 'tracking') => void; onSupprimerSerie: (exIndex: number, list: 'coachTracking' | 'tracking', setIndex: number) => void; onDeplacer: (index: number, direction: 'up' | 'down') => void; onSupprimer: (index: number, ex: ExerciceRow) => void; onCopierCoach: (exIndex: number) => void; onValiderSerie: (exIndex: number, setIndex: number) => void; suggestionPoids: number | null; suggestionAncien: number | null; onAppliquerSuggestion: (exIndex: number, poids: number, ancien: number) => void; }
 
-export const ExerciseCard = memo(function ExerciseCard({ ex, exIndex, isLast, listId, onPatch, onUpdateSerie, onAjouterSerie, onSupprimerSerie, onDeplacer, onSupprimer, onCopierCoach, onRepeterSerie, onValiderSerie, suggestionPoids, suggestionAncien, onAppliquerSuggestion }: ExerciseCardProps) {
+export const ExerciseCard = memo(function ExerciseCard({ ex, exIndex, isLast, listId, onPatch, onUpdateSerie, onAjouterSerie, onSupprimerSerie, onDeplacer, onSupprimer, onCopierCoach, onValiderSerie, suggestionPoids, suggestionAncien, onAppliquerSuggestion }: ExerciseCardProps) {
   const { mode } = useTheme()
   const t = useT()
   const locale = useLocale()
@@ -58,17 +58,7 @@ export const ExerciseCard = memo(function ExerciseCard({ ex, exIndex, isLast, li
               </div>
             ))}
           </div>
-          <div className="mt-4 flex gap-2">
-            <button onClick={() => onAjouterSerie(exIndex, 'coachTracking')} className="flex-1 py-3 bg-secondary text-muted-foreground hover:text-foreground text-[10px] font-bold uppercase tracking-widest rounded-lg transition-colors">{t('ajouter')}</button>
-            <button
-              onClick={() => onRepeterSerie(exIndex, 0)}
-              disabled={ex.coachTracking.length < 2 || !ex.coachTracking[0]?.reps.trim()}
-              title={t('repeterAide')}
-              className="flex flex-1 items-center justify-center gap-2 py-3 bg-secondary text-muted-foreground hover:text-foreground text-[10px] font-bold uppercase tracking-widest rounded-lg transition-colors disabled:opacity-30"
-            >
-              <CopyPlus className="size-3.5" /> {t('repeter')}
-            </button>
-          </div>
+          <button onClick={() => onAjouterSerie(exIndex, 'coachTracking')} className="mt-4 w-full py-3 bg-secondary text-muted-foreground hover:text-foreground text-[10px] font-bold uppercase tracking-widest rounded-lg transition-colors">{t('ajouter')}</button>
         </div>
 
         <div className="p-4 rounded-xl border border-border bg-background flex flex-col h-full">

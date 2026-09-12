@@ -26,12 +26,6 @@ export function minutesCardio(series: SetData[]): number {
   }, 0)
 }
 
-/** Copie une série sur toutes celles qui suivent : un 3×10 ne se tape qu'une fois. */
-export function copierVersLesSuivantes(series: SetData[], depuis: number): SetData[] {
-  const modele = series[depuis]
-  return modele ? series.map((s, i) => (i > depuis ? { ...modele } : s)) : series
-}
-
 /** Série ajoutée au plan : reprise de la dernière si elle est déjà remplie. */
 export function serieSuivante(series: SetData[]): SetData {
   const derniere = series[series.length - 1]
