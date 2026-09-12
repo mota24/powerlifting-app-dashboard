@@ -1,4 +1,5 @@
-import { calculateIPFGL, toLocalDateStr } from '@/lib/powerlifting'
+import { calculateIPFGL, parseLocalDate, toLocalDateStr } from '@/lib/powerlifting'
+import type { CleTraduction, Traducteur } from '@/lib/i18n'
 
 // ————————————————————————————————————————————————
 // Modèle
@@ -9,10 +10,10 @@ import { calculateIPFGL, toLocalDateStr } from '@/lib/powerlifting'
 
 export type LiftKey = 'squat' | 'bench' | 'deadlift'
 
-export const LIFTS: { key: LiftKey; label: string; short: string }[] = [
-  { key: 'squat', label: 'Squat', short: 'SQ' },
-  { key: 'bench', label: 'Dév. Couché', short: 'BP' },
-  { key: 'deadlift', label: 'S. de Terre', short: 'DL' },
+export const LIFTS: { key: LiftKey; cle: CleTraduction; short: string }[] = [
+  { key: 'squat', cle: 'liftSquat', short: 'SQ' },
+  { key: 'bench', cle: 'liftBench', short: 'BP' },
+  { key: 'deadlift', cle: 'liftDeadlift', short: 'DL' },
 ]
 
 /** Niveaux proposés en autocomplétion — le champ reste libre. */
@@ -101,17 +102,17 @@ export function todayStr(): string {
   return toLocalDateStr(new Date())
 }
 
-export function formatDate(date: string): string {
-  return new Date(date + 'T00:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })
+export function formatDate(date: string, locale = 'fr-FR'): string {
+  return parseLocalDate(date).toLocaleDateString(locale, { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-export function formatPlacement(placement: number): string {
-  return placement === 1 ? '1er' : `${placement}e`
+export function formatPlacement(placement: number, t: Traducteur): string {
+  return placement === 1 ? t('premierePlace') : t('niemePlace', { n: placement })
 }
 
 /** Affichage d'un poids : décimale seulement si utile (167,5 mais 295). */
-export function formatKg(value: number): string {
-  return value.toLocaleString('fr-FR', { maximumFractionDigits: 1 })
+export function formatKg(value: number, locale = 'fr-FR'): string {
+  return value.toLocaleString(locale, { maximumFractionDigits: 1 })
 }
 
 // ————————————————————————————————————————————————

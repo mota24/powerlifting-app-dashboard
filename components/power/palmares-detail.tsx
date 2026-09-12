@@ -3,6 +3,7 @@
 import { useCallback, useState } from 'react'
 import { Calendar, CirclePlay, Medal, Pencil, Trash2, X } from 'lucide-react'
 import { useModale } from '@/lib/use-modale'
+import { useLocale, useT } from '@/app/ThemeContext'
 import { LIFTS, attemptsOf, bestLift, formatDate, formatKg, formatPlacement, glOf, safeHttpUrl, totalOf, type Competition } from '@/lib/palmares'
 import { AttemptValue, CountryFlag } from '@/components/power/palmares-elements'
 
@@ -21,6 +22,8 @@ export function CompetitionDetail({
   onEdit: () => void
   onDelete: () => void
 }) {
+  const t = useT()
+  const locale = useLocale()
   const [zoom, setZoom] = useState<string | null>(null)
   const photos = comp.photo_urls ?? []
   // Revalidé à l'affichage : une valeur douteuse en base ne doit pas
@@ -47,7 +50,7 @@ export function CompetitionDetail({
             <h2 className="text-lg font-black uppercase tracking-widest text-white">{comp.name}</h2>
             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[10px] font-bold uppercase tracking-widest text-zinc-500">
               <span className="flex items-center gap-1.5">
-                <Calendar className="size-3" /> {formatDate(comp.date)}
+                <Calendar className="size-3" /> {formatDate(comp.date, locale)}
               </span>
               {(comp.level || comp.country_code) && (
                 <span className="flex items-center gap-1.5 text-zinc-400">
@@ -58,12 +61,12 @@ export function CompetitionDetail({
               {comp.category && <span>{comp.category}</span>}
               {comp.placement != null && (
                 <span className="flex items-center gap-1 text-white">
-                  <Medal className="size-3" /> {formatPlacement(comp.placement)}
+                  <Medal className="size-3" /> {formatPlacement(comp.placement, t)}
                 </span>
               )}
             </div>
           </div>
-          <button onClick={onClose} aria-label="Fermer" className="shrink-0 p-2 text-zinc-500 hover:text-white transition-colors">
+          <button onClick={onClose} aria-label={t('fermer')} className="shrink-0 p-2 text-zinc-500 hover:text-white transition-colors">
             <X className="size-4" />
           </button>
         </div>
@@ -75,7 +78,7 @@ export function CompetitionDetail({
         {photos.length > 0 && (
           <div className="mt-8">
             <h3 className="mb-4 text-[10px] font-bold uppercase tracking-widest text-zinc-500">
-              Photos · {photos.length}
+              {t('photos')} · {photos.length}
             </h3>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {photos.map((url) => (
@@ -103,20 +106,20 @@ export function CompetitionDetail({
               rel="noopener noreferrer"
               className="mr-auto flex items-center gap-2 rounded-lg bg-zinc-900 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-white hover:bg-zinc-800 transition-colors"
             >
-              <CirclePlay className="size-3.5 shrink-0" /> Rediffusion
+              <CirclePlay className="size-3.5 shrink-0" /> {t('rediffusion')}
             </a>
           )}
           <button
             onClick={onEdit}
             className="flex items-center gap-2 rounded-lg bg-zinc-900 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-white hover:bg-zinc-800 transition-colors"
           >
-            <Pencil className="size-3.5" /> Modifier
+            <Pencil className="size-3.5" /> {t('modifier')}
           </button>
           <button
             onClick={onDelete}
             className="flex items-center gap-2 rounded-lg px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-red-400 hover:bg-red-500/10 transition-colors"
           >
-            <Trash2 className="size-3.5" /> Supprimer
+            <Trash2 className="size-3.5" /> {t('supprimer')}
           </button>
         </div>
       </div>
@@ -136,7 +139,7 @@ export function CompetitionDetail({
               e.stopPropagation()
               setZoom(null)
             }}
-            aria-label="Fermer la photo"
+            aria-label={t('fermerPhoto')}
             className="absolute top-4 right-4 p-2 text-zinc-400 hover:text-white transition-colors"
           >
             <X className="size-5" />
@@ -153,6 +156,8 @@ export function CompetitionDetail({
  * (convention OpenPowerlifting) pour rester identifiable d'un coup d'œil.
  */
 function Scoresheet({ comp, total, gl }: { comp: Competition; total: number; gl: number }) {
+  const t = useT()
+  const locale = useLocale()
   const hasAttempts = LIFTS.some(({ key }) => attemptsOf(comp, key).some((a) => a != null))
 
   return (
@@ -165,33 +170,33 @@ function Scoresheet({ comp, total, gl }: { comp: Competition; total: number; gl:
         <thead>
           <tr className="border-b border-zinc-900 bg-black">
             <th className="whitespace-nowrap px-1.5 py-3 text-[9px] font-bold uppercase tracking-widest text-zinc-500 sm:px-4">
-              <span className="sm:hidden">Mvt</span>
-              <span className="hidden sm:inline">Mouvement</span>
+              <span className="sm:hidden">{t('colonneMouvementCourt')}</span>
+              <span className="hidden sm:inline">{t('colonneMouvement')}</span>
             </th>
             {[1, 2, 3].map((n) => (
               <th
                 key={n}
                 className="whitespace-nowrap px-1 py-3 text-center text-[9px] font-bold uppercase tracking-widest text-zinc-500 sm:px-3"
               >
-                <span className="hidden sm:inline">Essai </span>
+                <span className="hidden sm:inline">{t('essai')} </span>
                 {n}
               </th>
             ))}
             <th className="whitespace-nowrap px-1.5 py-3 text-right text-[9px] font-bold uppercase tracking-widest text-zinc-500 sm:px-4">
-              <span className="sm:hidden">Max</span>
-              <span className="hidden sm:inline">Meilleur</span>
+              <span className="sm:hidden">{t('meilleurCourt')}</span>
+              <span className="hidden sm:inline">{t('meilleur')}</span>
             </th>
           </tr>
         </thead>
         <tbody>
-          {LIFTS.map(({ key, label, short }) => {
+          {LIFTS.map(({ key, cle, short }) => {
             const attempts = attemptsOf(comp, key)
             const best = bestLift(comp, key)
             return (
               <tr key={key} className="border-b border-zinc-900/60 last:border-0">
                 <td className="whitespace-nowrap px-1.5 py-3 text-[10px] font-bold uppercase tracking-widest text-zinc-300 sm:px-4">
                   <span className="sm:hidden">{short}</span>
-                  <span className="hidden sm:inline">{label}</span>
+                  <span className="hidden sm:inline">{t(cle)}</span>
                 </td>
                 {attempts.map((attempt, i) => (
                   <td key={i} className="whitespace-nowrap px-1 py-3 text-center sm:px-3">
@@ -199,7 +204,7 @@ function Scoresheet({ comp, total, gl }: { comp: Competition; total: number; gl:
                   </td>
                 ))}
                 <td className="whitespace-nowrap px-1.5 py-3 text-right font-mono text-sm font-black tabular-nums text-white sm:px-4">
-                  {best > 0 ? formatKg(best) : '—'}
+                  {best > 0 ? formatKg(best, locale) : '—'}
                 </td>
               </tr>
             )
@@ -208,10 +213,10 @@ function Scoresheet({ comp, total, gl }: { comp: Competition; total: number; gl:
         <tfoot>
           <tr className="border-t border-zinc-800 bg-black">
             <td className="whitespace-nowrap px-1.5 py-3 text-[9px] font-bold uppercase tracking-widest text-zinc-500 sm:px-4">
-              Total
+              {t('total')}
             </td>
             <td colSpan={2} className="whitespace-nowrap px-1 py-3 font-mono text-base font-black tabular-nums text-white sm:px-3 sm:text-lg">
-              {total > 0 ? `${formatKg(total)} kg` : '—'}
+              {total > 0 ? `${formatKg(total, locale)} kg` : '—'}
             </td>
             <td className="whitespace-nowrap px-1 py-3 text-right text-[9px] font-bold uppercase tracking-widest text-zinc-500 sm:px-3">
               IPF GL
@@ -225,7 +230,7 @@ function Scoresheet({ comp, total, gl }: { comp: Competition; total: number; gl:
 
       {!hasAttempts && (
         <p className="border-t border-zinc-900 px-4 py-3 text-[9px] font-bold uppercase tracking-widest text-zinc-600">
-          Essais non détaillés pour cette compétition
+          {t('essaisNonDetailles')}
         </p>
       )}
     </div>

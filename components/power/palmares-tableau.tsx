@@ -1,6 +1,7 @@
 'use client'
 
 import { cn } from '@/lib/utils'
+import { useLocale, useT } from '@/app/ThemeContext'
 import { LIFTS, attemptsOf, formatKg, glOf, totalOf, type Competition } from '@/lib/palmares'
 import { AttemptValue, CountryFlag } from '@/components/power/palmares-elements'
 
@@ -16,24 +17,26 @@ import { AttemptValue, CountryFlag } from '@/components/power/palmares-elements'
  * lieu de déborder, rendant les chiffres illisibles sur mobile.
  */
 export function PalmaresTable({ competitions, onOpen }: { competitions: Competition[]; onOpen: (id: string) => void }) {
+  const t = useT()
+  const locale = useLocale()
   return (
     <div className="overflow-x-auto rounded-xl border border-zinc-900 bg-zinc-950">
       <table className="min-w-max w-full border-collapse text-left">
         <thead>
           <tr className="border-b border-zinc-900 bg-black">
             <Th rowSpan={2}>#</Th>
-            <Th rowSpan={2}>Date</Th>
-            <Th rowSpan={2} align="center">Lieu</Th>
-            <Th rowSpan={2}>Compétition</Th>
-            <Th rowSpan={2}>Niveau</Th>
-            <Th rowSpan={2}>Division</Th>
-            <Th rowSpan={2} align="right">PDC</Th>
-            {LIFTS.map(({ key, label }) => (
+            <Th rowSpan={2}>{t('colonneDate')}</Th>
+            <Th rowSpan={2} align="center">{t('colonneLieu')}</Th>
+            <Th rowSpan={2}>{t('colonneCompetition')}</Th>
+            <Th rowSpan={2}>{t('colonneNiveau')}</Th>
+            <Th rowSpan={2}>{t('colonneDivision')}</Th>
+            <Th rowSpan={2} align="right">{t('pdcCourt')}</Th>
+            {LIFTS.map(({ key, cle }) => (
               <Th key={key} colSpan={3} align="center" className="border-l border-zinc-900">
-                {label}
+                {t(cle)}
               </Th>
             ))}
-            <Th rowSpan={2} align="right" className="border-l border-zinc-900">Total</Th>
+            <Th rowSpan={2} align="right" className="border-l border-zinc-900">{t('total')}</Th>
             <Th rowSpan={2} align="right">IPF GL</Th>
           </tr>
           <tr className="border-b border-zinc-900 bg-black">
@@ -72,7 +75,7 @@ export function PalmaresTable({ competitions, onOpen }: { competitions: Competit
                 <Td className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">{comp.level || '—'}</Td>
                 <Td className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">{comp.category || '—'}</Td>
                 <Td align="right" className="font-mono tabular-nums text-zinc-300">
-                  {comp.bodyweight != null ? formatKg(comp.bodyweight) : '—'}
+                  {comp.bodyweight != null ? formatKg(comp.bodyweight, locale) : '—'}
                 </Td>
                 {LIFTS.flatMap(({ key }) =>
                   attemptsOf(comp, key).map((attempt, i) => (
@@ -82,7 +85,7 @@ export function PalmaresTable({ competitions, onOpen }: { competitions: Competit
                   ))
                 )}
                 <Td align="right" className="border-l border-zinc-900 font-mono tabular-nums font-black text-white">
-                  {total > 0 ? formatKg(total) : '—'}
+                  {total > 0 ? formatKg(total, locale) : '—'}
                 </Td>
                 <Td align="right" className="font-mono tabular-nums font-black text-white">
                   {gl > 0 ? gl.toFixed(2) : '—'}

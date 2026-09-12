@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { toast } from '@/components/power/toaster'
 import { proposerAnnulation } from '@/lib/annulation'
 import { cn } from '@/lib/utils'
+import { useT } from '@/app/ThemeContext'
 import { LIFTS, bestValid, createEmptyForm, formFrom, num, safeHttpUrl, type Competition, type FormState, type VueMode } from '@/lib/palmares'
 import { PalmaresTable } from '@/components/power/palmares-tableau'
 import { CompetitionCard } from '@/components/power/palmares-carte'
@@ -28,6 +29,7 @@ interface PalmaresProps {
 }
 
 export function Palmares({ initialEditId, onInitialEditConsumed }: PalmaresProps = {}) {
+  const t = useT()
   const [competitions, setCompetitions] = useState<Competition[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -49,7 +51,7 @@ export function Palmares({ initialEditId, onInitialEditConsumed }: PalmaresProps
       if (cancelled) return
       setLoading(false)
       if (error) {
-        toast('Erreur de chargement du palmarès', 'error')
+        toast(t('erreurChargementPalmares'), 'error')
         return
       }
       const liste = (data ?? []) as Competition[]
@@ -64,7 +66,7 @@ export function Palmares({ initialEditId, onInitialEditConsumed }: PalmaresProps
       consommer?.()
     })
     return () => { cancelled = true }
-  }, [version])
+  }, [version, t])
 
   const detail = competitions.find((c) => c.id === detailId) ?? null
 
@@ -110,12 +112,12 @@ export function Palmares({ initialEditId, onInitialEditConsumed }: PalmaresProps
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!form.name.trim() || !form.date) {
-      toast('Nom et date requis', 'error')
+      toast(t('nomEtDateRequis'), 'error')
       return
     }
     // Plutôt que d'ignorer silencieusement un lien mal formé.
     if (form.videoUrl.trim() && !safeHttpUrl(form.videoUrl)) {
-      toast('Le lien vidéo doit commencer par http:// ou https://', 'error')
+      toast(t('lienVideoInvalide'), 'error')
       return
     }
     setSaving(true)
@@ -148,18 +150,18 @@ export function Palmares({ initialEditId, onInitialEditConsumed }: PalmaresProps
         : await supabase.from('competitions').insert([payload])
       if (error) throw error
 
-      toast(editingId ? 'Compétition mise à jour' : 'Compétition ajoutée', 'success')
+      toast(t(editingId ? 'competitionMiseAJour' : 'competitionAjoutee'), 'success')
       closeForm()
       recharger()
     } catch {
-      toast('Erreur lors de la sauvegarde', 'error')
+      toast(t('erreurSauvegarde'), 'error')
     } finally {
       setSaving(false)
     }
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Supprimer cette compétition ?')) return
+    if (!confirm(t('confirmerSuppressionCompetition'))) return
     // Copie complète (chargée via select('*')) : c'est elle qu'on réinsère si
     // la suppression est annulée. Les photos ne sont pas effacées du stockage,
     // elles reviennent donc avec la ligne.
@@ -170,40 +172,40 @@ export function Palmares({ initialEditId, onInitialEditConsumed }: PalmaresProps
       setCompetitions((prev) => prev.filter((c) => c.id !== id))
       setDetailId(null)
       if (!copie) {
-        toast('Compétition supprimée', 'success')
+        toast(t('competitionSupprimee'), 'success')
         return
       }
       proposerAnnulation({
-        message: 'Compétition supprimée',
-        libelleBouton: 'Annuler',
+        message: t('competitionSupprimee'),
+        libelleBouton: t('annuler'),
         annuler: async () => {
           const { error: erreurRestauration } = await supabase.from('competitions').insert([copie])
           if (erreurRestauration) {
-            toast('Restauration impossible', 'error')
+            toast(t('restaurationImpossible'), 'error')
             return false
           }
           recharger()
-          toast('Compétition restaurée', 'success')
+          toast(t('competitionRestauree'), 'success')
           return true
         },
       })
     } catch {
-      toast('Erreur lors de la suppression', 'error')
+      toast(t('erreurSuppression'), 'error')
     }
   }
 
   return (
     <Card>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-8">
-        <CardTitle icon={Trophy} title="Palmarès" hint="Historique de compétitions" />
+        <CardTitle icon={Trophy} title={t('palmares')} hint={t('palmaresHistorique')} />
 
         <div className="flex items-center gap-2">
           {/* Libellés masqués sous 640px : les icônes suffisent et l'en-tête
               tient sur une ligne, même à 375px de large. */}
           <div className="flex bg-zinc-900 p-1 rounded-xl">
             {([
-              { key: 'cartes', label: 'Cartes', Icon: LayoutGrid },
-              { key: 'tableau', label: 'Tableau', Icon: Table2 },
+              { key: 'cartes', label: t('vueCartes'), Icon: LayoutGrid },
+              { key: 'tableau', label: t('vueTableau'), Icon: Table2 },
             ] as const).map(({ key, label, Icon }) => (
               <button
                 key={key}
@@ -226,7 +228,7 @@ export function Palmares({ initialEditId, onInitialEditConsumed }: PalmaresProps
               onClick={openAddForm}
               className="flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-black hover:bg-zinc-200 transition-colors"
             >
-              <Plus className="size-3.5 shrink-0" /> Ajouter
+              <Plus className="size-3.5 shrink-0" /> {t('ajouter')}
             </button>
           )}
         </div>
@@ -251,7 +253,7 @@ export function Palmares({ initialEditId, onInitialEditConsumed }: PalmaresProps
         </div>
       ) : competitions.length === 0 ? (
         <p className="text-center text-[10px] font-bold uppercase tracking-widest text-zinc-600 py-12">
-          Aucune compétition enregistrée
+          {t('aucuneCompetition')}
         </p>
       ) : vue === 'cartes' ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

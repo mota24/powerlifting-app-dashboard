@@ -92,13 +92,15 @@ export function LiftProgressChart({ onSelectSession }: { onSelectSession?: (date
   return (
     <div className="mt-6 space-y-8 p-6 sm:p-8 bg-zinc-950 border border-zinc-900 rounded-2xl">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex bg-zinc-900 p-1 rounded-xl w-fit">
+        {/* max-w-full + défilement : à 320 px, les trois mouvements ne tiennent
+            pas côte à côte et le dernier bouton se retrouvait coupé. */}
+        <div className="flex max-w-full overflow-x-auto bg-zinc-900 p-1 rounded-xl w-fit">
           {LIFTS.map((l) => (
             <button
               key={l.key}
               onClick={() => setLift(l.key)}
               className={cn(
-                'px-6 py-2 rounded-lg text-[11px] font-bold uppercase tracking-widest transition-all',
+                'shrink-0 px-4 sm:px-6 py-2 rounded-lg text-[11px] font-bold uppercase tracking-widest transition-all',
                 lift === l.key ? 'bg-white text-black shadow-sm' : 'text-zinc-500 hover:text-white'
               )}
             >
@@ -107,7 +109,9 @@ export function LiftProgressChart({ onSelectSession }: { onSelectSession?: (date
           ))}
         </div>
 
-        <div className="flex bg-zinc-900 p-1 rounded-xl w-fit">
+        {/* max-w-full + défilement : à 320 px, les trois mouvements ne tiennent
+            pas côte à côte et le dernier bouton se retrouvait coupé. */}
+        <div className="flex max-w-full overflow-x-auto bg-zinc-900 p-1 rounded-xl w-fit">
           {([
             { key: 'seance', label: t('parSeance') },
             { key: 'semaine', label: t('parSemaine') },

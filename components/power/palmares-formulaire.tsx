@@ -3,6 +3,7 @@
 import { Camera, Loader2, X } from 'lucide-react'
 import { COUNTRIES, countryCodeToFlag } from '@/lib/countries'
 import { LIFTS, NIVEAUX, bestValid, num, type FormState, type LiftKey } from '@/lib/palmares'
+import { useT } from '@/app/ThemeContext'
 
 // ————————————————————————————————————————————————
 // Formulaire d'ajout / édition
@@ -27,6 +28,7 @@ export function CompetitionForm({
   onSubmit: (e: React.FormEvent) => void
   onCancel: () => void
 }) {
+  const t = useT()
   const inputClass =
     'w-full bg-zinc-900 rounded-lg p-3 text-white text-sm font-bold outline-none focus:ring-1 focus:ring-white placeholder:text-zinc-700'
   const numClass = `${inputClass} font-mono tabular-nums text-center`
@@ -51,25 +53,25 @@ export function CompetitionForm({
     <form onSubmit={onSubmit} className="mb-8 w-full max-w-full space-y-6 overflow-x-hidden rounded-2xl border border-zinc-900 bg-black p-4 sm:p-6">
       <div className="flex items-center justify-between">
         <h3 className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
-          {editing ? 'Modifier la compétition' : 'Nouvelle compétition'}
+          {t(editing ? 'modifierCompetition' : 'nouvelleCompetition')}
         </h3>
-        <button type="button" onClick={onCancel} aria-label="Annuler" className="text-zinc-500 hover:text-white transition-colors">
+        <button type="button" onClick={onCancel} aria-label={t('annuler')} className="text-zinc-500 hover:text-white transition-colors">
           <X className="size-4" />
         </button>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <Field label="Nom de la compétition">
+        <Field label={t('nomCompetition')}>
           <input
             type="text"
             value={form.name}
             onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
-            placeholder="Ex: Campeonato de España Junior"
+            placeholder={t('exempleNomCompetition')}
             className={inputClass}
             required
           />
         </Field>
-        <Field label="Date">
+        <Field label={t('colonneDate')}>
           {/* iOS Safari donne aux parties internes (shadow DOM) d'un
               <input type="date"> une largeur qui résiste à w-full seul.
               appearance-none retire le chrome natif qu'Apple dessine par-
@@ -83,13 +85,13 @@ export function CompetitionForm({
             required
           />
         </Field>
-        <Field label="Niveau">
+        <Field label={t('colonneNiveau')}>
           <input
             type="text"
             list="palmares-niveaux"
             value={form.level}
             onChange={(e) => setForm((p) => ({ ...p, level: e.target.value }))}
-            placeholder="Ex: National"
+            placeholder={t('exempleNiveau')}
             className={inputClass}
           />
           <datalist id="palmares-niveaux">
@@ -98,7 +100,7 @@ export function CompetitionForm({
             ))}
           </datalist>
         </Field>
-        <Field label="Pays">
+        <Field label={t('pays')}>
           {/* Le nom du pays apparaît ici pour rendre la saisie utilisable,
               mais jamais sur les cartes : seul l'émoji y est affiché. */}
           <select
@@ -106,7 +108,7 @@ export function CompetitionForm({
             onChange={(e) => setForm((p) => ({ ...p, countryCode: e.target.value }))}
             className={`${inputClass} [color-scheme:dark]`}
           >
-            <option value="">— Aucun</option>
+            <option value="">{t('aucunPays')}</option>
             {COUNTRIES.map((pays) => (
               <option key={pays.code} value={pays.code}>
                 {countryCodeToFlag(pays.code)} {pays.name}
@@ -114,38 +116,38 @@ export function CompetitionForm({
             ))}
           </select>
         </Field>
-        <Field label="Catégorie">
+        <Field label={t('categorie')}>
           <input
             type="text"
             value={form.category}
             onChange={(e) => setForm((p) => ({ ...p, category: e.target.value }))}
-            placeholder="Ex: -120kg Junior"
+            placeholder={t('exempleCategorie')}
             className={inputClass}
           />
         </Field>
-        <Field label="Classement">
+        <Field label={t('placeObtenue')}>
           <input
             type="number"
             min="1"
             step="1"
             value={form.placement}
             onChange={(e) => setForm((p) => ({ ...p, placement: e.target.value }))}
-            placeholder="Ex: 1"
+            placeholder={t('exemplePlace')}
             className={numClass}
           />
         </Field>
-        <Field label="Poids de corps (kg)">
+        <Field label={t('poidsCorpsKg')}>
           <input
             type="number"
             step="0.01"
             value={form.bodyweight}
             onChange={(e) => setForm((p) => ({ ...p, bodyweight: e.target.value }))}
-            placeholder="Ex: 117.2"
+            placeholder={t('exemplePoidsCorps')}
             className={numClass}
           />
         </Field>
         <div className="sm:col-span-2 min-w-0">
-          <Field label="Lien de la rediffusion (YouTube, live…)">
+          <Field label={t('lienRediffusion')}>
             <input
               type="url"
               inputMode="url"
@@ -159,16 +161,15 @@ export function CompetitionForm({
       </div>
 
       <div className="space-y-3 border-t border-zinc-900 pt-6">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Les 9 essais</p>
+        <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">{t('les9Essais')}</p>
         <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-600 leading-relaxed">
-          Essai manqué : saisis la charge en négatif (ex : −175). Laisse vide si non tenté.
-          La meilleure barre validée est calculée automatiquement.
+          {t('aideEssais')}
         </p>
 
         <div className="space-y-2">
-          {LIFTS.map(({ key, label }) => (
+          {LIFTS.map(({ key, cle }) => (
             <div key={key} className="grid grid-cols-[1fr_auto] sm:grid-cols-[10rem_1fr] items-center gap-3">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">{label}</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">{t(cle)}</span>
               <div className="grid grid-cols-3 gap-2">
                 {form.attempts[key].map((value, i) => (
                   <input
@@ -178,7 +179,7 @@ export function CompetitionForm({
                     value={value}
                     onChange={(e) => setAttempt(key, i, e.target.value)}
                     placeholder={`E${i + 1}`}
-                    aria-label={`${label} essai ${i + 1}`}
+                    aria-label={`${t(cle)} ${t('essai')} ${i + 1}`}
                     className={numClass}
                   />
                 ))}
@@ -190,7 +191,7 @@ export function CompetitionForm({
 
       <div className="space-y-3 border-t border-zinc-900 pt-6">
         <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
-          Meilleures barres <span className="text-zinc-600">— si les essais ne sont pas détaillés</span>
+          {t('meilleuresBarres')} <span className="text-zinc-600">{t('siEssaisNonDetailles')}</span>
         </p>
         <div className="grid grid-cols-3 gap-2">
           {LIFTS.map(({ key, short }) => (
@@ -209,7 +210,7 @@ export function CompetitionForm({
       </div>
 
       <div className="space-y-3 border-t border-zinc-900 pt-6">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Photos</p>
+        <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">{t('photos')}</p>
 
         {form.photoUrls.length > 0 && (
           <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
@@ -220,7 +221,7 @@ export function CompetitionForm({
                 <button
                   type="button"
                   onClick={() => removePhoto(url)}
-                  aria-label="Retirer la photo"
+                  aria-label={t('retirerPhoto')}
                   className="absolute top-1 right-1 rounded-full bg-black/80 p-1 text-zinc-300 hover:text-white transition-colors"
                 >
                   <X className="size-3" />
@@ -232,7 +233,7 @@ export function CompetitionForm({
 
         <label className="flex items-center justify-center gap-2 w-full bg-zinc-900 rounded-lg p-3 text-[11px] font-bold uppercase tracking-widest text-zinc-400 hover:text-white cursor-pointer transition-colors">
           {uploading ? <Loader2 className="size-4 animate-spin" /> : <Camera className="size-4" />}
-          {uploading ? 'Envoi…' : 'Ajouter des photos'}
+          {uploading ? t('envoiEnCours') : t('ajouterPhotos')}
           <input
             type="file"
             accept="image/jpeg,image/png,image/webp"
@@ -250,7 +251,7 @@ export function CompetitionForm({
         className="w-full py-3 rounded-lg bg-white text-black text-[11px] font-bold uppercase tracking-widest hover:bg-zinc-200 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
       >
         {saving && <Loader2 className="size-4 animate-spin" />}
-        {editing ? 'Enregistrer' : 'Ajouter au palmarès'}
+        {t(editing ? 'enregistrer' : 'ajouterAuPalmares')}
       </button>
     </form>
   )
