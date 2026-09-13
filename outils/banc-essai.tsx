@@ -84,7 +84,7 @@ function corpsPour(url: string, methode: string): unknown {
   if (url.includes('/api/photos/fichier')) return {}
   if (url.includes('/api/photos')) return { photos: [] }
   if (url.includes('/api/aliments')) return { produits: [] }
-  if (url.includes('/api/coach')) return { texte: 'Réponse IA factice' }
+  if (url.includes('/api/coach')) return [{ name: 'Back Squat', comments: 'test', coachTracking: [serie('3', '180'), serie('3', '180'), serie('3', '180')] }]
   const rpc = url.match(/rpc\/([a-z_]+)/)
   if (rpc) return RPC[rpc[1]] ?? []
   const table = url.match(/\/api\/db\/rest\/v1\/([a-z_]+)/)
