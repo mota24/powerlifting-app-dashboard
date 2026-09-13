@@ -2,7 +2,10 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { joursProgrammes, nouvelleSerie, type LigneJour } from '../lib/serie'
 import { chargeSuivante, cleExercice, seriePrescrite, suggererProgression } from '../lib/progression'
-import { estCardio, exerciceVide, formatDateAffichage, creerExerciceVierge, minutesCardio, serieSuivante, type ExerciceRow } from '../lib/seance'
+import {
+  MINUTES_REPOS_MINI, activiteReposVide, ecrireActiviteRepos, estCardio, exerciceVide, formatDateAffichage,
+  creerExerciceVierge, lireActiviteRepos, minutesCardio, reposActif, serieSuivante, type ExerciceRow,
+} from '../lib/seance'
 import { setsTonnage } from '../lib/powerlifting'
 import { DEFAULT_WORK, buildSequence, clampConfig, formatDuree, normalizeWorkTimes } from '../lib/circuit'
 
@@ -134,4 +137,23 @@ test('les reglages relus sont bornes et le format reste lisible', () => {
   assert.deepEqual(clampConfig({}), {})
   assert.equal(formatDuree(95), '1:35')
   assert.equal(formatDuree(45), '45')
+})
+
+test('une activite de jour de repos fait l aller-retour et compte a partir de 10 min', () => {
+  const activite = { type: 'mobilite' as const, minutes: '20' }
+  const range = ecrireActiviteRepos(activite)
+  assert.deepEqual(range, [{ reps: '20', weight: 'mobilite', rpe: '' }])
+  assert.deepEqual(lireActiviteRepos(range), activite)
+  // Rien de choisi : rien d ecrit, rien a relire.
+  assert.deepEqual(ecrireActiviteRepos(activiteReposVide()), [])
+  assert.deepEqual(lireActiviteRepos(null), { type: null, minutes: '' })
+  // Une ligne de series ordinaire n est pas une activite de repos.
+  assert.deepEqual(lireActiviteRepos([{ reps: '10', weight: '60', rpe: '' }]), { type: null, minutes: '' })
+})
+
+test('le bonus du repos actif exige le minimum de minutes', () => {
+  assert.equal(reposActif({ type: 'cardioVelo', minutes: String(MINUTES_REPOS_MINI) }), true)
+  assert.equal(reposActif({ type: 'cardioVelo', minutes: '9' }), false)
+  assert.equal(reposActif({ type: 'cardioVelo', minutes: '' }), false)
+  assert.equal(reposActif({ type: null, minutes: '30' }), false)
 })

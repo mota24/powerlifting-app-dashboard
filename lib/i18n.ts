@@ -286,6 +286,7 @@ const fr = {
   pts: 'pts',
   critere8000: 'Jours à 8 000 pas',
   critereEau: "Jours à 2 L d'eau",
+  critereReposActif: 'Repos actifs',
   critereSeances: 'Séances validées',
   critereObjectif: 'Semaines à 3 séances',
   critereObjectifSemaine: 'Objectif de la semaine',
@@ -296,6 +297,7 @@ const fr = {
   reglesTitre: 'Comment gagner des points',
   regle8000: '8 000 pas ou plus dans la journée : +10 par jour',
   regleEau: "2 L d'eau ou plus dans la journée : +10 par jour",
+  regleReposActif: 'Mobilité ou cardio un jour de repos validé (10 min) : +10 par jour',
   regleSeance: 'Séance validée le jour même : +20 par jour',
   regleObjectif: '3 séances validées dans une semaine : +30 par semaine',
   regleSerie: "Jours actifs d'affilée dans le mois : +5 par jour, jusqu'à +35",
@@ -481,6 +483,10 @@ const fr = {
   cardioRameur: 'Rameur',
   cardioElliptique: 'Elliptique',
   cardioMarche: 'Marche',
+  mobilite: 'Mobilité',
+  bougerRepos: 'Bouger un peu ?',
+  reposActifRegle: 'Mobilité ou cardio, {n} min minimum : +10 points au classement.',
+  reposActifCompte: 'Compte pour le classement : +10 points une fois le repos validé.',
 } as const
 
 export type CleTraduction = keyof typeof fr
@@ -741,6 +747,7 @@ const es: Record<CleTraduction, string> = {
   pts: 'pts',
   critere8000: 'Días con 8.000 pasos',
   critereEau: 'Días con 2 L de agua',
+  critereReposActif: 'Descansos activos',
   critereSeances: 'Sesiones validadas',
   critereObjectif: 'Semanas con 3 sesiones',
   critereObjectifSemaine: 'Objetivo de la semana',
@@ -751,6 +758,7 @@ const es: Record<CleTraduction, string> = {
   reglesTitre: 'Cómo ganar puntos',
   regle8000: '8.000 pasos o más en un día: +10 por día',
   regleEau: '2 L de agua o más en el día: +10 por día',
+  regleReposActif: 'Movilidad o cardio en un descanso validado (10 min): +10 por día',
   regleSeance: 'Sesión validada el mismo día: +20 por día',
   regleObjectif: '3 sesiones validadas en una semana: +30 por semana',
   regleSerie: 'Días activos seguidos en el mes: +5 por día, hasta +35',
@@ -928,6 +936,10 @@ const es: Record<CleTraduction, string> = {
   cardioRameur: 'Remo',
   cardioElliptique: 'Elíptica',
   cardioMarche: 'Caminar',
+  mobilite: 'Movilidad',
+  bougerRepos: '¿Moverte un poco?',
+  reposActifRegle: 'Movilidad o cardio, {n} min mínimo: +10 puntos en la clasificación.',
+  reposActifCompte: 'Cuenta para la clasificación: +10 puntos al validar el descanso.',
 }
 
 const DICTIONNAIRES: Record<Langue, Record<CleTraduction, string>> = { fr, es }

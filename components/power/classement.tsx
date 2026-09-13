@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Footprints, Dumbbell, Droplets, Target, Flame, RefreshCw } from 'lucide-react'
+import { Footprints, Dumbbell, Droplets, HeartPulse, Target, Flame, RefreshCw } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
 import { useT, useLocale } from '@/app/ThemeContext'
@@ -131,6 +131,7 @@ export function Classement() {
             [Footprints, t('regle8000')],
             [Droplets, t('regleEau')],
             [Dumbbell, t('regleSeance')],
+            [HeartPulse, t('regleReposActif')],
             [Target, t('regleObjectif')],
             [Flame, t('regleSerie')],
           ] as const).map(([Icone, texte]) => (
@@ -154,6 +155,7 @@ function CarteJoueur({ ligne, premiers, surLeMois, t }: { ligne: LigneRangee; pr
     // Critère absent de la base tant que la migration de l'eau n'est pas lancée.
     ...(ligne.jours_eau === undefined ? [] : [{ icone: Droplets, libelle: t('critereEau'), valeur: String(ligne.jours_eau), points: ligne.pts_eau ?? 0 }]),
     { icone: Dumbbell, libelle: t('critereSeances'), valeur: String(ligne.seances), points: ligne.pts_seances },
+    ...(ligne.jours_repos === undefined ? [] : [{ icone: HeartPulse, libelle: t('critereReposActif'), valeur: String(ligne.jours_repos), points: ligne.pts_repos ?? 0 }]),
     { icone: Target, libelle: t(surLeMois ? 'critereObjectif' : 'critereObjectifSemaine'), valeur: `${ligne.objectif_fait}/${ligne.objectif_semaines}`, points: ligne.pts_objectif },
     { icone: Flame, libelle: t(surLeMois ? 'critereSerie' : 'critereSerieSemaine'), valeur: t('joursCourt', { n: ligne.serie }), points: ligne.pts_serie },
   ]

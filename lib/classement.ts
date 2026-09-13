@@ -15,9 +15,11 @@ export interface LigneClassement {
   pts_serie: number
   jours_8000: number
   seances: number
-  /** Absents tant que la migration de l'eau n'est pas lancée : le critère est alors masqué. */
+  /** Absents tant que la migration correspondante n'est pas lancée : le critère est alors masqué. */
   pts_eau?: number
   jours_eau?: number
+  pts_repos?: number
+  jours_repos?: number
   /** Semaines du mois où l'objectif de 3 séances est atteint, sur les semaines comptées. */
   objectif_fait: number
   objectif_semaines: number

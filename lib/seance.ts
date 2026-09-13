@@ -26,6 +26,29 @@ export function minutesCardio(series: SetData[]): number {
   }, 0)
 }
 
+/**
+ * Jour de repos actif : mobilité ou cardio léger. Rangé dans la ligne
+ * « Jour de Repos », au même format que le cardio d'une séance — le type dans
+ * `weight`, les minutes dans `reps`.
+ */
+export const ACTIVITES_REPOS: CleTraduction[] = ['mobilite', ...CARDIOS]
+export const MINUTES_REPOS_MINI = 10
+
+export interface ActiviteRepos { type: CleTraduction | null; minutes: string }
+export const activiteReposVide = (): ActiviteRepos => ({ type: null, minutes: '' })
+
+export function lireActiviteRepos(tracking: SetData[] | null | undefined): ActiviteRepos {
+  const ligne = (tracking ?? []).find((s) => ACTIVITES_REPOS.includes(String(s?.weight ?? '') as CleTraduction))
+  return ligne ? { type: String(ligne.weight) as CleTraduction, minutes: String(ligne.reps ?? '') } : activiteReposVide()
+}
+
+export const ecrireActiviteRepos = (activite: ActiviteRepos): SetData[] =>
+  activite.type ? [{ reps: activite.minutes, weight: activite.type, rpe: '' }] : []
+
+/** Assez long pour compter au classement. */
+export const reposActif = (activite: ActiviteRepos) =>
+  activite.type !== null && safeInt(activite.minutes) >= MINUTES_REPOS_MINI
+
 /** Série ajoutée au plan : reprise de la dernière si elle est déjà remplie. */
 export function serieSuivante(series: SetData[]): SetData {
   const derniere = series[series.length - 1]
