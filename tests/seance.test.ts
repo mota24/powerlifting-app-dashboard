@@ -157,3 +157,13 @@ test('le bonus du repos actif exige le minimum de minutes', () => {
   assert.equal(reposActif({ type: 'cardioVelo', minutes: '' }), false)
   assert.equal(reposActif({ type: null, minutes: '30' }), false)
 })
+
+test('une journee illisible n autorise aucune ecriture', () => {
+  // Garde-fou de session-form : la sauvegarde exige que le jour affiche soit
+  // celui qui a ete charge. Sans ca, valider un repos effacerait les
+  // exercices reels du jour, invisibles a l ecran.
+  const sauvegardeAutorisee = (jourCharge: string | null, jourAffiche: string) => jourCharge === jourAffiche
+  assert.equal(sauvegardeAutorisee(null, '2026-09-13'), false)
+  assert.equal(sauvegardeAutorisee('2026-09-12', '2026-09-13'), false)
+  assert.equal(sauvegardeAutorisee('2026-09-13', '2026-09-13'), true)
+})

@@ -19,6 +19,9 @@ function jourMois(dateStr: string): string { const [, m, d] = dateStr.split('-')
 export function LiftProgressChart({ onSelectSession }: { onSelectSession?: (date: string) => void }) {
   const [rows, setRows] = useState<ChartRow[]>([])
   const [loading, setLoading] = useState(true)
+  // Une lecture qui échoue n'est pas un historique vide : le dire.
+  const [erreur, setErreur] = useState(false)
+  const [version, setVersion] = useState(0)
   const { mode } = useTheme()
   const t = useT()
   const locale = useLocale()
@@ -32,12 +35,12 @@ export function LiftProgressChart({ onSelectSession }: { onSelectSession?: (date
       const since = new Date(); since.setMonth(since.getMonth() - 6)
       // .lte('date', aujourd'hui) : la propagation de bloc pré-remplit les 4
       // semaines à venir, mais ces séances n'ont pas encore eu lieu.
-      const { data } = await supabase.from('workout_sets').select('date, exercise_name, tracking_data, pain_level').gte('date', toLocalDateStr(since)).lte('date', toLocalDateStr(new Date())).order('date', { ascending: true })
-      if (!cancelled) { setRows((data ?? []) as ChartRow[]); setLoading(false) }
+      const { data, error } = await supabase.from('workout_sets').select('date, exercise_name, tracking_data, pain_level').gte('date', toLocalDateStr(since)).lte('date', toLocalDateStr(new Date())).order('date', { ascending: true })
+      if (!cancelled) { setErreur(Boolean(error)); setRows((data ?? []) as ChartRow[]); setLoading(false) }
     }
     fetchData()
     return () => { cancelled = true }
-  }, [])
+  }, [version])
 
   const points: Point[] = useMemo(() => {
     // Une entrée par séance (ou par semaine) : plusieurs lignes workout_sets
@@ -132,7 +135,11 @@ export function LiftProgressChart({ onSelectSession }: { onSelectSession?: (date
 
       {points.length === 0 ? (
         <div className="h-[300px] flex items-center justify-center text-[10px] uppercase tracking-widest font-bold text-zinc-600">
-          {t('aucuneSeance')}
+          {erreur ? (
+            <button onClick={() => { setErreur(false); setLoading(true); setVersion((v) => v + 1) }} className="underline">
+              {t('erreurChargement')} — {t('reessayer')}
+            </button>
+          ) : t('aucuneSeance')}
         </div>
       ) : (
         <>

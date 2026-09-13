@@ -23,11 +23,15 @@ export function BodyweightTracker() {
   const [loading, setLoading] = useState(true)
   const [envoi, setEnvoi] = useState(false)
   const [version, setVersion] = useState(0)
+  const [erreur, setErreur] = useState(false)
 
   useEffect(() => {
     let cancelled = false
     supabase.from('bodyweight_logs').select('id, date, weight').order('date', { ascending: true }).then(({ data, error }) => {
       if (cancelled) return
+      // Distinguer la panne du vide : « saisis ton premier poids » sur une
+      // erreur de lecture ferait croire que l'historique a disparu.
+      setErreur(Boolean(error))
       if (error) toast(t('erreurChargement'), 'error')
       else setLogs((data ?? []) as BodyweightLog[])
       setLoading(false)
@@ -99,7 +103,12 @@ export function BodyweightTracker() {
             </ResponsiveContainer>
           </div>
         )}
-        {!loading && logs.length === 0 && (
+        {!loading && erreur && (
+          <button onClick={() => setVersion((v) => v + 1)} className="mt-4 text-sm font-bold text-foreground underline">
+            {t('erreurChargement')} — {t('reessayer')}
+          </button>
+        )}
+        {!loading && !erreur && logs.length === 0 && (
           <p className="text-sm text-muted-foreground mt-4">{t('aucunHistoriquePoids')}</p>
         )}
       </div>

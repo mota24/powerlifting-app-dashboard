@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { supabase } from '@/lib/supabase'
+import { supabase, EVENEMENT_SESSION_PERDUE } from '@/lib/supabase'
 import { Header } from '@/components/power/header'
 import { WeekCalendar } from '@/components/power/week-calendar'
 import SessionForm from '@/components/power/session-form'
@@ -178,6 +178,26 @@ export default function Page() {
     void charger()
     return () => { annule = true }
   }, [tentative])
+
+  // Une requête à la base refusée pour cause de session morte : on revérifie
+  // auprès du serveur avant de conclure. Sans ça, tous les écrans afficheraient
+  // « aucune donnée » alors que la base est pleine — et on croirait tout perdu.
+  useEffect(() => {
+    if (!session) return
+    let annule = false
+    let enCours = false
+    const verifier = async () => {
+      if (enCours) return
+      enCours = true
+      const resultat = await lireSession()
+      enCours = false
+      if (annule || resultat.statut !== 'deconnecte') return
+      setSession(null)
+      toast(t('sessionPerdue'), 'error')
+    }
+    window.addEventListener(EVENEMENT_SESSION_PERDUE, verifier)
+    return () => { annule = true; window.removeEventListener(EVENEMENT_SESSION_PERDUE, verifier) }
+  }, [session, t])
 
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {})

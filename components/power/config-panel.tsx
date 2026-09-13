@@ -26,12 +26,16 @@ export default function ConfigPanel() {
   const [nextCompetition, setNextCompetition] = useState<UpcomingCompetition | null>(null)
 
   const [version, setVersion] = useState(0)
+  // Liste illisible : ne pas la faire passer pour vide, et ne pas creer de
+  // bloc par-dessus ceux qu'on n'a pas pu lire (le numero repartirait a 1).
+  const [erreur, setErreur] = useState(false)
   const recharger = () => { setLoading(true); setVersion((v) => v + 1) }
 
   useEffect(() => {
     let cancelled = false
     supabase.from('training_blocks').select('*').order('block_number', { ascending: true }).then(({ data, error }) => {
       if (cancelled) return
+      setErreur(Boolean(error))
       if (error) toast(t('erreurChargement'), 'error')
       else setBlocks((data ?? []) as TrainingBlock[])
       setLoading(false)
@@ -56,6 +60,7 @@ export default function ConfigPanel() {
   }, [])
 
   const ajouterBloc = async () => {
+    if (erreur) { toast(t('erreurChargement'), 'error'); return }
     const nextNumber = blocks.length > 0 ? Math.max(...blocks.map(b => b.block_number)) + 1 : 1
     const { data, error } = await supabase.from('training_blocks').insert([{ block_number: nextNumber, start_date: toLocalDateStr(new Date()), duration_weeks: 4, name: t('nouveauBloc') }]).select()
     if (error || !data?.[0]) { toast(t('erreur'), 'error'); return }
@@ -193,6 +198,11 @@ export default function ConfigPanel() {
       </div>
 
       <div className="space-y-4">
+        {erreur && (
+          <button onClick={recharger} className="w-full rounded-2xl border border-zinc-800 bg-zinc-950 py-6 text-[10px] font-bold uppercase tracking-widest text-zinc-400 underline">
+            {t('erreurChargement')} — {t('reessayer')}
+          </button>
+        )}
         {blocks.map((block) => (
           <div key={block.id} className="p-6 rounded-2xl border border-zinc-900 bg-zinc-950 flex flex-col xl:flex-row gap-6 items-start xl:items-center justify-between">
             

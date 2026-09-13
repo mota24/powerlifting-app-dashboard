@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
-import { Activity, Award, Check, Coffee, Copy, Dumbbell, Plus, RefreshCw, Sparkles, Trash2, Trophy } from 'lucide-react'
+import { Activity, AlertTriangle, Award, Check, Coffee, Copy, Dumbbell, Plus, RefreshCw, Sparkles, Trash2, Trophy } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
 import { toast } from '@/components/power/toaster'
@@ -61,6 +61,9 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
   const [historiqueExercices, setHistoriqueExercices] = useState<{ date: string; parExercice: Map<string, SeanceExercice> } | null>(null)
   // Mobilité ou cardio d'un jour de repos, rangée dans la ligne « Jour de Repos ».
   const [activiteRepos, setActiviteRepos] = useState<ActiviteRepos>(activiteReposVide)
+  // Journée illisible : l'écran vide ne veut pas dire que la base l'est.
+  const [chargementEchoue, setChargementEchoue] = useState(false)
+  const [rechargement, setRechargement] = useState(0)
 
   const dateFormatee = toLocalDateStr(dateActive)
   const jourSemaine = dateActive.getDay()
@@ -87,7 +90,7 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
   const [pasRecus, setPasRecus] = useState(pasDuJour)
   if (pasDuJour !== pasRecus) { setPasRecus(pasDuJour); if (pasDuJour !== null) setPas(pasDuJour) }
 
-  useEffect(() => { let cancelled = false; loadedDateRef.current = null; empreinteEnregistreeRef.current = null; idsCreesRef.current.clear(); const chargerSeance = async () => { const { data, error } = await supabase.from('workout_sets').select('*').eq('date', dateFormatee).order('order_index', { ascending: true }); if (cancelled) return; if (error) { toast(t('erreurChargement'), 'error'); return } const rows = (data ?? []) as WorkoutSetRow[]; if (rows.length > 0) { const isExplicitRest = rows.some((item) => REST_NAMES.includes(item.exercise_name ?? '')); const vraisExercices = rows.filter((item) => !REST_NAMES.includes(item.exercise_name ?? '')); if (isExplicitRest && vraisExercices.length === 0) setIsRestDayMode(true); else if (vraisExercices.length > 0) setIsRestDayMode(false); else setIsRestDayMode(jourSemaine === 0 || jourSemaine === 5); if (vraisExercices.length > 0) { setExercices(vraisExercices.map((item) => { const fallbackCoach: SetData[] = item.coach_reps ? [{ reps: String(item.coach_reps), weight: item.coach_weight != null ? String(item.coach_weight) : '', rpe: item.coach_rpe != null ? String(item.coach_rpe) : '' }] : [videSet()]; const coachTracking = item.coach_tracking_data ?? fallbackCoach; const tracking = [...(item.tracking_data ?? [videSet()])]; while (tracking.length < coachTracking.length) tracking.push(videSet()); if (tracking.length === 0) tracking.push(videSet()); return { id: item.id, uid: crypto.randomUUID(), name: item.exercise_name ?? '', coachTracking, tracking, comments: item.comments ?? '', painLevel: item.pain_level ?? null, } })) } else { setExercices([creerExerciceVierge()]) } const ligneRepos = rows.find((item) => REST_NAMES.includes(item.exercise_name ?? '')); setActiviteRepos(lireActiviteRepos(ligneRepos?.tracking_data)); const derniereLigne = rows[rows.length - 1]; setFatigue(derniereLigne.fatigue_score ?? 5); setSommeil(derniereLigne.sleep_hours ?? 8); setPas(pasDuJourRef.current ?? derniereLigne.steps_count ?? 0) } else { setIsRestDayMode(jourSemaine === 0 || jourSemaine === 5); setExercices([creerExerciceVierge()]); setActiviteRepos(activiteReposVide()); setFatigue(5); setSommeil(8); setPas(pasDuJourRef.current ?? 0) } loadedDateRef.current = dateFormatee; setChargements((n) => n + 1) }; chargerSeance(); return () => { cancelled = true } }, [dateFormatee, jourSemaine, setIsRestDayMode, t])
+  useEffect(() => { let cancelled = false; loadedDateRef.current = null; empreinteEnregistreeRef.current = null; idsCreesRef.current.clear(); const chargerSeance = async () => { const { data, error } = await supabase.from('workout_sets').select('*').eq('date', dateFormatee).order('order_index', { ascending: true }); if (cancelled) return; if (error) { toast(t('erreurChargement'), 'error'); setChargementEchoue(true); return } setChargementEchoue(false); const rows = (data ?? []) as WorkoutSetRow[]; if (rows.length > 0) { const isExplicitRest = rows.some((item) => REST_NAMES.includes(item.exercise_name ?? '')); const vraisExercices = rows.filter((item) => !REST_NAMES.includes(item.exercise_name ?? '')); if (isExplicitRest && vraisExercices.length === 0) setIsRestDayMode(true); else if (vraisExercices.length > 0) setIsRestDayMode(false); else setIsRestDayMode(jourSemaine === 0 || jourSemaine === 5); if (vraisExercices.length > 0) { setExercices(vraisExercices.map((item) => { const fallbackCoach: SetData[] = item.coach_reps ? [{ reps: String(item.coach_reps), weight: item.coach_weight != null ? String(item.coach_weight) : '', rpe: item.coach_rpe != null ? String(item.coach_rpe) : '' }] : [videSet()]; const coachTracking = item.coach_tracking_data ?? fallbackCoach; const tracking = [...(item.tracking_data ?? [videSet()])]; while (tracking.length < coachTracking.length) tracking.push(videSet()); if (tracking.length === 0) tracking.push(videSet()); return { id: item.id, uid: crypto.randomUUID(), name: item.exercise_name ?? '', coachTracking, tracking, comments: item.comments ?? '', painLevel: item.pain_level ?? null, } })) } else { setExercices([creerExerciceVierge()]) } const ligneRepos = rows.find((item) => REST_NAMES.includes(item.exercise_name ?? '')); setActiviteRepos(lireActiviteRepos(ligneRepos?.tracking_data)); const derniereLigne = rows[rows.length - 1]; setFatigue(derniereLigne.fatigue_score ?? 5); setSommeil(derniereLigne.sleep_hours ?? 8); setPas(pasDuJourRef.current ?? derniereLigne.steps_count ?? 0) } else { setIsRestDayMode(jourSemaine === 0 || jourSemaine === 5); setExercices([creerExerciceVierge()]); setActiviteRepos(activiteReposVide()); setFatigue(5); setSommeil(8); setPas(pasDuJourRef.current ?? 0) } loadedDateRef.current = dateFormatee; setChargements((n) => n + 1) }; chargerSeance(); return () => { cancelled = true } }, [dateFormatee, jourSemaine, rechargement, setIsRestDayMode, t])
   useEffect(() => { let cancelled = false; const fetchSemainePrec = async () => { const d = parseLocalDate(dateFormatee); d.setDate(d.getDate() - 7); const { data } = await supabase.from('workout_sets').select('tracking_data').eq('date', toLocalDateStr(d)); if (cancelled) return; const total = (data ?? []).reduce((sum, row) => sum + setsTonnage(row.tracking_data as SetData[] | null), 0); setTonnageSemainePrec(total > 0 ? Math.round(total) : null) }; fetchSemainePrec(); return () => { cancelled = true } }, [dateFormatee])
   // Progression suggérée (muscu) : pour chaque exercice, la dernière séance des 60 jours précédents où il avait un plan.
   useEffect(() => {
@@ -111,7 +114,16 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
   const handleToggleMode = () => { if (!isRestDayMode && exercices.length > 0 && exercices[0].name !== '') { if (!confirm(t('effacerPourRepos'))) return } setIsRestDayMode(!isRestDayMode) }
   const ecrireSeance = async (dateStr: string): Promise<boolean> => { if (typeof navigator !== 'undefined' && !navigator.onLine) return false; if (isRestDayMode) { const payload = { date: dateStr, exercise_name: 'Jour de Repos', fatigue_score: fatigue, sleep_hours: sommeil, steps_count: pas, tracking_data: ecrireActiviteRepos(activiteRepos) }; const del = await supabase.from('workout_sets').delete().eq('date', dateStr).neq('exercise_name', 'Jour de Repos'); if (del.error) return false; const { data, error: selError } = await supabase.from('workout_sets').select('id').eq('date', dateStr).limit(1); if (selError) return false; if (data && data.length > 0) { const { error } = await supabase.from('workout_sets').update(payload).eq('id', data[0].id); return !error } const { error } = await supabase.from('workout_sets').insert([payload]); return !error } const delRest = await supabase.from('workout_sets').delete().eq('date', dateStr).in('exercise_name', REST_NAMES); if (delRest.error) return false; const snapshot = exercices.filter((ex) => ex.id || idsCreesRef.current.has(ex.uid) || !exerciceVide(ex)); type SaveResult = { data: { id: string } | null; error: { message: string } | null }; const sauver = async (includePain: boolean): Promise<SaveResult[]> => { const buildPayload = (ex: ExerciceRow, index: number) => { const payload: Record<string, unknown> = { date: dateStr, exercise_name: ex.name || t('exerciceSansNom'), coach_tracking_data: ex.coachTracking, tracking_data: ex.tracking, comments: ex.comments || null, fatigue_score: fatigue, sleep_hours: sommeil, steps_count: pas, order_index: index, }; if (includePain) payload.pain_level = ex.painLevel; return payload }; return Promise.all(snapshot.map(async (ex, index): Promise<SaveResult> => { const id = ex.id ?? idsCreesRef.current.get(ex.uid); if (id) { const { error } = await supabase.from('workout_sets').update(buildPayload(ex, index)).eq('id', id); return { data: null, error } } const { data, error } = await supabase.from('workout_sets').insert([buildPayload(ex, index)]).select('id').single(); return { data: data as { id: string } | null, error } })) }; let results = await sauver(painColumnOk.current); if (painColumnOk.current && results.some((r) => r.error?.message?.includes('pain_level'))) { painColumnOk.current = false; results = await sauver(false) } const idByUid = new Map<string, string>(); snapshot.forEach((ex, i) => { const r = results[i]; if (!ex.id && r?.data?.id) { idByUid.set(ex.uid, r.data.id); idsCreesRef.current.set(ex.uid, r.data.id) } }); if (idByUid.size > 0) { setExercices((prev) => prev.map((ex) => { const newId = idByUid.get(ex.uid); return newId ? { ...ex, id: newId } : ex })) } return results.every((r) => !r.error) }
   // Une écriture à la fois : sur un réseau lent, deux sauvegardes simultanées créaient l'exercice en double.
-  const executerSauvegarde = (dateStr: string): Promise<boolean> => { const tache = fileSauvegardeRef.current.then(() => ecrireSeance(dateStr)).catch(() => false); fileSauvegardeRef.current = tache; return tache }
+  const executerSauvegarde = (dateStr: string): Promise<boolean> => {
+    // Le jour n'a jamais pu être lu (serveur muet, session expirée) : l'écran
+    // paraît vide alors que la base ne l'est pas. Écrire maintenant effacerait
+    // des lignes qu'on n'a jamais vues — le mode repos supprime les exercices
+    // du jour. On refuse plutôt que de détruire.
+    if (loadedDateRef.current !== dateStr) return Promise.resolve(false)
+    const tache = fileSauvegardeRef.current.then(() => ecrireSeance(dateStr)).catch(() => false)
+    fileSauvegardeRef.current = tache
+    return tache
+  }
   const sauvegardeRef = useRef(executerSauvegarde); useEffect(() => { sauvegardeRef.current = executerSauvegarde })
   // Pas synchronisés (ou à zéro) exclus : à eux seuls, ils ne justifient pas d'écrire une séance.
   const empreinte = useMemo(() => JSON.stringify([isRestDayMode, fatigue, sommeil, pas === 0 || pas === pasDuJour ? null : pas, activiteRepos, exercices.map(({ name, coachTracking, tracking, comments, painLevel }) => [name, coachTracking, tracking, comments, painLevel])]), [isRestDayMode, fatigue, sommeil, pas, pasDuJour, activiteRepos, exercices])
@@ -359,6 +371,19 @@ export default function SessionForm({ dateActive, isRestDayMode, setIsRestDayMod
           </button>
         </div>
       </div>
+
+      {chargementEchoue && (
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-destructive bg-card p-4">
+          <AlertTriangle className="size-5 shrink-0 text-destructive" aria-hidden />
+          <p className="min-w-0 flex-1 text-sm font-bold text-foreground">{t('journeeNonChargee')}</p>
+          <button
+            onClick={() => setRechargement((n) => n + 1)}
+            className="h-10 shrink-0 rounded-xl border border-border px-4 text-[10px] font-black uppercase tracking-widest text-foreground hover:bg-secondary"
+          >
+            {t('reessayer')}
+          </button>
+        </div>
+      )}
 
       {isRestDayMode ? (
         <div className="space-y-6 animate-in fade-in">

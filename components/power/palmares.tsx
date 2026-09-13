@@ -41,6 +41,7 @@ export function Palmares({ initialEditId, onInitialEditConsumed }: PalmaresProps
   const [vue, setVue] = useState<VueMode>('cartes')
 
   const [version, setVersion] = useState(0)
+  const [erreur, setErreur] = useState(false)
   const recharger = () => setVersion((v) => v + 1)
   // Ouverture automatique depuis l'écran Jour J : une seule fois, au premier chargement.
   const editionInitiale = useRef({ id: initialEditId, consommer: onInitialEditConsumed })
@@ -50,6 +51,8 @@ export function Palmares({ initialEditId, onInitialEditConsumed }: PalmaresProps
     supabase.from('competitions').select('*').order('date', { ascending: false }).then(({ data, error }) => {
       if (cancelled) return
       setLoading(false)
+      // Une panne de lecture ne doit pas se lire « aucune compétition ».
+      setErreur(Boolean(error))
       if (error) {
         toast(t('erreurChargementPalmares'), 'error')
         return
@@ -251,6 +254,10 @@ export function Palmares({ initialEditId, onInitialEditConsumed }: PalmaresProps
         <div className="flex items-center justify-center p-12 text-zinc-600">
           <Loader2 className="size-5 animate-spin" />
         </div>
+      ) : erreur ? (
+        <button onClick={recharger} className="w-full py-12 text-center text-[10px] font-bold uppercase tracking-widest text-zinc-400 underline">
+          {t('erreurChargementPalmares')} — {t('reessayer')}
+        </button>
       ) : competitions.length === 0 ? (
         <p className="text-center text-[10px] font-bold uppercase tracking-widest text-zinc-600 py-12">
           {t('aucuneCompetition')}
