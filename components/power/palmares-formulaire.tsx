@@ -1,9 +1,9 @@
 'use client'
 
 import { Camera, Loader2, X } from 'lucide-react'
-import { COUNTRIES, countryCodeToFlag } from '@/lib/countries'
+import { countryCodeToFlag, paysTries } from '@/lib/countries'
 import { LIFTS, NIVEAUX, bestValid, num, type FormState, type LiftKey } from '@/lib/palmares'
-import { useT } from '@/app/ThemeContext'
+import { useLocale, useT } from '@/app/ThemeContext'
 
 // ————————————————————————————————————————————————
 // Formulaire d'ajout / édition
@@ -29,6 +29,7 @@ export function CompetitionForm({
   onCancel: () => void
 }) {
   const t = useT()
+  const locale = useLocale()
   const inputClass =
     'w-full bg-zinc-900 rounded-lg p-3 text-white text-sm font-bold outline-none focus:ring-1 focus:ring-white placeholder:text-zinc-700'
   const numClass = `${inputClass} font-mono tabular-nums text-center`
@@ -109,9 +110,9 @@ export function CompetitionForm({
             className={`${inputClass} [color-scheme:dark]`}
           >
             <option value="">{t('aucunPays')}</option>
-            {COUNTRIES.map((pays) => (
+            {paysTries(locale).map((pays) => (
               <option key={pays.code} value={pays.code}>
-                {countryCodeToFlag(pays.code)} {pays.name}
+                {countryCodeToFlag(pays.code)} {pays.nom}
               </option>
             ))}
           </select>

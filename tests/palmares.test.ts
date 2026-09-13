@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { attemptsOf, bestLift, bestValid, formatKg, glOf, num, safeHttpUrl, totalOf, type Competition } from '../lib/palmares'
+import { countryName, paysTries } from '../lib/countries'
 
 const competition = (champs: Partial<Competition> = {}): Competition => ({
   id: 'c1', name: 'Championnat', date: '2026-05-10', category: null, level: null, country_code: 'ES',
@@ -60,4 +61,17 @@ test('un champ numerique accepte la virgule et refuse le reste', () => {
 test('un poids s affiche sans decimale inutile', () => {
   assert.equal(formatKg(295), '295')
   assert.equal(formatKg(167.5), '167,5')
+})
+
+test('les pays prennent la langue du profil', () => {
+  assert.equal(countryName('ES', 'es-ES'), 'España')
+  assert.equal(countryName('ES', 'fr-FR'), 'Espagne')
+  assert.equal(countryName('FR', 'es-ES'), 'Francia')
+  // Sans locale, la liste de secours en francais fait foi.
+  assert.equal(countryName('DE'), 'Allemagne')
+  assert.equal(countryName(null, 'es-ES'), null)
+  // Le menu est trie dans la langue affichee.
+  const es = paysTries('es-ES').map((p) => p.nom)
+  assert.deepEqual([...es].sort((a, b) => a.localeCompare(b, 'es-ES')), es)
+  assert.ok(es.includes('Alemania'))
 })

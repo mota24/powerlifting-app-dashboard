@@ -16,12 +16,13 @@ import { formatKg, type Attempt } from '@/lib/palmares'
  */
 export function CountryFlag({ code }: { code: string | null }) {
   const t = useT()
+  const locale = useLocale()
   const flag = countryCodeToFlag(code)
   if (!flag) return null
   return (
     <span
       role="img"
-      aria-label={countryName(code) ?? t('pays')}
+      aria-label={countryName(code, locale) ?? t('pays')}
       className="shrink-0 text-[13px] leading-none tracking-normal"
     >
       {flag}

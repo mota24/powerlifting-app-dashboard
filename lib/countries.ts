@@ -17,10 +17,30 @@ export function countryCodeToFlag(code: string | null | undefined): string {
 }
 
 /** Nom du pays — pour l'accessibilité et la saisie, jamais affiché sur les cartes. */
-export function countryName(code: string | null | undefined): string | null {
+/**
+ * Nom du pays dans la langue du profil. Intl le connait deja : garder une
+ * traduction a la main dans chaque langue serait du travail en double, et le
+ * compte espagnol lisait jusqu'ici des noms francais.
+ */
+export function countryName(code: string | null | undefined, locale?: string): string | null {
   if (!code) return null
   const normalise = code.trim().toUpperCase()
-  return COUNTRIES.find((pays) => pays.code === normalise)?.name ?? null
+  const secours = COUNTRIES.find((pays) => pays.code === normalise)?.name ?? null
+  if (!locale) return secours
+  try {
+    const nom = new Intl.DisplayNames([locale], { type: 'region' }).of(normalise)
+    // Intl renvoie le code tel quel quand il ne connait pas la region.
+    return nom && nom !== normalise ? nom : secours
+  } catch {
+    return secours
+  }
+}
+
+/** Liste du menu deroulant, nommee et triee dans la langue du profil. */
+export function paysTries(locale: string): { code: string; nom: string }[] {
+  return COUNTRIES
+    .map((pays) => ({ code: pays.code, nom: countryName(pays.code, locale) ?? pays.name }))
+    .sort((a, b) => a.nom.localeCompare(b.nom, locale))
 }
 
 export const COUNTRIES: { code: string; name: string }[] = [
