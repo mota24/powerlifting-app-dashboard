@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { NextRequest } from 'next/server'
 import { compteDepuisEmail, emailDuCompte, emailDuJeton, origineAutorisee } from '../lib/server/auth-session'
 import { cheminProxyAutorise } from '../lib/server/proxy-db'
+import { jourDesPas, pasAEcrire } from '../lib/pas'
 
 // ————————————————————————————————————————————————
 // Identité du compte : liée à l'e-mail COMPLET
@@ -69,4 +70,27 @@ test('les chemins pieges sont refuses', () => {
   assert.equal(cheminProxyAutorise(['rest', 'v1', 'workout_sets', 'x']), null)
   assert.equal(cheminProxyAutorise(['auth', 'v1', 'user']), null)
   assert.equal(cheminProxyAutorise([]), null)
+})
+
+test('les pas se rangent aujourd hui ou hier, jamais ailleurs', () => {
+  const midi = new Date('2026-09-16T10:00:00Z')
+  assert.equal(jourDesPas(null, midi), '2026-09-16')
+  assert.equal(jourDesPas('hier', midi), '2026-09-15')
+  assert.equal(jourDesPas('2026-01-01', midi), null)
+  assert.equal(jourDesPas('avant-hier', midi), null)
+  // 23 h 30 a Paris = 21 h 30 UTC : c est toujours le 16.
+  assert.equal(jourDesPas(null, new Date('2026-09-16T21:30:00Z')), '2026-09-16')
+  // 0 h 30 a Paris le 17 : hier, c est bien le 16.
+  assert.equal(jourDesPas('hier', new Date('2026-09-16T22:30:00Z')), '2026-09-16')
+  // Lendemain du passage a l heure d hiver.
+  assert.equal(jourDesPas('hier', new Date('2026-10-26T08:00:00Z')), '2026-10-25')
+})
+
+test('un envoi plus bas n efface jamais les pas deja enregistres', () => {
+  assert.equal(pasAEcrire(null, 0), 0)
+  assert.equal(pasAEcrire(null, 9500), 9500)
+  assert.equal(pasAEcrire(9500, 12000), 12000)
+  // iPhone verrouille : Sante renvoie 0, le vrai total reste.
+  assert.equal(pasAEcrire(9500, 0), null)
+  assert.equal(pasAEcrire(9500, 9500), null)
 })

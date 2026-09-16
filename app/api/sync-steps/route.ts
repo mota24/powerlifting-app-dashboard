@@ -1,6 +1,7 @@
 import { timingSafeEqual } from 'node:crypto'
 import { NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase-admin'
+import { jourDesPas, pasAEcrire } from '@/lib/pas'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,8 +33,10 @@ function comptePourJeton(jeton: string): string | null {
 
 /**
  * Synchronisation des pas depuis l'iPhone (raccourci Apple Shortcuts).
- * Idempotente : un seul enregistrement par (compte, jour), toujours la dernière valeur.
- * Le raccourci peut donc être déclenché plusieurs fois par jour sans doublon.
+ * Idempotente : un seul enregistrement par (compte, jour), qui ne peut que monter.
+ * Le raccourci peut donc être déclenché plusieurs fois par jour sans doublon, et un
+ * envoi automatique fait téléphone verrouillé (lecture Santé incomplète) n'efface rien.
+ * ?jour=hier : rattrapage du matin pour la journée précédente.
  */
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
@@ -60,13 +63,26 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'Identifiant non autorisé' }, { status: 403 })
   }
 
-  // Date du jour au fuseau français ('en-CA' produit nativement YYYY-MM-DD)
-  const dateFrancaise = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Paris' })
+  const dateFrancaise = jourDesPas(searchParams.get('jour'))
+  if (!dateFrancaise) {
+    return NextResponse.json({ error: 'Paramètre jour invalide (hier ou rien)' }, { status: 400 })
+  }
 
   try {
-    const { error } = await getSupabaseAdmin()
+    const admin = getSupabaseAdmin()
+    const { data: existant, error: erreurLecture } = await admin
+      .from('seances_pas').select('pas').eq('user_id', userId).eq('date', dateFrancaise).maybeSingle()
+    if (erreurLecture) {
+      console.error('sync-steps : lecture refusée', erreurLecture.code)
+      return NextResponse.json({ error: 'Lecture impossible' }, { status: 500 })
+    }
+    const aEcrire = pasAEcrire(existant ? Number(existant.pas) : null, steps)
+    if (aEcrire === null) {
+      return NextResponse.json({ success: true, date_enregistree: dateFrancaise, pas_enregistres: Number(existant?.pas), inchange: true })
+    }
+    const { error } = await admin
       .from('seances_pas')
-      .upsert({ user_id: userId, date: dateFrancaise, pas: steps }, { onConflict: 'user_id,date' })
+      .upsert({ user_id: userId, date: dateFrancaise, pas: aEcrire }, { onConflict: 'user_id,date' })
     if (error) {
       // Détail gardé dans les journaux serveur : jamais renvoyé au téléphone.
       console.error('sync-steps : écriture refusée', error.code)
