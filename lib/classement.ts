@@ -20,6 +20,8 @@ export interface LigneClassement {
   jours_eau?: number
   pts_repos?: number
   jours_repos?: number
+  pts_record?: number
+  jours_record?: number
   /** Semaines du mois où l'objectif de 3 séances est atteint, sur les semaines comptées. */
   objectif_fait: number
   objectif_semaines: number
