@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-import { calculateIPFGL, classifyLift, setE1RM, toLocalDateStr, CATEGORIES_PAR_MODE, type ModeApp, type SetData } from '@/lib/powerlifting'
+import { calculateIPFGL, classifyLift, setE1RM, toLocalDateStr, CATEGORIES_PAR_MODE, type LiftCategory, type ModeApp, type SetData } from '@/lib/powerlifting'
 import { Trophy, Edit2, Check, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from '@/components/power/toaster'
@@ -50,6 +50,9 @@ function StatsCardsMode({ mode }: { mode: ModeApp }) {
   const [realPrs, setRealPrs] = useState(() => lireRecords(mode))
   const [tempPrs, setTempPrs] = useState(realPrs)
   const [theoPrs, setTheoPrs] = useState(RECORDS_VIDES)
+  // Série qui a donné chaque estimation : en muscu, c'est elle qui parle
+  // (« d'après 10 × 120 kg »), pas un maximum jamais tenté.
+  const [sources, setSources] = useState<Partial<Record<LiftCategory, { reps: number; poids: number }>>>({})
   const [bodyweight, setBodyweight] = useState<number | null>(null)
 
   // Les records vivaient seulement dans ce navigateur : un stockage vidé et ils
@@ -88,15 +91,20 @@ function StatsCardsMode({ mode }: { mode: ModeApp }) {
     supabase.from('workout_sets').select('exercise_name, tracking_data').gte('date', toLocalDateStr(since)).not('tracking_data', 'is', null).then(({ data }) => {
       if (cancelled || !data) return
       const maxes = { ...RECORDS_VIDES }
+      const meilleures: Partial<Record<LiftCategory, { reps: number; poids: number }>> = {}
       for (const row of data as { exercise_name: string | null; tracking_data: SetData[] | null }[]) {
         const category = classifyLift(row.exercise_name, mode)
         if (!category || !row.tracking_data) continue
         for (const set of row.tracking_data) {
           const e1rm = setE1RM(set)
-          if (e1rm > maxes[category]) maxes[category] = e1rm
+          if (e1rm > maxes[category]) {
+            maxes[category] = e1rm
+            meilleures[category] = { reps: Math.max(...String(set.reps).split(/[\/+]/).map((r) => parseInt(r, 10)).filter((r) => r > 0)), poids: parseFloat(set.weight) }
+          }
         }
       }
       setTheoPrs({ squat: Math.round(maxes.squat), bench: Math.round(maxes.bench), deadlift: Math.round(maxes.deadlift) })
+      setSources(meilleures)
     })
     return () => { cancelled = true }
   }, [mode])
@@ -154,10 +162,16 @@ function StatsCardsMode({ mode }: { mode: ModeApp }) {
               {isEditing ? (
                 <input type="number" value={tempPrs[lift]} onChange={(e) => setTempPrs({ ...tempPrs, [lift]: parseInt(e.target.value) || 0 })} className="w-full bg-black p-3 rounded-lg border border-zinc-800 text-white font-black tabular-nums outline-none mb-1 text-lg" />
               ) : (
-                <div className="text-3xl font-black text-white tabular-nums mb-1">{reel}</div>
+                // En muscu, personne ne teste son 1RM : le chiffre suit les séances.
+                // En force, il reste la barre réellement soulevée, saisie à la main.
+                <div className="text-3xl font-black text-white tabular-nums mb-1">{estFitness ? (affiche || 0) : reel}</div>
               )}
               <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">
-                e1RM: <span className={cn(depasseLePr ? 'text-white' : 'text-zinc-600')}>{affiche > 0 ? affiche : '-'} kg</span>
+                {estFitness ? (
+                  depasseLePr && sources[lift] ? t('estimeDepuis', { reps: sources[lift].reps, poids: sources[lift].poids }) : t('recordSaisi')
+                ) : (
+                  <>e1RM: <span className={cn(depasseLePr ? 'text-white' : 'text-zinc-600')}>{affiche > 0 ? affiche : '-'} kg</span></>
+                )}
               </div>
             </div>
           )

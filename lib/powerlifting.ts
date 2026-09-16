@@ -243,6 +243,10 @@ export function suggestionsExercices(mode: ModeApp, jourSemaine: number): string
   }
 }
 
+/** Minuscules, sans accents, tirets et espaces multiples ramenés à un espace. */
+export const normaliserNomExercice = (nom: string) =>
+  nom.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim()
+
 /**
  * Classe un nom d'exercice libre dans une des trois catégories suivies.
  * En mode fitness, les trois catégories sont trois mouvements précis
@@ -253,12 +257,14 @@ export function suggestionsExercices(mode: ModeApp, jourSemaine: number): string
  */
 export function classifyLift(name: string | null | undefined, mode: ModeApp = 'powerlifting'): LiftCategory | null {
   if (!name) return null
-  const n = name.toLowerCase()
+  const n = normaliserNomExercice(name)
 
   if (mode === 'fitness') {
-    if (['rdl', 'romanès', 'romanes', 'rumano', 'roumain', 'romanian', 'jambes tendues', 'cames rígides', 'piernas rígidas'].some((k) => n.includes(k))) return 'deadlift'
-    if (['hip thrust', 'hip-thrust', 'hipthrust', 'empenta de maluc', 'empuje de cadera'].some((k) => n.includes(k))) return 'bench'
-    if (['squat', 'sentadilla', 'esquat'].some((k) => n.includes(k)) && !['split', 'bulgar', 'búlgar', 'bulgarian'].some((k) => n.includes(k))) return 'squat'
+    if (/\brdl\b/.test(n) || ['romanes', 'rumano', 'roumain', 'romanian', 'jambes tendues', 'cames rigides', 'piernas rigidas'].some((k) => n.includes(k))) return 'deadlift'
+    // Le nom est tapé au clavier du téléphone : « Hip trust », « hipthrust »,
+    // « hip thurst » désignent le même mouvement et doivent tous compter.
+    if (/hip ?t[hr]{1,3}u?r?st/.test(n) || ['empenta de maluc', 'empuje de cadera'].some((k) => n.includes(k))) return 'bench'
+    if (['squat', 'sentadilla', 'esquat'].some((k) => n.includes(k)) && !['split', 'bulgar', 'bulgarian'].some((k) => n.includes(k))) return 'squat'
     return null
   }
 

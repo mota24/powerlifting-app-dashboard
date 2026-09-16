@@ -207,3 +207,28 @@ test('un code-barres a 12 chiffres est aussi cherche avec son zero', () => {
   assert.deepEqual(variantesCode('0123456789012'), ['0123456789012', '123456789012'])
   assert.deepEqual(variantesCode('12345'), ['12345'])
 })
+
+test('les noms tapes au telephone sont reconnus malgre fautes et accents', () => {
+  // Cas reel : « Hip trust » avec un espace final n etait pas compte.
+  for (const nom of ['Hip trust ', 'Hip Thrust', 'hipthrust', 'HIP-THRUST', 'hip thurst', 'Empuje de cadera']) {
+    assert.equal(classifyLift(nom, 'fitness'), 'bench', nom)
+  }
+  for (const nom of ['Rdl', 'RDL', 'Peso muerto rumano', 'Piernas rígidas', 'piernas rigidas']) {
+    assert.equal(classifyLift(nom, 'fitness'), 'deadlift', nom)
+  }
+  assert.equal(classifyLift('Sentadilla', 'fitness'), 'squat')
+  assert.equal(classifyLift('Sentadilla búlgara', 'fitness'), null)
+  // Des exercices voisins ne gonflent pas les courbes suivies.
+  for (const nom of ['Step up', 'Hiperextensiones', 'Maq. Abductores', 'Puente de glúteo']) {
+    assert.equal(classifyLift(nom, 'fitness'), null, nom)
+  }
+  // Le mode force garde ses regles.
+  assert.equal(classifyLift('Bench board', 'powerlifting'), 'bench')
+  assert.equal(classifyLift('Back Squat', 'powerlifting'), 'squat')
+})
+
+test('une serie de muscu donne un 1RM estime exploitable', () => {
+  // 10 x 120 kg sans RPE : environ 160 kg.
+  assert.equal(Math.round(setE1RM({ reps: '10', weight: '120', rpe: '' })), 160)
+  assert.equal(Math.round(setE1RM({ reps: '10', weight: '60', rpe: '' })), 80)
+})
